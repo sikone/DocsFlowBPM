@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
 import { logActivity } from '@/lib/activity-log'
+import { comparePassword, isHashed, hashPassword } from '@/lib/password'
 
 export async function PUT(request: NextRequest) {
   try {
@@ -42,18 +43,23 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
     }
 
-    // Validate current password (plain text comparison as per existing auth pattern)
-    if (dbUser.password !== currentPassword) {
+    // Validate current password (support both plain text and hashed during migration)
+    const isValid = await (await isHashed(dbUser.password))
+      ? comparePassword(currentPassword, dbUser.password)
+      : Promise.resolve(dbUser.password === currentPassword)
+
+    if (!isValid) {
       return NextResponse.json(
         { error: 'Неверный текущий пароль' },
         { status: 400 }
       )
     }
 
-    // Update password
+    // Update password (always hash the new password)
+    const hashedNewPassword = await hashPassword(newPassword)
     await db.user.update({
       where: { id: user.id },
-      data: { password: newPassword },
+      data: { password: hashedNewPassword },
     })
 
     // Log activity

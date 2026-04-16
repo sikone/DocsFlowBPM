@@ -68,7 +68,7 @@ export interface Document {
 export type AppView =
   | { page: 'login' }
   | { page: 'dashboard'; folderId?: string }
-  | { page: 'new-document'; typeId: string; folderId?: string; title?: string }
+  | { page: 'new-document'; typeId: string; folderId?: string; title?: string; templateData?: string }
   | { page: 'edit-document'; documentId: string }
   | { page: 'admin' }
   | { page: 'admin-users' }

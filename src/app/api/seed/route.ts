@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { hashPassword } from '@/lib/password'
 
 // Form schemas for document types
 const INVOICE_FORM_SCHEMA = [
@@ -42,19 +43,21 @@ export async function POST() {
       { email: 'employee@bpmn.local', password: 'emp123', name: 'Сотрудник', role: 'USER' },
     ]
 
+    const adminHashedPassword = await hashPassword(usersData[0].password)
     const adminUser = await db.user.upsert({
       where: { email: usersData[0].email },
-      update: { name: usersData[0].name, role: usersData[0].role, password: usersData[0].password },
-      create: usersData[0],
+      update: { name: usersData[0].name, role: usersData[0].role, password: adminHashedPassword },
+      create: { ...usersData[0], password: adminHashedPassword },
     })
     results.push({ entity: 'User', action: `upsert ${adminUser.email}`, status: 'ok' })
 
     for (let i = 1; i < usersData.length; i++) {
       const ud = usersData[i]
+      const hashedPassword = await hashPassword(ud.password)
       const u = await db.user.upsert({
         where: { email: ud.email },
-        update: { name: ud.name, role: ud.role, password: ud.password },
-        create: ud,
+        update: { name: ud.name, role: ud.role, password: hashedPassword },
+        create: { ...ud, password: hashedPassword },
       })
       results.push({ entity: 'User', action: `upsert ${u.email}`, status: 'ok' })
     }

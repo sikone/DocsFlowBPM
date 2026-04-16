@@ -595,6 +595,7 @@ export default function DocumentFormView() {
         setLoadingLocal(true);
         const typeId = (view as { typeId: string }).typeId;
         const preTitle = (view as { title?: string }).title;
+        const templateData = (view as { templateData?: string }).templateData;
         const types: DocumentType[] = await apiFetch('/api/document-types', token);
         const type = types.find((t) => t.id === typeId);
         if (!type) {
@@ -619,6 +620,21 @@ export default function DocumentFormView() {
             defaults[f.id] = '';
           }
         });
+
+        // Merge template data on top of defaults
+        if (templateData) {
+          try {
+            const parsed = JSON.parse(templateData);
+            if (typeof parsed === 'object' && parsed !== null) {
+              Object.entries(parsed).forEach(([key, value]) => {
+                if (key in defaults) {
+                  defaults[key] = value as string | boolean;
+                }
+              });
+            }
+          } catch { /* invalid template data, ignore */ }
+        }
+
         setFormData(defaults);
         const initialTitle = preTitle || `${type.name} — новый`;
         setTitle(initialTitle);

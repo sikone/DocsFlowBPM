@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken, isAdmin } from '@/lib/auth'
+import { hashPassword } from '@/lib/password'
 
 export async function GET(request: NextRequest) {
   try {
@@ -81,11 +82,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const hashedPassword = await hashPassword(password)
+
     const newUser = await db.user.create({
       data: {
         name,
         email,
-        password,
+        password: hashedPassword,
         role: role || 'USER',
       },
       select: {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken, isAdmin } from '@/lib/auth'
+import { hashPassword } from '@/lib/password'
 
 export async function PUT(
   request: NextRequest,
@@ -35,7 +36,7 @@ export async function PUT(
     const updateData: Record<string, unknown> = {}
     if (name !== undefined) updateData.name = name
     if (email !== undefined) updateData.email = email
-    if (password !== undefined) updateData.password = password
+    if (password !== undefined) updateData.password = await hashPassword(password)
     if (role !== undefined) {
       const validRoles = ['ADMIN', 'ADVANCED', 'USER']
       if (!validRoles.includes(role)) {

@@ -18,14 +18,15 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  documents      Document[]
-  createdFolders Folder[]      @relation("FolderCreator")
-  sessions       Session[]
-  activityLogs   ActivityLog[]
-  comments       Comment[]
-  assignedTasks  Task[]        @relation("AssignedTasks")
-  createdTasks   Task[]        @relation("CreatedTasks")
-  templates      DocumentTemplate[]
+  documents          Document[]
+  createdFolders     Folder[]      @relation("FolderCreator")
+  sessions           Session[]
+  activityLogs       ActivityLog[]
+  comments           Comment[]
+  assignedTasks      Task[]        @relation("AssignedTasks")
+  createdTasks       Task[]        @relation("CreatedTasks")
+  templates          DocumentTemplate[]
+  favoriteDocuments  FavoriteDocument[]  @relation("UserFavorites")
 }
 
 model Folder {
@@ -94,9 +95,24 @@ model Document {
 
   type     DocumentType @relation(fields: [typeId], references: [id])
   folder   Folder?      @relation(fields: [folderId], references: [id])
-  creator  User         @relation(fields: [createdById], references: [id])
-  comments Comment[]
-  tasks    Task[]
+  creator     User               @relation(fields: [createdById], references: [id])
+  comments    Comment[]
+  tasks       Task[]
+  favoritedBy FavoriteDocument[]
+}
+
+model FavoriteDocument {
+  id         String   @id @default(cuid())
+  userId     String
+  documentId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation("UserFavorites", fields: [userId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, documentId])
+  @@index([userId])
+  @@index([documentId])
 }
 
 model Session {

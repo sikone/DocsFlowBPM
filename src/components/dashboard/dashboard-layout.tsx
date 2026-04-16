@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTheme } from 'next-themes';
 import { useStore } from '@/lib/store';
 import type { Folder, Document, DocumentType } from '@/lib/types';
@@ -57,6 +57,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import {
   Table,
   TableBody,
   TableCell,
@@ -87,6 +93,8 @@ import NotificationCenter from '@/components/notification-center';
 import DashboardAnalytics from '@/components/dashboard/dashboard-analytics';
 import StatsSummaryBar from '@/components/dashboard/stats-summary-bar';
 import KeyboardShortcutsDialog from '@/components/keyboard-shortcuts-dialog';
+import FavoritesPanel from '@/components/documents/favorites-panel';
+import WelcomeBanner from '@/components/dashboard/welcome-banner';
 import {
   FileText,
   FolderOpen,
@@ -127,6 +135,10 @@ import {
   ArrowRightLeft,
   Copy,
   Palette,
+  Database,
+  Zap,
+  Loader2,
+  Star,
 } from 'lucide-react';
 
 // ─── Theme Toggle Component ─────────────────────────────────────────
@@ -386,6 +398,27 @@ export default function DashboardLayout() {
   // ── Duplicating Document ───────────────────────────────────────────
   const [duplicatingDocId, setDuplicatingDocId] = useState<string | null>(null);
 
+  // ── Favorites State ────────────────────────────────────────────────
+  const [favoriteDocIds, setFavoriteDocIds] = useState<Set<string>>(new Set());
+
+  // ── Server Search ──────────────────────────────────────────────────
+  const [searchMode, setSearchMode] = useState<'local' | 'server'>('local');
+  const [serverSearchResults, setServerSearchResults] = useState<Document[]>([]);
+  const [serverSearching, setServerSearching] = useState(false);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Templates ──────────────────────────────────────────────────────
+  const [templates, setTemplates] = useState<Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    typeId: string;
+    data: string;
+    icon: string;
+    color: string;
+    type?: { id: string; name: string; systemName: string };
+  }>>([]);
+
   // ── Folder path for breadcrumb ──────────────────────────────────────
   const folderPath = useMemo(() => {
     const path: Folder[] = [];
@@ -419,6 +452,14 @@ export default function DashboardLayout() {
 
   // ── Filtered & sorted documents ────────────────────────────────────
   const filteredDocuments = useMemo(() => {
+    // In server search mode, use server results directly
+    if (searchMode === 'server' && serverSearchResults.length > 0) {
+      return serverSearchResults;
+    }
+    if (searchMode === 'server' && serverSearching) {
+      return [];
+    }
+
     let docs = [...documents];
 
     // Filter by folder
@@ -431,8 +472,8 @@ export default function DashboardLayout() {
       docs = docs.filter((d) => d.status === statusFilter);
     }
 
-    // Filter by search
-    if (docSearch.trim()) {
+    // Filter by search (only in local mode)
+    if (searchMode === 'local' && docSearch.trim()) {
       const q = docSearch.toLowerCase();
       docs = docs.filter(
         (d) =>
@@ -465,7 +506,7 @@ export default function DashboardLayout() {
     });
 
     return docs;
-  }, [documents, selectedFolderId, statusFilter, docSearch, sortField, sortDir]);
+  }, [documents, selectedFolderId, statusFilter, docSearch, sortField, sortDir, searchMode, serverSearchResults, serverSearching]);
 
   // ── Count docs in folder (recursive) ───────────────────────────────
   const countDocsInFolder = useCallback(
@@ -521,6 +562,59 @@ export default function DashboardLayout() {
       setRefreshing(false);
     }
   }, [token, setFolders, setDocuments, setDocumentTypes, setLoading]);
+
+  // ── Debounced server search ────────────────────────────────────────
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    if (searchMode !== 'server' || !docSearch.trim() || docSearch.trim().length < 3) {
+      setServerSearchResults([]);
+      setServerSearching(false);
+      return;
+    }
+
+    setServerSearching(true);
+    searchDebounceRef.current = setTimeout(async () => {
+      if (!token) return;
+      try {
+        const res = await fetch(
+          `/api/documents/search?q=${encodeURIComponent(docSearch.trim())}&token=${token}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setServerSearchResults(data.documents || []);
+        }
+      } catch {
+        setServerSearchResults([]);
+      } finally {
+        setServerSearching(false);
+      }
+    }, 400);
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [docSearch, searchMode, token]);
+
+  // ── Fetch templates on mount ───────────────────────────────────────
+  useEffect(() => {
+    if (!token) return;
+    fetch(`/api/templates?token=${token}`)
+      .then((res) => {
+        if (res.ok) return res.json();
+        return { templates: [] };
+      })
+      .then((data) => {
+        setTemplates(data.templates || []);
+      })
+      .catch(() => {
+        setTemplates([]);
+      });
+  }, [token]);
 
   useEffect(() => {
     setLoading(true);
@@ -938,6 +1032,76 @@ export default function DashboardLayout() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectMode, selectedIds.size, clearSelection]);
 
+  // ── Fetch favorites ─────────────────────────────────────────────────
+  const fetchFavorites = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/documents/favorites?token=${token}`);
+      if (res.ok) {
+        const data = await res.json();
+        const ids = Array.isArray(data)
+          ? data.map((f: any) => f.documentId).filter(Boolean)
+          : [];
+        setFavoriteDocIds(new Set(ids));
+      }
+    } catch (err) {
+      console.error('Failed to fetch favorites:', err);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchFavorites();
+    const handler = () => fetchFavorites();
+    window.addEventListener('refresh-favorites', handler);
+    return () => window.removeEventListener('refresh-favorites', handler);
+  }, [fetchFavorites]);
+
+  // ── Handle toggle favorite ─────────────────────────────────────────
+  const handleToggleFavorite = useCallback(
+    async (docId: string) => {
+      if (!token) return;
+      const isFav = favoriteDocIds.has(docId);
+      // Optimistic update
+      setFavoriteDocIds((prev) => {
+        const next = new Set(prev);
+        if (isFav) {
+          next.delete(docId);
+        } else {
+          next.add(docId);
+        }
+        return next;
+      });
+      try {
+        if (isFav) {
+          await fetch(`/api/documents/favorites/${docId}?token=${token}`, { method: 'DELETE' });
+        } else {
+          await fetch(`/api/documents/favorites?token=${token}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ documentId: docId }),
+          });
+        }
+        // Notify FavoritesPanel to refresh
+        window.dispatchEvent(new Event('refresh-favorites'));
+      } catch (err) {
+        // Revert on error
+        setFavoriteDocIds((prev) => {
+          const next = new Set(prev);
+          if (isFav) {
+            next.add(docId);
+          } else {
+            next.delete(docId);
+          }
+          return next;
+        });
+        toast.error('Ошибка', {
+          description: isFav ? 'Не удалось удалить из избранного' : 'Не удалось добавить в избранное',
+        });
+      }
+    },
+    [token, favoriteDocIds]
+  );
+
   // ── Sidebar content (shared between desktop & mobile) ───────────────
   const sidebarContent = useMemo(() => (
     <>
@@ -1037,6 +1201,17 @@ export default function DashboardLayout() {
           ))}
         </div>
       </ScrollArea>
+
+      <Separator className="bg-slate-700/50" />
+
+      {/* ── Favorites Panel ── */}
+      <FavoritesPanel
+        token={token}
+        onDocumentClick={(docId) => {
+          navigate({ page: 'edit-document', documentId: docId });
+          setMobileSheetOpen(false);
+        }}
+      />
 
       <Separator className="bg-slate-700/50" />
 
@@ -1195,16 +1370,46 @@ export default function DashboardLayout() {
           </div>
 
           {/* Center: Search */}
-          <div className="flex-1 max-w-md mx-4 hidden lg:block">
-            <div className="relative">
+          <div className="flex-1 max-w-md mx-4 hidden lg:flex items-center gap-1">
+            <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={docSearch}
                 onChange={(e) => setDocSearch(e.target.value)}
-                placeholder="Поиск документов..."
+                placeholder={
+                  searchMode === 'server'
+                    ? 'Поиск в данных (мин. 3 символа)...'
+                    : 'Быстрый поиск...'
+                }
                 className="pl-8 h-9 bg-muted border-border text-sm"
               />
+              {serverSearching && (
+                <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground animate-spin" />
+              )}
             </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={searchMode === 'server' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => {
+                    setSearchMode((m) => (m === 'local' ? 'server' : 'local'));
+                    setDocSearch('');
+                    setServerSearchResults([]);
+                  }}
+                >
+                  {searchMode === 'server' ? (
+                    <Database className="h-4 w-4" />
+                  ) : (
+                    <Zap className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {searchMode === 'server' ? 'Быстрый поиск' : 'Поиск в данных'}
+              </TooltipContent>
+            </Tooltip>
           </div>
 
           {/* Right: Notifications + User Menu */}
@@ -1216,24 +1421,72 @@ export default function DashboardLayout() {
                   <TooltipTrigger asChild>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-9 w-9">
-                        <Search className="h-4 w-4" />
+                        {searchMode === 'server' && docSearch ? (
+                          <Database className="h-4 w-4" />
+                        ) : (
+                          <Search className="h-4 w-4" />
+                        )}
                       </Button>
                     </DropdownMenuTrigger>
                   </TooltipTrigger>
                   <TooltipContent>Поиск документов</TooltipContent>
                 </Tooltip>
-                <DropdownMenuContent align="end" className="w-72">
-                  <div className="px-2 py-1.5">
+                <DropdownMenuContent align="end" className="w-80">
+                  <div className="px-2 py-1.5 space-y-2">
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         value={docSearch}
                         onChange={(e) => setDocSearch(e.target.value)}
-                        placeholder="Поиск документов..."
+                        placeholder={
+                          searchMode === 'server'
+                            ? 'Поиск в данных (мин. 3 символа)...'
+                            : 'Поиск документов...'
+                        }
                         className="pl-8 h-9 bg-muted border-border text-sm"
                         autoFocus
                       />
+                      {serverSearching && (
+                        <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground animate-spin" />
+                      )}
                     </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={searchMode === 'local' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        className="h-7 text-xs gap-1.5"
+                        onClick={() => {
+                          setSearchMode('local');
+                          setDocSearch('');
+                          setServerSearchResults([]);
+                        }}
+                      >
+                        <Zap className="h-3 w-3" />
+                        Быстрый
+                      </Button>
+                      <Button
+                        variant={searchMode === 'server' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        className="h-7 text-xs gap-1.5"
+                        onClick={() => {
+                          setSearchMode('server');
+                          setDocSearch('');
+                          setServerSearchResults([]);
+                        }}
+                      >
+                        <Database className="h-3 w-3" />
+                        В данных
+                      </Button>
+                    </div>
+                    {searchMode === 'server' && docSearch.trim().length > 0 && docSearch.trim().length < 3 && (
+                      <p className="text-[11px] text-muted-foreground">Введите минимум 3 символа для поиска</p>
+                    )}
+                    {searchMode === 'server' && !serverSearching && serverSearchResults.length > 0 && (
+                      <p className="text-[11px] text-muted-foreground">{serverSearchResults.length} результатов</p>
+                    )}
+                    {searchMode === 'server' && !serverSearching && docSearch.trim().length >= 3 && serverSearchResults.length === 0 && (
+                      <p className="text-[11px] text-muted-foreground">Ничего не найдено</p>
+                    )}
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1308,8 +1561,15 @@ export default function DashboardLayout() {
 
         {/* ════════ CONTENT AREA ════════ */}
         <main className="flex-1 overflow-auto animate-fade-in">
+          {/* ── Welcome Banner ── */}
+          {!isLoading && (
+            <div className="px-4 pt-4 pb-0">
+              <WelcomeBanner user={user} />
+            </div>
+          )}
+
           {/* ── Toolbar ── */}
-          <div className="sticky top-0 z-10 bg-background border-b px-4 py-2.5 flex items-center gap-2 flex-wrap no-print">
+          <div className="sticky top-0 z-10 bg-background border-b px-4 py-2.5 flex items-center gap-2 overflow-x-auto flex-nowrap sm:flex-wrap no-print">
             {/* New Document Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1380,7 +1640,7 @@ export default function DashboardLayout() {
             <Separator orientation="vertical" className="h-6" />
 
             {/* View Toggle */}
-            <div className="flex items-center border rounded-md">
+            <div className="hidden md:flex items-center border rounded-md">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -1456,7 +1716,7 @@ export default function DashboardLayout() {
             {/* Sort */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-9 gap-2 text-sm">
+                <Button variant="outline" className="h-9 gap-2 text-sm hidden md:flex">
                   Сортировка
                   <span className="text-muted-foreground text-xs">
                     {sortDir === 'asc' ? '↑' : '↓'}
@@ -1484,7 +1744,7 @@ export default function DashboardLayout() {
             {/* Export dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-9 gap-2 text-sm">
+                <Button variant="outline" className="h-9 gap-2 text-sm hidden md:flex">
                   <Download className="h-4 w-4" />
                   <span className="hidden sm:inline">Экспорт</span>
                 </Button>
@@ -1556,7 +1816,7 @@ export default function DashboardLayout() {
             </DropdownMenu>
 
             {/* Document count */}
-            <div className="ml-auto text-sm text-muted-foreground">
+            <div className="ml-auto text-sm text-muted-foreground shrink-0 hidden sm:block">
               {filteredDocuments.length}{' '}
               {filteredDocuments.length === 1
                 ? 'документ'
@@ -1565,31 +1825,6 @@ export default function DashboardLayout() {
                 : 'документов'}
             </div>
           </div>
-
-          {/* ── Welcome Banner ── */}
-          {!isLoading && (
-            <div className="px-4 pt-4 pb-0">
-              <div className="rounded-xl border border-emerald-200/60 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/30 dark:via-teal-950/20 dark:to-cyan-950/20 dark:border-emerald-800/40 p-4 md:p-5 flex items-center gap-4 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-emerald-200/30 to-transparent rounded-bl-full" />
-                <div className="hidden sm:flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 shrink-0 shadow-sm">
-                  <FileText className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <div className="min-w-0 relative">
-                  <h2 className="text-base md:text-lg font-semibold text-foreground">
-                    Добро пожаловать, {userFirstName}!
-                  </h2>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    У вас {documents.length}{' '}
-                    {documents.length === 1
-                      ? 'документ'
-                      : documents.length >= 2 && documents.length <= 4
-                      ? 'документа'
-                      : 'документов'} в системе
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* ── Quick Actions ── */}
           {!isLoading && (
@@ -1682,6 +1917,8 @@ export default function DashboardLayout() {
                 someVisibleSelected={someVisibleSelected}
                 onToggleSelectAll={toggleSelectAll}
                 onToggleDocSelection={toggleDocSelection}
+                favoriteDocIds={favoriteDocIds}
+                onToggleFavorite={handleToggleFavorite}
               />
             ) : (
               <DocumentGrid
@@ -1692,6 +1929,8 @@ export default function DashboardLayout() {
                 selectMode={selectMode}
                 selectedIds={selectedIds}
                 onToggleDocSelection={toggleDocSelection}
+                favoriteDocIds={favoriteDocIds}
+                onToggleFavorite={handleToggleFavorite}
               />
             )}
 
@@ -2072,68 +2311,169 @@ export default function DashboardLayout() {
 
       {/* ════════ NEW DOCUMENT DIALOG ════════ */}
       <Dialog open={newDocDialogOpen} onOpenChange={setNewDocDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Новый документ</DialogTitle>
             <DialogDescription>
-              Укажите название и папку для нового документа.
+              Создайте документ с нуля или из шаблона.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-2 space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Название документа</label>
-              <Input
-                value={newDocTitle}
-                onChange={(e) => setNewDocTitle(e.target.value)}
-                placeholder="Название документа"
-                className="h-10"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleConfirmNewDocument();
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Папка</label>
-              <Select value={newDocFolderId} onValueChange={setNewDocFolderId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Выберите папку" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">
-                    <span className="text-muted-foreground">Без папки</span>
-                  </SelectItem>
-                  <SelectSeparator />
-                  {folders.map((folder) => (
-                    <SelectItem key={folder.id} value={folder.id}>
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: folder.color || '#64748b' }}
-                        />
-                        {folder.name}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setNewDocDialogOpen(false)}
-            >
-              Отмена
-            </Button>
-            <Button
-              onClick={handleConfirmNewDocument}
-              disabled={!newDocTitle.trim()}
-              className="bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform"
-            >
-              Создать
-            </Button>
-          </DialogFooter>
+          <Tabs defaultValue="type" className="w-full">
+            <TabsList className="w-full">
+              <TabsTrigger value="type" className="flex-1">Тип документа</TabsTrigger>
+              <TabsTrigger value="template" className="flex-1 gap-1.5">
+                Из шаблона
+                {templates.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">{templates.length}</Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Tab 1: Document Type (current behavior) */}
+            <TabsContent value="type">
+              <div className="py-2 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Название документа</label>
+                  <Input
+                    value={newDocTitle}
+                    onChange={(e) => setNewDocTitle(e.target.value)}
+                    placeholder="Название документа"
+                    className="h-10"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleConfirmNewDocument();
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Папка</label>
+                  <Select value={newDocFolderId} onValueChange={setNewDocFolderId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Выберите папку" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">
+                        <span className="text-muted-foreground">Без папки</span>
+                      </SelectItem>
+                      <SelectSeparator />
+                      {folders.map((folder) => (
+                        <SelectItem key={folder.id} value={folder.id}>
+                          <span className="flex items-center gap-2">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: folder.color || '#64748b' }}
+                            />
+                            {folder.name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setNewDocDialogOpen(false)}
+                >
+                  Отмена
+                </Button>
+                <Button
+                  onClick={handleConfirmNewDocument}
+                  disabled={!newDocTitle.trim()}
+                  className="bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform"
+                >
+                  Создать
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+
+            {/* Tab 2: From Template */}
+            <TabsContent value="template">
+              <div className="py-2 space-y-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Папка</label>
+                  <Select value={newDocFolderId} onValueChange={setNewDocFolderId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Выберите папку" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">
+                        <span className="text-muted-foreground">Без папки</span>
+                      </SelectItem>
+                      <SelectSeparator />
+                      {folders.map((folder) => (
+                        <SelectItem key={folder.id} value={folder.id}>
+                          <span className="flex items-center gap-2">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: folder.color || '#64748b' }}
+                            />
+                            {folder.name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                  {templates.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <FileText className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                      <p className="text-sm text-muted-foreground">Шаблоны не найдены</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Шаблоны можно создать в разделе администрирования
+                      </p>
+                    </div>
+                  ) : (
+                    templates.map((tpl) => (
+                      <button
+                        key={tpl.id}
+                        onClick={() => {
+                          setNewDocDialogOpen(false);
+                          navigate({
+                            page: 'new-document',
+                            typeId: tpl.typeId,
+                            folderId: newDocFolderId || undefined,
+                            title: tpl.name,
+                            templateData: tpl.data,
+                          });
+                        }}
+                        className="w-full flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:bg-muted/50 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all text-left group"
+                      >
+                        <div
+                          className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
+                          style={{
+                            backgroundColor: `${tpl.color || '#6b7280'}15`,
+                            color: tpl.color || '#6b7280',
+                          }}
+                        >
+                          {getDocTypeIcon(tpl.type?.systemName || '')}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors truncate">
+                            {tpl.name}
+                          </p>
+                          {tpl.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                              {tpl.description}
+                            </p>
+                          )}
+                          {tpl.type && (
+                            <Badge variant="secondary" className="text-[10px] mt-1.5">
+                              {tpl.type.name}
+                            </Badge>
+                          )}
+                        </div>
+                        <Plus className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1" />
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>
@@ -2311,6 +2651,8 @@ interface DocumentTableProps {
   someVisibleSelected: boolean;
   onToggleSelectAll: () => void;
   onToggleDocSelection: (id: string) => void;
+  favoriteDocIds: Set<string>;
+  onToggleFavorite: (id: string) => void;
 }
 
 function DocumentTable({
@@ -2318,6 +2660,7 @@ function DocumentTable({
   onDuplicateDoc, duplicatingDocId,
   selectMode, selectedIds, allVisibleSelected, someVisibleSelected,
   onToggleSelectAll, onToggleDocSelection,
+  favoriteDocIds, onToggleFavorite,
 }: DocumentTableProps) {
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronRight className="h-3 w-3 ml-1 opacity-30" />;
@@ -2391,7 +2734,15 @@ function DocumentTable({
                 <SortIcon field="updatedAt" />
               </div>
             </TableHead>
-            <TableHead className="w-12" />
+            <TableHead className="w-10">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Star className="h-3.5 w-3.5 mx-auto text-muted-foreground/50" />
+                </TooltipTrigger>
+                <TooltipContent>Избранное</TooltipContent>
+              </Tooltip>
+            </TableHead>
+            <TableHead className="w-10" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -2506,6 +2857,31 @@ function DocumentTable({
                   </DropdownMenu>
                 </div>
               </TableCell>
+              <TableCell>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => onToggleFavorite(doc.id)}
+                      >
+                        <Star
+                          className={`h-4 w-4 transition-colors ${
+                            favoriteDocIds.has(doc.id)
+                              ? 'text-amber-400 fill-amber-400'
+                              : 'text-muted-foreground/40 hover:text-amber-400'
+                          }`}
+                        />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {favoriteDocIds.has(doc.id) ? 'Убрать из избранного' : 'Добавить в избранное'}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -2525,10 +2901,13 @@ interface DocumentGridProps {
   selectMode: boolean;
   selectedIds: Set<string>;
   onToggleDocSelection: (id: string) => void;
+  favoriteDocIds: Set<string>;
+  onToggleFavorite: (id: string) => void;
 }
 
 function DocumentGrid({
   documents, onDocClick, onDuplicateDoc, duplicatingDocId, selectMode, selectedIds, onToggleDocSelection,
+  favoriteDocIds, onToggleFavorite,
 }: DocumentGridProps) {
   if (documents.length === 0) {
     return <EmptyState isSearch />;
@@ -2565,6 +2944,34 @@ function DocumentGrid({
                 />
               </div>
             )}
+
+            {/* Favorite button */}
+            <div
+              className="absolute top-2.5 left-2.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 bg-background/80 backdrop-blur-sm"
+                    onClick={() => onToggleFavorite(doc.id)}
+                  >
+                    <Star
+                      className={`h-3.5 w-3.5 transition-colors ${
+                        favoriteDocIds.has(doc.id)
+                          ? 'text-amber-400 fill-amber-400'
+                          : 'text-muted-foreground/40 hover:text-amber-400'
+                      }`}
+                    />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {favoriteDocIds.has(doc.id) ? 'Убрать из избранного' : 'Добавить в избранное'}
+                </TooltipContent>
+              </Tooltip>
+            </div>
 
             {/* More menu */}
             <div
@@ -2662,27 +3069,32 @@ function DocumentGrid({
 // ══════════════════════════════════════════════════════════════════════
 function EmptyState({ isSearch = false }: { isSearch?: boolean }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 px-4">
+    <div className="flex flex-col items-center justify-center py-16 md:py-24 px-4 animate-scale-in">
       <div className="relative mb-6">
-        <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-muted to-muted/60">
+        <div className="flex items-center justify-center w-24 h-24 rounded-2xl bg-gradient-to-br from-muted to-muted/60">
           {isSearch ? (
-            <Search className="h-10 w-10 text-muted-foreground/60" />
+            <Search className="h-12 w-12 text-muted-foreground/50" />
           ) : (
-            <Inbox className="h-10 w-10 text-muted-foreground/60" />
+            <Inbox className="h-12 w-12 text-muted-foreground/50" />
           )}
         </div>
-        <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
+        <div className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center shadow-sm">
           <Plus className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
         </div>
       </div>
       <h3 className="text-lg font-semibold text-foreground mb-1">
         {isSearch ? 'Ничего не найдено' : 'Документы не найдены'}
       </h3>
-      <p className="text-sm text-muted-foreground text-center max-w-sm">
+      <p className="text-sm text-muted-foreground text-center max-w-sm mb-5">
         {isSearch
           ? 'Попробуйте изменить поисковый запрос или фильтр для поиска документов.'
-          : 'В этой папке пока нет документов. Создайте новый документ, нажав кнопку «Новый документ» в панели инструментов.'}
+          : 'В этой папке пока нет документов. Начните работу, создав первый документ.'}
       </p>
+      {!isSearch && (
+        <p className="text-xs text-muted-foreground/60 text-center max-w-xs">
+          Используйте кнопку «+» на панели инструментов выше или выберите шаблон из быстрых действий
+        </p>
+      )}
     </div>
   );
 }

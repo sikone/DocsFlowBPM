@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logActivity } from '@/lib/activity-log'
+import { comparePassword, isHashed } from '@/lib/password'
 import crypto from 'crypto'
 
 export async function POST(request: NextRequest) {
@@ -33,8 +34,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Direct string comparison (bcrypt to be added later)
-    if (user.password !== password) {
+    // Support both plain text and hashed passwords during migration
+    const isValid = await (await isHashed(user.password))
+      ? comparePassword(password, user.password)
+      : Promise.resolve(user.password === password)
+
+    if (!isValid) {
       return NextResponse.json(
         { error: 'Invalid credentials' },
         { status: 401 }
