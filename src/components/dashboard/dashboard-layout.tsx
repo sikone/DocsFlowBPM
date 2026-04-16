@@ -59,6 +59,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -144,6 +149,9 @@ import {
   Loader2,
   Star,
   GripVertical,
+  Filter,
+  Calendar,
+  Tag,
 } from 'lucide-react';
 
 // ─── Theme Toggle Component ─────────────────────────────────────────
@@ -435,6 +443,14 @@ export default function DashboardLayout() {
   // ── Favorites State ────────────────────────────────────────────────
   const [favoriteDocIds, setFavoriteDocIds] = useState<Set<string>>(new Set());
 
+  // ── Advanced Filters ───────────────────────────────────────────────
+  const [filterTags, setFilterTags] = useState<Set<string>>(new Set());
+  const [filterDateRange, setFilterDateRange] = useState<string>('all');
+  const [filterCreatorId, setFilterCreatorId] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [availableTags, setAvailableTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
+  const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; name: string }>>([]);
+
   // ── Server Search ──────────────────────────────────────────────────
   const [searchMode, setSearchMode] = useState<'local' | 'server'>('local');
   const [serverSearchResults, setServerSearchResults] = useState<Document[]>([]);
@@ -452,6 +468,37 @@ export default function DashboardLayout() {
     color: string;
     type?: { id: string; name: string; systemName: string };
   }>>([]);
+
+  // ── Fetch data on mount ────────────────────────────────────────────
+  const fetchData = useCallback(async () => {
+    if (!token) return;
+    setRefreshing(true);
+    try {
+      const [foldersRes, docsRes, typesRes] = await Promise.all([
+        fetch(`/api/folders?token=${token}`),
+        fetch(`/api/documents?token=${token}`),
+        fetch(`/api/document-types?token=${token}`),
+      ]);
+
+      if (foldersRes.ok) {
+        const foldersData = await foldersRes.json();
+        setFolders(Array.isArray(foldersData) ? foldersData : foldersData.folders || []);
+      }
+      if (docsRes.ok) {
+        const docsData = await docsRes.json();
+        setDocuments(Array.isArray(docsData) ? docsData : docsData.documents || []);
+      }
+      if (typesRes.ok) {
+        const typesData = await typesRes.json();
+        setDocumentTypes(Array.isArray(typesData) ? typesData : typesData.types || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch data:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [token, setFolders, setDocuments, setDocumentTypes, setLoading]);
 
   // ── Drag & Drop State ───────────────────────────────────────────────
   const [activeDragDoc, setActiveDragDoc] = useState<Document | null>(null);
@@ -553,9 +600,49 @@ export default function DashboardLayout() {
       docs = docs.filter((d) => d.folderId === selectedFolderId);
     }
 
-    // Filter by status
-    if (statusFilter !== 'ALL') {
-      docs = docs.filter((d) => d.status === statusFilter);
+    // Filter by status (use unified filterStatus)
+    const effectiveStatus = filterStatus !== 'ALL' ? filterStatus : statusFilter !== 'ALL' ? statusFilter : null;
+    if (effectiveStatus) {
+      docs = docs.filter((d) => d.status === effectiveStatus);
+    }
+
+    // Filter by tags
+    if (filterTags.size > 0) {
+      docs = docs.filter((d) =>
+        d.tagLinks?.some((tl) => filterTags.has(tl.tagId))
+      );
+    }
+
+    // Filter by date range
+    if (filterDateRange !== 'all') {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      let startDate: Date;
+      switch (filterDateRange) {
+        case 'today':
+          startDate = today;
+          break;
+        case 'week': {
+          const dayOfWeek = today.getDay() || 7;
+          startDate = new Date(today);
+          startDate.setDate(today.getDate() - dayOfWeek + 1);
+          break;
+        }
+        case 'month':
+          startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+          break;
+        case 'year':
+          startDate = new Date(today.getFullYear(), 0, 1);
+          break;
+        default:
+          startDate = new Date(0);
+      }
+      docs = docs.filter((d) => new Date(d.createdAt) >= startDate);
+    }
+
+    // Filter by creator
+    if (filterCreatorId !== 'all') {
+      docs = docs.filter((d) => d.createdById === filterCreatorId);
     }
 
     // Filter by search (only in local mode)
@@ -592,7 +679,7 @@ export default function DashboardLayout() {
     });
 
     return docs;
-  }, [documents, selectedFolderId, statusFilter, docSearch, sortField, sortDir, searchMode, serverSearchResults, serverSearching]);
+  }, [documents, selectedFolderId, statusFilter, filterStatus, filterTags, filterDateRange, filterCreatorId, docSearch, sortField, sortDir, searchMode, serverSearchResults, serverSearching]);
 
   // ── Count docs in folder (recursive) ───────────────────────────────
   const countDocsInFolder = useCallback(
@@ -617,37 +704,6 @@ export default function DashboardLayout() {
       return next;
     });
   }, []);
-
-  // ── Fetch data on mount ────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
-    if (!token) return;
-    setRefreshing(true);
-    try {
-      const [foldersRes, docsRes, typesRes] = await Promise.all([
-        fetch(`/api/folders?token=${token}`),
-        fetch(`/api/documents?token=${token}`),
-        fetch(`/api/document-types?token=${token}`),
-      ]);
-
-      if (foldersRes.ok) {
-        const foldersData = await foldersRes.json();
-        setFolders(Array.isArray(foldersData) ? foldersData : foldersData.folders || []);
-      }
-      if (docsRes.ok) {
-        const docsData = await docsRes.json();
-        setDocuments(Array.isArray(docsData) ? docsData : docsData.documents || []);
-      }
-      if (typesRes.ok) {
-        const typesData = await typesRes.json();
-        setDocumentTypes(Array.isArray(typesData) ? typesData : typesData.types || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch data:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [token, setFolders, setDocuments, setDocumentTypes, setLoading]);
 
   // ── Debounced server search ────────────────────────────────────────
   useEffect(() => {
@@ -701,6 +757,49 @@ export default function DashboardLayout() {
         setTemplates([]);
       });
   }, [token]);
+
+  // ── Fetch tags & users for filters ─────────────────────────────────
+  useEffect(() => {
+    if (!token) return;
+    Promise.all([
+      fetch(`/api/tags?token=${token}`).then((r) => r.ok ? r.json() : []),
+      fetch(`/api/users?token=${token}`).then((r) => r.ok ? r.json() : []),
+    ]).then(([tagsData, usersData]) => {
+      const tags = Array.isArray(tagsData) ? tagsData : tagsData?.tags || [];
+      const users = Array.isArray(usersData) ? usersData : usersData?.users || [];
+      setAvailableTags(tags.map((t: any) => ({ id: t.id, name: t.name, color: t.color || '#64748b' })));
+      setAvailableUsers(users.map((u: any) => ({ id: u.id, name: u.name })));
+    }).catch(() => {});
+  }, [token]);
+
+  // ── Active filter count ────────────────────────────────────────────
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (filterTags.size > 0) count++;
+    if (filterDateRange !== 'all') count++;
+    if (filterCreatorId !== 'all') count++;
+    if (filterStatus !== 'ALL') count++;
+    return count;
+  }, [filterTags, filterDateRange, filterCreatorId, filterStatus]);
+
+  // ── Reset all filters ──────────────────────────────────────────────
+  const resetAllFilters = useCallback(() => {
+    setFilterTags(new Set());
+    setFilterDateRange('all');
+    setFilterCreatorId('all');
+    setFilterStatus('ALL');
+    setStatusFilter('ALL');
+  }, []);
+
+  // ── Toggle tag in filter set ───────────────────────────────────────
+  const toggleFilterTag = useCallback((tagId: string) => {
+    setFilterTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tagId)) next.delete(tagId);
+      else next.add(tagId);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -1230,17 +1329,20 @@ export default function DashboardLayout() {
   const sidebarContent = useMemo(() => (
     <>
       {/* ── Logo ── */}
-      <div className="flex items-center gap-3 px-4 py-4 border-b border-slate-700/50">
-        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-600 shrink-0">
-          <FileText className="h-5 w-5 text-white" />
-        </div>
-        <div className="flex flex-col min-w-0">
-          <span className="text-base font-bold tracking-tight text-white truncate">
-            DocFlow BPM
-          </span>
-          <span className="text-[11px] text-slate-400 truncate">
-            Система управления
-          </span>
+      <div className="relative">
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-emerald-500 to-cyan-400" />
+        <div className="flex items-center gap-3 px-4 py-4 border-b border-slate-700/50">
+          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-600 shrink-0">
+            <FileText className="h-5 w-5 text-white" />
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="text-base font-bold tracking-tight text-white truncate">
+              DocFlow BPM
+            </span>
+            <span className="text-[11px] text-slate-400 truncate">
+              Система управления
+            </span>
+          </div>
         </div>
       </div>
 
@@ -1697,7 +1799,7 @@ export default function DashboardLayout() {
         </header>
 
         {/* ════════ CONTENT AREA ════════ */}
-        <main className="flex-1 overflow-auto animate-fade-in">
+        <main className="flex-1 overflow-auto animate-fade-in dashboard-dot-pattern">
           {/* ── Welcome Banner ── */}
           {!isLoading && (
             <div className="px-4 pt-4 pb-0">
@@ -1821,14 +1923,14 @@ export default function DashboardLayout() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-44">
-                <DropdownMenuItem onClick={() => setStatusFilter('ALL')}>
+                <DropdownMenuItem onClick={() => { setStatusFilter('ALL'); setFilterStatus('ALL'); }}>
                   Все статусы
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {Object.entries(STATUS_LABELS).map(([key, label]) => (
                   <DropdownMenuItem
                     key={key}
-                    onClick={() => setStatusFilter(key)}
+                    onClick={() => { setStatusFilter(key); setFilterStatus(key); }}
                     className="gap-2"
                   >
                     <span
@@ -1849,6 +1951,150 @@ export default function DashboardLayout() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* Advanced Filters */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant={activeFilterCount > 0 ? 'default' : 'outline'} className={`h-9 gap-2 text-sm relative ${activeFilterCount > 0 ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}>
+                  <Filter className="h-4 w-4" />
+                  <span className="hidden sm:inline">Фильтры</span>
+                  {activeFilterCount > 0 && (
+                    <Badge className="ml-0 h-5 w-5 p-0 flex items-center justify-center rounded-full bg-white/20 text-white text-[10px] font-bold">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-4" align="start">
+                <div className="space-y-4">
+                  {/* Header */}
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                      <Filter className="h-4 w-4" />
+                      Фильтры
+                    </h3>
+                    {activeFilterCount > 0 && (
+                      <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={resetAllFilters}>
+                        Сбросить
+                      </Button>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Tags Filter */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                      <Tag className="h-3.5 w-3.5" />
+                      Теги
+                    </label>
+                    {availableTags.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Нет доступных тегов</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
+                        {availableTags.map((tag) => (
+                          <button
+                            key={tag.id}
+                            onClick={() => toggleFilterTag(tag.id)}
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all border ${
+                              filterTags.has(tag.id)
+                                ? 'border-foreground/30 shadow-sm'
+                                : 'border-border opacity-60 hover:opacity-100'
+                            }`}
+                            style={{
+                              backgroundColor: filterTags.has(tag.id) ? `${tag.color}20` : 'transparent',
+                              color: tag.color,
+                            }}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+                            {tag.name}
+                            {filterTags.has(tag.id) && <X className="h-3 w-3 ml-0.5" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Date Range Filter */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      Период
+                    </label>
+                    <Select value={filterDateRange} onValueChange={setFilterDateRange}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="За весь период" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">За весь период</SelectItem>
+                        <SelectItem value="today">Сегодня</SelectItem>
+                        <SelectItem value="week">Эта неделя</SelectItem>
+                        <SelectItem value="month">Этот месяц</SelectItem>
+                        <SelectItem value="year">Этот год</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Separator />
+
+                  {/* Status Filter */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                      <Check className="h-3.5 w-3.5" />
+                      Статус
+                    </label>
+                    <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setStatusFilter(v); }}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Все статусы" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">Все статусы</SelectItem>
+                        {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                          <SelectItem key={key} value={key}>
+                            <span className="flex items-center gap-2">
+                              <span className={`inline-block w-2 h-2 rounded-full ${
+                                key === 'DRAFT' ? 'bg-slate-400'
+                                  : key === 'IN_PROGRESS' ? 'bg-sky-500'
+                                  : key === 'APPROVED' ? 'bg-emerald-500'
+                                  : key === 'REJECTED' ? 'bg-rose-500'
+                                  : 'bg-violet-500'
+                              }`} />
+                              {label}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Separator />
+
+                  {/* Creator Filter */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                      <User className="h-3.5 w-3.5" />
+                      Автор
+                    </label>
+                    <Select value={filterCreatorId} onValueChange={setFilterCreatorId}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Все авторы" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Все авторы</SelectItem>
+                        <SelectSeparator />
+                        {availableUsers.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
 
             {/* Sort */}
             <DropdownMenu>
@@ -2173,28 +2419,28 @@ export default function DashboardLayout() {
         </main>
 
         {/* ════════ STATUS BAR ════════ */}
-        <footer className="flex items-center justify-between h-7 px-4 bg-background border-t text-[11px] text-muted-foreground shrink-0 no-print">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5">
+        <footer className="flex items-center justify-between h-8 px-5 bg-background border-t border-border/60 text-[11px] text-muted-foreground shrink-0 no-print">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5 font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               DocFlow BPM v1.1
             </span>
             <Separator orientation="vertical" className="h-3" />
-            <span>
+            <span className="hidden sm:inline">
               {selectedFolderId
                 ? `Папка: ${folderPath.map((f) => f.name).join(' / ')}`
                 : 'Все документы'}
             </span>
-            <Separator orientation="vertical" className="h-3" />
+            <Separator orientation="vertical" className="h-3 hidden sm:block" />
             <span>
               {filteredDocuments.length} из {documents.length}
             </span>
           </div>
-          <div className="flex items-center gap-3">
-            <span>&copy; {new Date().getFullYear()}</span>
-            <Separator orientation="vertical" className="h-3" />
-            <span>{user?.name}</span>
-            <Separator orientation="vertical" className="h-3" />
+          <div className="flex items-center gap-4">
+            <span className="hidden sm:inline">&copy; {new Date().getFullYear()}</span>
+            <Separator orientation="vertical" className="h-3 hidden sm:block" />
+            <span className="hidden md:inline">{user?.name}</span>
+            <Separator orientation="vertical" className="h-3 hidden md:block" />
             <span>{new Date().toLocaleTimeString('ru-RU')}</span>
           </div>
         </footer>
@@ -2851,7 +3097,7 @@ function DocumentTable({
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/60">
-            <TableHead className="w-8" /> {/* Drag grip */}
+            <TableHead className="w-8"><span className="sr-only">Перетащить</span></TableHead>
             {selectMode && (
               <TableHead className="w-10">
                 <Checkbox
@@ -2917,7 +3163,7 @@ function DocumentTable({
                 <TooltipContent>Избранное</TooltipContent>
               </Tooltip>
             </TableHead>
-            <TableHead className="w-10" />
+            <TableHead className="w-10"><span className="sr-only">Действия</span></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -2943,6 +3189,10 @@ function DocumentTable({
               )}
               <TableCell>
                 <div className="flex items-center gap-2">
+                  <span
+                    className="w-1 h-6 rounded-full shrink-0"
+                    style={{ backgroundColor: doc.type?.color || '#64748b' }}
+                  />
                   <span style={{ color: doc.type?.color || '#64748b' }}>
                     {getDocTypeIcon(doc.type?.systemName || '')}
                   </span>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { FileText, Clock, CheckCircle2, TrendingUp } from 'lucide-react'
 
 interface Stats {
@@ -13,9 +13,47 @@ interface StatsSummaryBarProps {
   token: string | null
 }
 
+// ─── Animated Number Counter ─────────────────────────────────────────
+function AnimatedNumber({ value, duration = 800 }: { value: number; duration?: number }) {
+  const [display, setDisplay] = useState(0)
+  const startTime = useRef<number | null>(null)
+  const rafRef = useRef<number>(0)
+
+  useEffect(() => {
+    startTime.current = null
+
+    const animate = (timestamp: number) => {
+      if (!startTime.current) startTime.current = timestamp
+      const elapsed = timestamp - startTime.current
+      const progress = Math.min(elapsed / duration, 1)
+
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(Math.round(eased * value))
+
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(animate)
+      }
+    }
+
+    rafRef.current = requestAnimationFrame(animate)
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [value, duration])
+
+  return <span>{display}</span>
+}
+
 export default function StatsSummaryBar({ token }: StatsSummaryBarProps) {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!token) {
@@ -85,7 +123,7 @@ export default function StatsSummaryBar({ token }: StatsSummaryBarProps) {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-      {statCards.map((card) => (
+      {statCards.map((card, idx) => (
         <div
           key={card.label}
           className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:shadow-sm transition-shadow duration-200"
@@ -97,7 +135,14 @@ export default function StatsSummaryBar({ token }: StatsSummaryBarProps) {
           </div>
           <div className="min-w-0">
             <p className="text-lg font-bold text-foreground leading-none">
-              {card.value}
+              {mounted ? (
+                <AnimatedNumber
+                  value={card.value}
+                  duration={600 + idx * 150}
+                />
+              ) : (
+                card.value
+              )}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5 truncate">
               {card.label}

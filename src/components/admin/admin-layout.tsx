@@ -8,6 +8,7 @@ import {
   GitBranch,
   CheckSquare,
   Users,
+  Tags,
   ArrowLeft,
   LogOut,
   ChevronRight,
@@ -46,6 +47,7 @@ import {
   PlaceholderTasks,
 } from '@/components/admin/admin-pages';
 import { ActivityLogPage } from '@/components/admin/activity-log-page';
+import { AdminTagsPage } from '@/components/admin/admin-tags-page';
 
 const NAV_ITEMS: {
   label: string;
@@ -57,6 +59,7 @@ const NAV_ITEMS: {
   { label: 'Процессы', icon: GitBranch, page: { page: 'admin-processes' } },
   { label: 'Задачи', icon: CheckSquare, page: { page: 'admin-tasks' } },
   { label: 'Пользователи', icon: Users, page: { page: 'admin-users' } },
+  { label: 'Теги', icon: Tags, page: { page: 'admin-tags' } },
   { label: 'Журнал', icon: Activity, page: { page: 'admin-activity' } },
 ];
 
@@ -185,6 +188,8 @@ export default function AdminLayout() {
         return <PlaceholderTasks />;
       case 'admin-activity':
         return <ActivityLogPage />;
+      case 'admin-tags':
+        return <AdminTagsPage />;
       default:
         return <AdminDashboard />;
     }

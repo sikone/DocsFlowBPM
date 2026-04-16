@@ -1,149 +1,159 @@
 ---
-Task ID: Phase 7 - Tags, DnD, Recent Docs, Quick Status, Styling
+Task ID: Phase 8 - QA, Bug Fixes, Tags Admin, Filters, Styling
 Agent: Main Developer
-Task: Comprehensive feature additions, dark mode fixes, drag-and-drop, tags system
+Task: Agent-browser QA, critical bug fixes, tags admin, document tag picker, advanced filters, styling polish
 
 ## Current Project Status Assessment
 
-The DocFlow BPM system has reached Phase 7 with significant new features. The application is stable with 0 lint errors, all APIs tested and working. This round focused on adding a Tags/Labels system, Recently Viewed Documents, Quick Status Actions, Drag-and-Drop, and extensive styling improvements.
+Phase 8 focused on thorough QA using agent-browser, fixing critical runtime bugs, and adding significant new features. Three critical bugs were discovered and fixed: a TDZ (Temporal Dead Zone) error in DashboardLayout, a hydration error in the document table, and a TDZ error in DocumentFormView. After fixes, all features work correctly.
 
 ### Project Statistics:
-- **20** custom component files (excluding UI library) — 2 new (recent-documents, dnd components)
-- **37** API routes — 4 new (tags CRUD + document tags + recent docs)
-- **13** Prisma database models — 2 new (DocumentTag, DocumentTagLink)
-- **~16,000+** lines of custom application code
+- **21** custom component files (excluding UI library) — 1 new (admin-tags-page)
+- **37** API routes — no new
+- **13** Prisma database models — unchanged
+- **~17,500+** lines of custom application code
 - **0** lint errors
+- **0** runtime errors (after fixes)
 
 ---
 
-## Phase 7 Changes (Current Session):
+## Phase 8 Changes (Current Session):
 
-### 1. Document Tags/Labels System (Task ID: 2-a)
-**Prisma Models** (2 new):
-- `DocumentTag` — name, color, creator relation
-- `DocumentTagLink` — many-to-many join table (documentId, tagId) with unique constraint
+### 1. Critical Bug Fixes (QA via agent-browser)
 
-**API Routes** (4 new):
-- `GET/POST /api/tags` — List all tags with document counts / Create tag (ADMIN/ADVANCED)
-- `GET/PUT/DELETE /api/tags/[id]` — Single tag CRUD
-- `POST /api/documents/[id]/tags` — Add tag to document
-- `DELETE /api/documents/[id]/tags/[tagId]` — Remove tag from document
+#### Bug 1: `Cannot access 'fetchData' before initialization` in DashboardLayout
+- **Cause**: `handleDragEnd` callback (from Phase 7 DnD feature) referenced `fetchData` in its dependency array, but `fetchData` was defined ~160 lines later. JavaScript `const` declarations are in the TDZ until initialized.
+- **Fix**: Moved `fetchData` definition (useCallback) to before `handleDragStart`/`handleDragEnd`, ensuring it's available for all callbacks that reference it.
+- **File**: `/src/components/dashboard/dashboard-layout.tsx`
 
-**UI Integration**:
-- New "Теги" column in document table (visible on lg+ screens)
-- Tag badges show colored pills with tag name + count overflow (+N)
-- Tags shown on documents via `tagLinks` include in documents API
-- 5 default seed tags: Срочно, На согласование, Архив, Важно, На проверке
+#### Bug 2: React Hydration Error — whitespace in `<tr>`
+- **Cause**: Empty `<TableHead className="w-8" />` self-closing tags rendered as `<th></th>` with whitespace text nodes inside `<tr>`, causing React hydration mismatch.
+- **Fix**: Added `<span className="sr-only">Перетащить</span>` and `<span className="sr-only">Действия</span>` inside the previously empty `<TableHead>` elements.
+- **File**: `/src/components/dashboard/dashboard-layout.tsx`
 
-### 2. Recently Viewed Documents (Task ID: 3-a)
-**API Routes** (1 new file, 2 methods):
-- `POST /api/documents/recent` — Record document view (uses ActivityLog with VIEW_DOCUMENT action)
-- `GET /api/documents/recent` — Return 10 most recently viewed unique documents
+#### Bug 3: `Cannot access 'handleSave' before initialization` in DocumentFormView
+- **Cause**: The keyboard shortcuts `useEffect` (Ctrl+S, Ctrl+Enter, Escape) had `handleSave`, `handleSaveAndSend`, `handleBackWithCheck` in its dependency array, but these callbacks were defined ~200 lines later.
+- **Fix**: Moved the keyboard shortcuts `useEffect` from line ~865 to after `handleSaveAndLeave` (line ~1142), ensuring all referenced callbacks are defined before the dependency array is evaluated.
+- **File**: `/src/components/documents/document-form-view.tsx`
 
-**Component** (`/src/components/documents/recent-documents.tsx`):
-- Sidebar panel "Недавно просмотренные" with count badge
-- Shows document type icon (colored), title (truncated), time ago
-- Click navigates to document edit
-- Semantic tokens only (no hardcoded dark colors)
-- Skeleton loading, empty state, ScrollArea with max-h-48
-- View recording triggered automatically on `handleDocClick`
+#### Bug 4: Tags not loading in Document Form Tag Picker
+- **Cause**: `apiFetch` already unwraps the response envelope (`{ tags: [...] }` → `[...]`), but the code was accessing `res.tags` on the already-unwrapped array, getting `undefined`.
+- **Fix**: Changed `setAllTags(res.tags || [])` to `setAllTags(res || [])` since `apiFetch` returns the unwrapped array directly.
+- **File**: `/src/components/documents/document-form-view.tsx`
 
-### 3. Quick Status Actions in Document Table (Task ID: 5-a)
-- Status column now uses interactive DropdownMenu instead of static Badge
-- Click any status badge to see all 5 options (DRAFT, IN_PROGRESS, APPROVED, REJECTED, COMPLETED)
-- Each option shows colored dot + label + checkmark on current status
-- Loading spinner during status change
-- Toast notification on success/error
-- Calls `PUT /api/documents/[id]` with `{ status }`
-- `.animate-status-pop` CSS animation on status change
+### 2. Tags Management Admin Page (Task ID: 3-a)
+**Created**: `/src/components/admin/admin-tags-page.tsx`
+- Full CRUD interface for document tags
+- Table view with color swatch, name (as colored badge), document count, creator, creation date
+- Create Tag dialog with name input + 9-color picker + hex input + live preview
+- Edit Tag via dropdown action menu
+- Delete Tag with confirmation dialog
+- Real-time search/filter by tag name
+- Context-aware empty states
+- Toast notifications for all operations
+- Responsive column hiding (document count sm+, creator md+, date lg+)
+- Semantic tokens for full dark mode compatibility
 
-### 4. Drag-and-Drop Document Organization (Task ID: 7-a)
-**Using @dnd-kit/core** (already installed):
-- `DraggableGrip` component — GripVertical icon on each document row/card (visible on hover)
-- `DroppableFolder` component — Folder items become drop targets with emerald ring highlight
-- `DragOverlay` — Card-like preview of dragged document (type icon + title + type name)
-- PointerSensor with 8px activation distance threshold
-- Drops call `PUT /api/documents/[id]` with `{ folderId }`, show toast, refresh data
-- Works in both table view and grid view
+**Modified files**:
+- `/src/lib/types.ts` — Added `{ page: 'admin-tags' }` to AppView union
+- `/src/lib/api.ts` — Added `'tags'` and `'tag'` to ENVELOPE_KEYS
+- `/src/components/admin/admin-layout.tsx` — Added Tags nav item + routing
 
-### 5. Dark Mode Fixes
-- **favorites-panel.tsx**: Replaced `text-slate-500` → `text-muted-foreground`, `text-slate-300 hover:text-white hover:bg-slate-800/60` → `text-muted-foreground hover:text-foreground hover:bg-accent/50`
-- **Sidebar footer buttons**: Replaced `text-slate-300 hover:text-white hover:bg-slate-800` → `text-muted-foreground hover:text-foreground hover:bg-accent`
-- **Sidebar separators**: Replaced `bg-slate-700/50` → `bg-border` (semantic)
+### 3. Document Tag Picker (Task ID: 4-a)
+**Modified**: `/src/components/documents/document-form-view.tsx`
+- "Теги" card section shown when editing existing documents
+- Fetches all available tags via `GET /api/tags`
+- Each tag rendered as a pill-shaped toggle button:
+  - **Assigned**: vivid background in tag color (20% alpha), colored text, checkmark icon, shadow
+  - **Unassigned**: dimmed `bg-muted/50` styling
+- Optimistic UI: immediate toggle, API call in background, revert on error
+- Syncs with document's `tagLinks` on load
+- `transition-all duration-200` smooth transitions, `active:scale-95` press feedback
 
-### 6. Styling Improvements (Task ID: 5-a)
-- **Table rows**: `transition-colors` → `transition-all duration-150` for smoother hover
-- **Toolbar**: Document count badge next to view title
-- **Empty states**: Context-aware — "Папка пуста" for empty folders with emerald Plus button
-- **Grid cards**: Enhanced shadows `hover:shadow-xl hover:shadow-muted/30`, subtle borders `border-border/60`
-- **Status animation**: New `@keyframes statusPop` (scale 1→1.08→1) + `.animate-status-pop` utility
-- **Tags column badges**: Dynamic colors using tag color with alpha (`color + '18'`)
+**Modified**: `/src/app/api/documents/[id]/route.ts`
+- Added `tagLinks` include to GET and PUT handlers for single document
 
-### 7. Enhanced Sidebar
-- Added `RecentDocuments` panel between Favorites and Footer
-- Three sidebar sections now: Favorites → Recently Viewed → Footer actions
-- All panels use consistent semantic token styling
+### 4. Advanced Document Filters (Task ID: 6-a)
+**Modified**: `/src/components/dashboard/dashboard-layout.tsx`
+- "Фильтры" button in toolbar (Filter icon) with active count badge
+- Popover with 4 filter sections:
+  - **Tags**: Multi-select toggle pills for each available tag
+  - **Date Range**: Select dropdown (Все время, Сегодня, Эта неделя, Этот месяц, Этот год)
+  - **Status**: Select dropdown (Все статусы, Черновик, В работе, Утверждён, Отклонён, Завершён)
+  - **Creator**: Select dropdown populated from `GET /api/users`
+- "Сбросить все" button to clear all filters
+- Filters applied client-side in `filteredDocuments` useMemo
+- Status dropdown in toolbar syncs bidirectionally with filter panel
 
-### 8. TypeScript Types
-- Added `DocumentTag` interface to types.ts
-- Added `tagLinks` field to `Document` interface
-- Updated `DocumentType` interface with `_count`
+### 5. Styling Improvements (Task ID: 6-a)
+
+#### 5a. Animated Number Counters in Stats Summary Bar
+**Modified**: `/src/components/dashboard/stats-summary-bar.tsx`
+- `AnimatedNumber` component using `requestAnimationFrame` with ease-out cubic easing
+- Numbers count up from 0 to their actual value on mount
+- Staggered animation: 600ms delay + 150ms × card index
+
+#### 5b. Document Type Color Bar in Table
+- Added colored vertical bar (`w-1 h-6 rounded-full`) before the type icon in table cells
+- Uses the document type's color property for the bar color
+
+#### 5c. Sidebar Gradient Accent Line
+- Added 2px gradient line (emerald-500 → cyan-400) at the top of the sidebar
+- Applied to the sidebar logo wrapper
+
+#### 5d. Dashboard Dot Pattern Background
+**Modified**: `/src/app/globals.css`
+- New `.dashboard-dot-pattern` class using `radial-gradient` dots
+- Light mode: subtle gray dots
+- Dark mode: slightly brighter dots
+- Applied to `<main>` content area
+
+#### 5e. Enhanced Footer
+- Height h-7 → h-8
+- `border-border/60` subtle top border
+- gap-3 → gap-4 for better spacing
+- `font-medium` on brand text
+- Responsive hiding of less-important items on smaller screens
+
+---
+
+## QA Verification (agent-browser):
+
+| Test | Method | Status |
+|------|--------|--------|
+| Lint (ESLint) | `bun run lint` | ✅ 0 errors |
+| Login page | agent-browser snapshot | ✅ Renders correctly |
+| Dashboard load | agent-browser navigate | ✅ All panels, data, tags visible |
+| Document table | agent-browser snapshot | ✅ Tags, status dropdowns, drag handles |
+| Admin panel | agent-browser navigate | ✅ All tabs including Теги |
+| Tags management | agent-browser snapshot | ✅ CRUD table with search |
+| Document edit | agent-browser navigate | ✅ Form renders, tag picker shows all tags |
+| Filter popover | agent-browser click | ✅ Tags, status, date, creator filters |
+| No runtime errors | dev.log check | ✅ All 200s, no errors |
+| Hydration warnings | dev tools overlay | ✅ Resolved (was 1 issue) |
 
 ---
 
 ## Complete File Inventory:
 
-### New Files (Phase 7):
-- `/src/app/api/tags/route.ts` — Tags list + create
-- `/src/app/api/tags/[id]/route.ts` — Tag CRUD
-- `/src/app/api/documents/[id]/tags/route.ts` — Document-tag linking
-- `/src/app/api/documents/[id]/tags/[tagId]/route.ts` — Document-tag unlinking
-- `/src/app/api/documents/recent/route.ts` — Recent documents tracking
+### New Files (Phase 8):
+- `/src/components/admin/admin-tags-page.tsx` — Tags management admin page
 
-### Modified Files:
-- `/prisma/schema.prisma` — Added DocumentTag + DocumentTagLink models + relations
-- `/src/lib/types.ts` — Added DocumentTag interface + tagLinks to Document
-- `/src/components/documents/favorites-panel.tsx` — Dark mode fix
-- `/src/components/documents/recent-documents.tsx` — **NEW** Recently viewed panel
-- `/src/components/dashboard/dashboard-layout.tsx` — DnD, Quick Status, Tags column, Recent docs, sidebar enhancements, styling
-- `/src/app/api/documents/route.ts` — Added tagLinks include to documents list
-- `/src/app/api/seed/route.ts` — Added default tags seeding
-- `/src/app/globals.css` — Added statusPop animation
+### Modified Files (Phase 8):
+- `/src/components/dashboard/dashboard-layout.tsx` — TDZ fix, hydration fix, filters, styling
+- `/src/components/documents/document-form-view.tsx` — Tag picker, TDZ fix, apiFetch fix
+- `/src/components/dashboard/stats-summary-bar.tsx` — Animated number counters
+- `/src/app/globals.css` — Dot pattern background class
+- `/src/app/api/documents/[id]/route.ts` — tagLinks include
+- `/src/lib/types.ts` — admin-tags AppView
+- `/src/lib/api.ts` — tags/ttag envelope keys
+- `/src/components/admin/admin-layout.tsx` — Tags nav + routing
 
 ### Database Models (13):
-User, Folder, DocumentType, Document, DocumentTemplate, Document, Session, ActivityLog, Comment, ProcessDefinition, Task, FavoriteDocument, **DocumentTag**, **DocumentTagLink**
+User, Folder, DocumentType, DocumentTemplate, Document, Session, ActivityLog, Comment, ProcessDefinition, Task, FavoriteDocument, DocumentTag, DocumentTagLink
 
 ### API Routes (37):
-- Auth: login, logout, me (3)
-- Documents: CRUD, [id], [id]/comments, [id]/duplicate, [id]/tags, [id]/tags/[tagId], bulk-delete, bulk-status, bulk-move, export, stats, search, favorites, favorites/[documentId], **recent** (16)
-- Folders: CRUD, [id] (3)
-- Document Types: CRUD, [id] (3)
-- Users: CRUD, [id] (2)
-- Processes: CRUD, [id] (2)
-- Tasks: CRUD, [id] (2)
-- Templates: CRUD, [id] (2)
-- **Tags**: CRUD, [id] (2) — **NEW**
-- Activity Log: list (1)
-- Profile: password (1)
-- Seed (1)
-
----
-
-## QA Verification:
-
-| Test | Method | Status |
-|------|--------|--------|
-| Lint (ESLint) | `bun run lint` | ✅ 0 errors |
-| Prisma schema | `bun run db:push` | ✅ All models valid, DB in sync |
-| Prisma generate | Auto (db push) | ✅ Client generated |
-| Server compilation | dev.log | ✅ No errors |
-| Login API | curl POST | ✅ Returns token + user |
-| Documents API | curl GET | ✅ Returns docs with tagLinks |
-| Tags API | curl GET/POST | ✅ CRUD working |
-| Document Tags | curl POST/DELETE | ✅ Link/unlink working |
-| Recent Docs API | curl GET/POST | ✅ Tracking + retrieval |
-| Folders API | curl GET | ✅ 4 folders |
-| Stats API | curl GET | ✅ Statistics returned |
+Unchanged from Phase 7.
 
 ---
 
@@ -153,17 +163,17 @@ User, Folder, DocumentType, Document, DocumentTemplate, Document, Session, Activ
 3. No file upload/attachment support
 4. No document versioning/history
 5. No calendar view for deadlines and due dates
-6. Full-text search API exists but SQLite `contains` is case-insensitive only for ASCII
-7. Sidebar uses intentionally dark theme (bg-slate-900) — buttons use hardcoded slate colors which is by design
+6. Full-text search is ASCII case-insensitive only in SQLite
+7. No batch tag operations (tag/untag multiple documents at once)
 
 ## Recommendations for Next Phase:
-1. **File Attachments** — Upload, preview, download for documents (multer + local storage)
+1. **File Attachments** — Upload, preview, download for documents
 2. **Document Versioning** — Version history with diff comparison
 3. **Calendar View** — Document deadlines and task due dates
 4. **BPMN Visual Process Editor** — Canvas-based drag-and-drop process designer
 5. **Real-time Notifications** — WebSocket push for task assignments, status changes
-6. **Tags Management UI** — Admin page for managing tags (create, edit, delete, assign colors)
-7. **Dashboard Widgets** — Customizable dashboard with drag-and-drop widgets
-8. **Export to PDF** — Server-side PDF generation for documents
-9. **User Avatars** — Allow users to upload profile pictures
-10. **Advanced Filters** — Filter documents by tags, date ranges, creators
+6. **Dashboard Widgets** — Customizable dashboard with drag-and-drop widgets
+7. **Export to PDF** — Server-side PDF generation for documents
+8. **User Avatars** — Allow users to upload profile pictures
+9. **Batch Operations Enhancement** — Tag/untag multiple documents at once
+10. **Mobile Responsiveness** — Further polish for tablet/mobile views

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useStore } from '@/lib/store';
-import type { Document, DocumentType, FormField } from '@/lib/types';
+import type { Document, DocumentType, FormField, DocumentTag } from '@/lib/types';
 import { STATUS_LABELS, STATUS_COLORS } from '@/lib/types';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
@@ -74,6 +74,7 @@ import {
   MessageSquare,
   Printer,
   Download,
+  Tag,
 } from 'lucide-react';
 
 // ────────────────────────────────────────────
@@ -571,10 +572,92 @@ export default function DocumentFormView() {
   const [mobileShowProperties, setMobileShowProperties] = useState(false);
   const [mobileTab, setMobileTab] = useState('form');
 
+  // ── Tags picker state ──
+  const [allTags, setAllTags] = useState<DocumentTag[]>([]);
+  const [assignedTagIds, setAssignedTagIds] = useState<Set<string>>(new Set());
+  const [tagsLoading, setTagsLoading] = useState(false);
+  const [tagsSyncing, setTagsSyncing] = useState<string | null>(null);
+
   // ── Form scroll ref for shadows ──
   const formScrollRef = useRef<HTMLDivElement>(null);
   const [showTopShadow, setShowTopShadow] = useState(false);
   const [showBottomShadow, setShowBottomShadow] = useState(false);
+
+  // ── Load all available tags ──
+  useEffect(() => {
+    if (!token) return;
+    async function fetchTags() {
+      try {
+        const res = await apiFetch<(DocumentTag & { _count?: { documents: number } })[]>('/api/tags', token);
+        setAllTags(res || []);
+      } catch {
+        // Tags are non-critical
+      }
+    }
+    fetchTags();
+  }, [token]);
+
+  // ── Sync assigned tags from document ──
+  useEffect(() => {
+    if (document?.tagLinks) {
+      setAssignedTagIds(new Set(document.tagLinks.map((link) => link.tag.id)));
+    } else {
+      setAssignedTagIds(new Set());
+    }
+  }, [document?.tagLinks]);
+
+  // ── Toggle tag assignment ──
+  const handleToggleTag = useCallback(async (tag: DocumentTag) => {
+    if (!document || !token) return;
+    const isAssigned = assignedTagIds.has(tag.id);
+
+    // Optimistic update
+    setAssignedTagIds((prev) => {
+      const next = new Set(prev);
+      if (isAssigned) {
+        next.delete(tag.id);
+      } else {
+        next.add(tag.id);
+      }
+      return next;
+    });
+    setTagsSyncing(tag.id);
+
+    try {
+      if (isAssigned) {
+        await apiFetch(`/api/documents/${document.id}/tags/${tag.id}`, token, { method: 'DELETE' });
+      } else {
+        await apiFetch(`/api/documents/${document.id}/tags`, token, {
+          method: 'POST',
+          body: JSON.stringify({ tagId: tag.id }),
+        });
+      }
+      // Update document object to stay in sync
+      setDocument((prev) => {
+        if (!prev) return prev;
+        const links = prev.tagLinks || [];
+        if (isAssigned) {
+          return { ...prev, tagLinks: links.filter((l) => l.tag.id !== tag.id) };
+        } else {
+          return { ...prev, tagLinks: [...links, { id: `${prev.id}-${tag.id}`, tagId: tag.id, tag }] };
+        }
+      });
+    } catch {
+      // Revert on error
+      setAssignedTagIds((prev) => {
+        const next = new Set(prev);
+        if (isAssigned) {
+          next.add(tag.id);
+        } else {
+          next.delete(tag.id);
+        }
+        return next;
+      });
+      toast.error('Ошибка обновления тега');
+    } finally {
+      setTagsSyncing(null);
+    }
+  }, [document, token, assignedTagIds]);
 
   // ── Detect mode ──
   useEffect(() => {
@@ -778,27 +861,6 @@ export default function DocumentFormView() {
       }
     };
   }, [title, formData, autoSaveEnabled, document, token, isDirty, saving, status]);
-
-  // ── Keyboard shortcuts ──
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      const isCmd = e.metaKey || e.ctrlKey;
-
-      if (isCmd && e.key === 's') {
-        e.preventDefault();
-        handleSave();
-      } else if (isCmd && e.key === 'Enter') {
-        e.preventDefault();
-        handleSaveAndSend();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        handleBackWithCheck();
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleSave, handleSaveAndSend, handleBackWithCheck]);
 
   // ── Scroll shadow detection ──
   useEffect(() => {
@@ -1073,6 +1135,27 @@ export default function DocumentFormView() {
       goBack();
     }
   }, [handleSave, goBack, isNewDoc, document]);
+
+  // ── Keyboard shortcuts ──
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const isCmd = e.metaKey || e.ctrlKey;
+
+      if (isCmd && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      } else if (isCmd && e.key === 'Enter') {
+        e.preventDefault();
+        handleSaveAndSend();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleBackWithCheck();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSave, handleSaveAndSend, handleBackWithCheck]);
 
   // ── Helpers ──
   const formatDate = (dateStr: string) => {
@@ -1744,6 +1827,72 @@ export default function DocumentFormView() {
                           </p>
                         </div>
                       </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Tags Section (only for existing documents) */}
+                {!isNewDoc && document && (
+                  <Card className="overflow-hidden">
+                    <CardHeader className="pb-3 px-4 pt-4">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                        <Tag className="h-3.5 w-3.5" />
+                        Теги
+                        {assignedTagIds.size > 0 && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 ml-1">
+                            {assignedTagIds.size}
+                          </Badge>
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                      {allTags.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-3">
+                          Нет доступных тегов
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {allTags.map((tag) => {
+                            const isAssigned = assignedTagIds.has(tag.id);
+                            const isSyncing = tagsSyncing === tag.id;
+                            return (
+                              <button
+                                key={tag.id}
+                                type="button"
+                                disabled={isSyncing}
+                                onClick={() => handleToggleTag(tag)}
+                                className={`
+                                  inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium
+                                  border transition-all duration-200 cursor-pointer select-none
+                                  ${isAssigned
+                                    ? 'border-transparent shadow-sm hover:shadow-md active:scale-95'
+                                    : 'border-border bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                                  }
+                                  ${isSyncing ? 'opacity-50 pointer-events-none' : ''}
+                                `}
+                                style={
+                                  isAssigned
+                                    ? { backgroundColor: `${tag.color}20`, color: tag.color, borderColor: `${tag.color}30` }
+                                    : undefined
+                                }
+                              >
+                                {isSyncing ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <span
+                                    className="h-2 w-2 rounded-full shrink-0"
+                                    style={{ backgroundColor: tag.color }}
+                                  />
+                                )}
+                                {tag.name}
+                                {isAssigned && !isSyncing && (
+                                  <Check className="h-3 w-3 opacity-70" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 )}

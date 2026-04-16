@@ -84,6 +84,7 @@ export type AppView =
   | { page: 'admin-processes' }
   | { page: 'admin-tasks' }
   | { page: 'admin-activity' }
+  | { page: 'admin-tags' }
   | { page: 'profile' };
 
 export const STATUS_LABELS: Record<string, string> = {

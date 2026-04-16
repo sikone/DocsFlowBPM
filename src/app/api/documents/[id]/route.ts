@@ -30,6 +30,11 @@ export async function GET(
         creator: {
           select: { id: true, name: true, email: true },
         },
+        tagLinks: {
+          include: {
+            tag: { select: { id: true, name: true, color: true } },
+          },
+        },
       },
     })
 
@@ -116,6 +121,11 @@ export async function PUT(
         },
         creator: {
           select: { id: true, name: true, email: true },
+        },
+        tagLinks: {
+          include: {
+            tag: { select: { id: true, name: true, color: true } },
+          },
         },
       },
     })

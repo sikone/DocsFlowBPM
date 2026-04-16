@@ -537,3 +537,15 @@
   color: oklch(0.75 0.15 290);
   border-color: oklch(0.3 0.06 290);
 }
+
+/* ===== Dashboard Dot Pattern Background ===== */
+
+.dashboard-dot-pattern {
+  background-image: radial-gradient(circle, oklch(0.7 0 0 / 0.07) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.dark .dashboard-dot-pattern {
+  background-image: radial-gradient(circle, oklch(0.5 0 0 / 0.08) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
