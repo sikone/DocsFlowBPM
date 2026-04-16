@@ -142,7 +142,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   goBack: () => {
     const { view } = get();
-    if (view.page === 'edit-document' || view.page === 'new-document') {
+    if (view.page === 'edit-document' || view.page === 'new-document' || view.page === 'profile') {
       set({ view: { page: 'dashboard' } });
     } else if (view.page.startsWith('admin-')) {
       set({ view: { page: 'admin' } });

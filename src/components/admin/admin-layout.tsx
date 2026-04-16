@@ -110,7 +110,7 @@ export default function AdminLayout() {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="flex h-screen bg-slate-50 overflow-hidden">
+      <div className="flex h-screen bg-muted/40 overflow-hidden">
         {/* Sidebar */}
         <aside className="w-64 bg-slate-900 flex flex-col shrink-0">
           {/* Logo */}
@@ -179,21 +179,21 @@ export default function AdminLayout() {
         {/* Main area */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
+          <header className="h-16 bg-background border-b flex items-center justify-between px-6 shrink-0">
             <div className="flex items-center gap-3">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => navigate({ page: 'admin' })}
-                    className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+                    className="p-2 rounded-lg hover:bg-accent transition-colors"
                   >
-                    <ArrowLeft className="w-4 h-4 text-slate-500" />
+                    <ArrowLeft className="w-4 h-4 text-muted-foreground" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>На главную</TooltipContent>
               </Tooltip>
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Администрирование</h2>
+                <h2 className="text-lg font-semibold text-foreground">Администрирование</h2>
               </div>
             </div>
 
@@ -201,7 +201,7 @@ export default function AdminLayout() {
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-3">
                   <div className="text-right hidden sm:block">
-                    <p className="text-sm font-medium text-slate-900">{user.name}</p>
+                    <p className="text-sm font-medium text-foreground">{user.name}</p>
                     <Badge
                       variant="outline"
                       className={`text-[10px] px-1.5 py-0 ${getRoleBadgeClass(user.role)}`}
@@ -209,7 +209,7 @@ export default function AdminLayout() {
                       {ROLE_LABELS[user.role] || user.role}
                     </Badge>
                   </div>
-                  <Avatar className="h-9 w-9 border-2 border-slate-200">
+                  <Avatar className="h-9 w-9 border-2 border-border">
                     <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
                       {getInitials(user.name)}
                     </AvatarFallback>

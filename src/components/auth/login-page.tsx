@@ -352,7 +352,7 @@ export default function LoginPage() {
 
           {/* Footer */}
           <p className="text-center text-xs text-slate-400 mt-6">
-            DocFlow BPM &copy; 2024. Все права защищены.
+            DocFlow BPM &copy; 2025. Все права защищены.
           </p>
         </div>
       </div>

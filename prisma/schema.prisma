@@ -22,6 +22,7 @@ model User {
   createdFolders Folder[] @relation("FolderCreator")
   sessions      Session[]
   activityLogs  ActivityLog[]
+  comments      Comment[]
 }
 
 model Folder {
@@ -68,9 +69,10 @@ model Document {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  type    DocumentType @relation(fields: [typeId], references: [id])
-  folder  Folder?      @relation(fields: [folderId], references: [id])
-  creator User         @relation(fields: [createdById], references: [id])
+  type     DocumentType @relation(fields: [typeId], references: [id])
+  folder   Folder?      @relation(fields: [folderId], references: [id])
+  creator  User         @relation(fields: [createdById], references: [id])
+  comments Comment[]
 }
 
 model Session {
@@ -96,5 +98,21 @@ model ActivityLog {
 
   @@index([userId])
   @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  content    String
+  documentId String
+  userId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@index([documentId])
+  @@index([userId])
   @@index([createdAt])
 }

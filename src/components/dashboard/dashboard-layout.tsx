@@ -74,6 +74,7 @@ import {
 import { toast } from 'sonner';
 
 import ActivityPanel from '@/components/activity-panel';
+import DashboardAnalytics from '@/components/dashboard/dashboard-analytics';
 import {
   FileText,
   FolderOpen,
@@ -734,6 +735,18 @@ export default function DashboardLayout() {
           Новая папка
         </Button>
 
+        <Button
+          variant="ghost"
+          onClick={() => {
+            navigate({ page: 'profile' });
+            setMobileSheetOpen(false);
+          }}
+          className="w-full justify-start gap-2 text-slate-300 hover:text-white hover:bg-slate-800 h-9 text-sm"
+        >
+          <User className="h-4 w-4 shrink-0" />
+          Мой профиль
+        </Button>
+
         {user?.role === 'ADMIN' && (
           <Button
             variant="ghost"
@@ -752,7 +765,8 @@ export default function DashboardLayout() {
   ), [
     folderSearch, selectedFolderId, documents, rootFolders, expandedFolders,
     getChildren, countDocsInFolder, handleAllDocuments, handleFolderSelect,
-    toggleExpand, handleDeleteFolder, user?.role, navigate,
+    toggleExpand, handleDeleteFolder, user?.role, navigate, setNewFolderOpen,
+    setNewFolderParentId, setMobileSheetOpen,
   ]);
 
   // ══════════════════════════════════════════════════════════════════
@@ -760,7 +774,7 @@ export default function DashboardLayout() {
   // ══════════════════════════════════════════════════════════════════
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen w-screen overflow-hidden bg-muted/40">
       {/* ════════ SIDEBAR (Desktop) ════════ */}
       <aside
         className={`
@@ -800,7 +814,7 @@ export default function DashboardLayout() {
       {/* ════════ MAIN AREA ════════ */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* ════════ HEADER ════════ */}
-        <header className="flex items-center h-14 px-4 bg-white border-b shrink-0 z-30">
+        <header className="flex items-center h-14 px-4 bg-background border-b shrink-0 z-30">
           {/* Left: Hamburger + Breadcrumb */}
           <div className="flex items-center gap-3 min-w-0">
             <Button
@@ -869,7 +883,7 @@ export default function DashboardLayout() {
                 value={docSearch}
                 onChange={(e) => setDocSearch(e.target.value)}
                 placeholder="Поиск документов..."
-                className="pl-8 h-9 bg-gray-50 border-gray-200 text-sm"
+                className="pl-8 h-9 bg-muted border-border text-sm"
               />
             </div>
           </div>
@@ -897,7 +911,7 @@ export default function DashboardLayout() {
                         value={docSearch}
                         onChange={(e) => setDocSearch(e.target.value)}
                         placeholder="Поиск документов..."
-                        className="pl-8 h-9 bg-gray-50 border-gray-200 text-sm"
+                        className="pl-8 h-9 bg-muted border-border text-sm"
                         autoFocus
                       />
                     </div>
@@ -919,7 +933,7 @@ export default function DashboardLayout() {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="flex items-center gap-2 h-9 px-2 hover:bg-gray-100"
+                  className="flex items-center gap-2 h-9 px-2 hover:bg-accent"
                 >
                   <Avatar className="h-7 w-7">
                     <AvatarFallback className="bg-emerald-600 text-white text-xs">
@@ -949,6 +963,10 @@ export default function DashboardLayout() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => navigate({ page: 'profile' })}>
+                    <User className="mr-2 h-4 w-4" />
+                    Мой профиль
+                  </DropdownMenuItem>
                   {user?.role === 'ADMIN' && (
                     <DropdownMenuItem onClick={() => navigate({ page: 'admin' })}>
                       <Settings className="mr-2 h-4 w-4" />
@@ -969,7 +987,7 @@ export default function DashboardLayout() {
         {/* ════════ CONTENT AREA ════════ */}
         <main className="flex-1 overflow-auto">
           {/* ── Toolbar ── */}
-          <div className="sticky top-0 z-10 bg-white border-b px-4 py-2.5 flex items-center gap-2 flex-wrap">
+          <div className="sticky top-0 z-10 bg-background border-b px-4 py-2.5 flex items-center gap-2 flex-wrap">
             {/* New Document Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1139,10 +1157,10 @@ export default function DashboardLayout() {
                   <FileText className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-base md:text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  <h2 className="text-base md:text-lg font-semibold text-foreground">
                     Добро пожаловать, {userFirstName}!
                   </h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                  <p className="text-sm text-muted-foreground mt-0.5">
                     У вас {documents.length}{' '}
                     {documents.length === 1
                       ? 'документ'
@@ -1162,12 +1180,12 @@ export default function DashboardLayout() {
                 {invoiceTypeId && (
                   <button
                     onClick={() => handleNewDocument(invoiceTypeId)}
-                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-sm hover:border-emerald-200 dark:hover:border-emerald-800 transition-all group"
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-card border border-border rounded-lg hover:shadow-sm hover:border-emerald-300 dark:hover:border-emerald-700 transition-all group"
                   >
                     <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/30">
                       <FileSpreadsheet className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                     </div>
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                    <span className="text-sm font-medium text-muted-foreground group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                       Создать счёт
                     </span>
                   </button>
@@ -1175,12 +1193,12 @@ export default function DashboardLayout() {
                 {contractTypeId && (
                   <button
                     onClick={() => handleNewDocument(contractTypeId)}
-                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-sm hover:border-emerald-200 dark:hover:border-emerald-800 transition-all group"
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-card border border-border rounded-lg hover:shadow-sm hover:border-emerald-300 dark:hover:border-emerald-700 transition-all group"
                   >
                     <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-sky-50 dark:bg-sky-900/30">
                       <File className="h-4 w-4 text-sky-600 dark:text-sky-400" />
                     </div>
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                    <span className="text-sm font-medium text-muted-foreground group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                       Создать договор
                     </span>
                   </button>
@@ -1188,12 +1206,12 @@ export default function DashboardLayout() {
                 {memoTypeId && (
                   <button
                     onClick={() => handleNewDocument(memoTypeId)}
-                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-sm hover:border-emerald-200 dark:hover:border-emerald-800 transition-all group"
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-card border border-border rounded-lg hover:shadow-sm hover:border-emerald-300 dark:hover:border-emerald-700 transition-all group"
                   >
                     <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-violet-50 dark:bg-violet-900/30">
                       <ScrollText className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                     </div>
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                    <span className="text-sm font-medium text-muted-foreground group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                       Создать записку
                     </span>
                   </button>
@@ -1201,12 +1219,12 @@ export default function DashboardLayout() {
                 {user?.role === 'ADMIN' && (
                   <button
                     onClick={() => navigate({ page: 'admin' })}
-                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-sm hover:border-emerald-200 dark:hover:border-emerald-800 transition-all group"
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-card border border-border rounded-lg hover:shadow-sm hover:border-emerald-300 dark:hover:border-emerald-700 transition-all group"
                   >
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-700">
-                      <ClipboardList className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-muted">
+                      <ClipboardList className="h-4 w-4 text-muted-foreground" />
                     </div>
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                    <span className="text-sm font-medium text-muted-foreground group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                       Настройки
                     </span>
                   </button>
@@ -1214,6 +1232,9 @@ export default function DashboardLayout() {
               </div>
             </div>
           )}
+
+          {/* ── Analytics Panel ── */}
+          <DashboardAnalytics />
 
           {/* ── Document Content ── */}
           <div className="p-4">
@@ -1238,7 +1259,7 @@ export default function DashboardLayout() {
         </main>
 
         {/* ════════ STATUS BAR ════════ */}
-        <footer className="flex items-center justify-between h-7 px-4 bg-white border-t text-[11px] text-muted-foreground shrink-0">
+        <footer className="flex items-center justify-between h-7 px-4 bg-background border-t text-[11px] text-muted-foreground shrink-0">
           <div className="flex items-center gap-3">
             <span>
               {selectedFolderId
@@ -1542,12 +1563,12 @@ function DocumentTable({ documents, onDocClick, sortField, sortDir, onSort, onDe
   }
 
   return (
-    <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+    <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
       <Table>
         <TableHeader>
-          <TableRow className="bg-gray-50/80">
+          <TableRow className="bg-muted/60">
             <TableHead
-              className="w-40 cursor-pointer select-none hover:bg-gray-100 transition-colors"
+              className="w-40 cursor-pointer select-none hover:bg-muted transition-colors"
               onClick={() => onSort('title')}
             >
               <div className="flex items-center">
@@ -1556,7 +1577,7 @@ function DocumentTable({ documents, onDocClick, sortField, sortDir, onSort, onDe
               </div>
             </TableHead>
             <TableHead
-              className="cursor-pointer select-none hover:bg-gray-100 transition-colors"
+              className="cursor-pointer select-none hover:bg-muted transition-colors"
               onClick={() => onSort('title')}
             >
               <div className="flex items-center">
@@ -1566,7 +1587,7 @@ function DocumentTable({ documents, onDocClick, sortField, sortDir, onSort, onDe
             </TableHead>
             <TableHead className="w-32 hidden md:table-cell">Номер</TableHead>
             <TableHead
-              className="w-36 cursor-pointer select-none hover:bg-gray-100 transition-colors"
+              className="w-36 cursor-pointer select-none hover:bg-muted transition-colors"
               onClick={() => onSort('status')}
             >
               <div className="flex items-center">
@@ -1576,7 +1597,7 @@ function DocumentTable({ documents, onDocClick, sortField, sortDir, onSort, onDe
             </TableHead>
             <TableHead className="w-40 hidden lg:table-cell">Автор</TableHead>
             <TableHead
-              className="w-32 hidden xl:table-cell cursor-pointer select-none hover:bg-gray-100 transition-colors"
+              className="w-32 hidden xl:table-cell cursor-pointer select-none hover:bg-muted transition-colors"
               onClick={() => onSort('createdAt')}
             >
               <div className="flex items-center">
@@ -1585,7 +1606,7 @@ function DocumentTable({ documents, onDocClick, sortField, sortDir, onSort, onDe
               </div>
             </TableHead>
             <TableHead
-              className="w-32 hidden xl:table-cell cursor-pointer select-none hover:bg-gray-100 transition-colors"
+              className="w-32 hidden xl:table-cell cursor-pointer select-none hover:bg-muted transition-colors"
               onClick={() => onSort('updatedAt')}
             >
               <div className="flex items-center">
@@ -1634,7 +1655,7 @@ function DocumentTable({ documents, onDocClick, sortField, sortDir, onSort, onDe
               <TableCell className="hidden lg:table-cell">
                 <div className="flex items-center gap-2">
                   <Avatar className="h-6 w-6">
-                    <AvatarFallback className="bg-gray-100 text-[10px] text-gray-600">
+                    <AvatarFallback className="bg-muted text-[10px] text-muted-foreground">
                       {doc.creator?.name
                         ?.split(' ')
                         .map((w) => w[0])
@@ -1726,7 +1747,7 @@ function DocumentGrid({ documents, onDocClick }: DocumentGridProps) {
           <div
             key={doc.id}
             onClick={() => onDocClick(doc.id)}
-            className="group bg-white dark:bg-gray-900 rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
+            className="group bg-card rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
             style={{ borderTopColor: docColor }}
           >
             {/* Top gradient stripe */}
@@ -1769,10 +1790,10 @@ function DocumentGrid({ documents, onDocClick }: DocumentGridProps) {
               )}
 
               {/* Bottom row: author + updated time */}
-              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+              <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
                   <Avatar className="h-6 w-6 shrink-0">
-                    <AvatarFallback className="bg-gray-100 dark:bg-gray-800 text-[10px] text-gray-600 dark:text-gray-400">
+                    <AvatarFallback className="bg-muted text-[10px] text-muted-foreground">
                       {creatorInitials}
                     </AvatarFallback>
                   </Avatar>
@@ -1799,11 +1820,11 @@ function DocumentGrid({ documents, onDocClick }: DocumentGridProps) {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-4">
-      <div className="flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 mb-6">
-        <Inbox className="h-10 w-10 text-gray-400" />
+      <div className="flex items-center justify-center w-20 h-20 rounded-full bg-muted mb-6">
+        <Inbox className="h-10 w-10 text-muted-foreground" />
       </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-1">Документы не найдены</h3>
-      <p className="text-sm text-gray-500 text-center max-w-sm">
+      <h3 className="text-lg font-medium text-foreground mb-1">Документы не найдены</h3>
+      <p className="text-sm text-muted-foreground text-center max-w-sm">
         В этой папке пока нет документов. Создайте новый документ, нажав кнопку «Новый
         документ».
       </p>
@@ -1816,7 +1837,7 @@ function EmptyState() {
 // ══════════════════════════════════════════════════════════════════════
 function LoadingSkeleton() {
   return (
-    <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+    <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
       {/* Toolbar skeleton */}
       <div className="p-4 border-b space-y-3">
         <div className="flex items-center gap-3">

@@ -76,7 +76,8 @@ export type AppView =
   | { page: 'admin-doc-type-form'; typeId?: string }
   | { page: 'admin-processes' }
   | { page: 'admin-tasks' }
-  | { page: 'admin-activity' };
+  | { page: 'admin-activity' }
+  | { page: 'profile' };
 
 export const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Черновик',

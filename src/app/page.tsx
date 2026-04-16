@@ -6,6 +6,7 @@ import LoginPage from '@/components/auth/login-page';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import DocumentFormView from '@/components/documents/document-form-view';
 import AdminLayout from '@/components/admin/admin-layout';
+import ProfilePage from '@/components/profile-page';
 import { ErrorBoundary } from '@/components/error-boundary';
 
 function useMounted() {
@@ -48,6 +49,7 @@ export default function Home() {
       {(view.page === 'new-document' || view.page === 'edit-document') && <DocumentFormView />}
       {(view.page === 'admin' || view.page.startsWith('admin-')) && <AdminLayout />}
       {view.page === 'dashboard' && <DashboardLayout />}
+      {view.page === 'profile' && <ProfilePage />}
     </ErrorBoundary>
   );
 }
