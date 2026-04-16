@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("USER") // ADMIN, ADVANCED, USER
+  avatar    String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents     Document[]
+  createdFolders Folder[] @relation("FolderCreator")
+  sessions      Session[]
+}
+
+model Folder {
+  id          String   @id @default(cuid())
+  name        String
+  parentId    String?
+  color       String   @default("#6b7280")
+  icon        String   @default("folder")
+  order       Int      @default(0)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent    Folder?       @relation("FolderTree", fields: [parentId], references: [id])
+  children  Folder[]      @relation("FolderTree")
+  documents Document[]
+  creator   User          @relation("FolderCreator", fields: [createdById], references: [id])
+}
+
+model DocumentType {
+  id          String   @id @default(cuid())
+  name        String
+  systemName  String   @unique
+  description String?
+  icon        String   @default("file-text")
+  color       String   @default("#6366f1")
+  active      Boolean  @default(true)
+  formSchema  String   @default("[]") // JSON array of field definitions
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  documents Document[]
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  title       String
+  number      String?
+  typeId      String
+  folderId    String?
+  status      String   @default("DRAFT") // DRAFT, IN_PROGRESS, APPROVED, REJECTED, COMPLETED
+  data        String   @default("{}")
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  type    DocumentType @relation(fields: [typeId], references: [id])
+  folder  Folder?      @relation(fields: [folderId], references: [id])
+  creator User         @relation(fields: [createdById], references: [id])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user     User     @relation(fields: [userId], references: [id])
+}
