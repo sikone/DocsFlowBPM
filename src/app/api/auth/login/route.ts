@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { logActivity } from '@/lib/activity-log'
 import crypto from 'crypto'
 
 export async function POST(request: NextRequest) {
@@ -50,6 +51,9 @@ export async function POST(request: NextRequest) {
         expiresAt,
       },
     })
+
+    // Log login activity (fire and forget)
+    logActivity({ userId: user.id, action: 'LOGIN', details: `Вход в систему: ${user.name}` })
 
     return NextResponse.json({
       user: {

@@ -1,79 +1,100 @@
 ---
-Task ID: QA Review 1
-Agent: QA & Development
-Task: Assess project status, fix bugs, improve styling, add features
+Task ID: QA Review 2
+Agent: Main Developer
+Task: Assess project status, test/QA, fix bugs, improve styling, add features
 
 ## Current Project Status Assessment
 
-The DocFlow BPM system Phase 1 was complete but had several critical runtime bugs that prevented the application from functioning properly.
+The DocFlow BPM system is in a stable, functional state after Phase 1 bug fixes and Phase 2 feature additions. All core flows work: login, dashboard, folder management, document CRUD, admin panel. This session focused on major feature additions and UI polish.
 
-### Bugs Found and Fixed:
+### New Features Implemented:
 
-1. **[CRITICAL] Loading state infinite spinner** (page.tsx)
-   - `page.tsx` showed "Загрузка системы..." forever because it checked `isLoading` which was set to true by the dashboard component's data fetch
-   - Fixed: Changed loading guard to only block when `!user && view.page !== 'login'`
+#### 1. Activity/Audit Log System
+- **DB Model**: New `ActivityLog` Prisma model with fields: userId, action, entityType, entityId, details, createdAt
+- **API**: New `GET /api/activity-log` endpoint with filtering (entityType, entityId, userId) and pagination (limit, offset)
+- **Activity Tracking**: All document and user actions now logged automatically:
+  - LOGIN, CREATE_DOCUMENT, EDIT_DOCUMENT, DELETE_DOCUMENT, CHANGE_STATUS, CREATE_FOLDER, DELETE_FOLDER
+- **Helper**: `/src/lib/activity-log.ts` — Fire-and-forget logging utility
+- **Admin UI**: New "Журнал" (Activity Log) page in admin panel with filterable table, action-colored badges, and user info
 
-2. **[CRITICAL] API response unwrapping mismatch** (all frontend components)
-   - All API routes return wrapped responses: `{ types: [...] }`, `{ documents: [...] }`, `{ users: [...] }`, etc.
-   - But frontend code treated responses as direct arrays: `apiFetch('/api/document-types')` expecting `DocumentType[]` but receiving `{ types: DocumentType[] }`
-   - Fixed: Created `/src/lib/api.ts` shared helper with `unwrapResponse()` that automatically extracts data from known envelope keys
+#### 2. Notification/Activity Panel
+- **Component**: New `ActivityPanel` component with Popover-based notification feed
+- Shows recent activity with user avatars (deterministic colors), action-specific icons and colors
+- Relative time display in Russian ("5 минут назад", "вчера", etc.)
+- Loading skeleton and empty state support
+- Badge counter on bell icon (caps at 99+)
 
-3. **[CRITICAL] useState destructuring variable name error** (document-form-view.tsx + admin-pages.tsx)
-   - `const [loading, setLoadingLocal] = useState(true)` — first variable named `loading` but component used `loadingLocal`
-   - Fixed both files: changed to `const [loadingLocal, setLoadingLocal] = useState(...)`
+#### 3. Dark Mode Support
+- **ThemeProvider**: Added `next-themes` ThemeProvider to root layout (attribute="class", defaultTheme="light")
+- **Toggle**: Sun/Moon toggle button in both dashboard and admin headers
+- **Hydration-safe**: Uses `useSyncExternalStore` pattern to avoid SSR flash
 
-4. **[MEDIUM] Global loading state pollution** (admin-pages.tsx)
-   - `AdminDocTypeForm` used `setLoading` from Zustand store causing global loading overlay
-   - Fixed: Removed `setLoading` from store destructuring, removed stray `setLoading(true/false)` calls
+#### 4. Welcome Banner & Quick Actions (Dashboard)
+- Personalized greeting: "Добро пожаловать, {firstName}!"
+- Document count display
+- 4 quick action cards: Create Invoice, Contract, Memo (admin: Settings)
+- Gradient background with decorative icon
 
-5. **[MEDIUM] Folder API calls using wrong method** (dashboard-layout.tsx)
-   - Create/Rename/Delete folder operations sent token in body instead of query parameter
-   - Fixed: Updated to use `/api/folders?token=xxx` for POST, `/api/folders/[id]?token=xxx` for PUT/DELETE
+#### 5. Document Delete Functionality
+- Backend: DELETE API already existed; added activity logging
+- Frontend: Delete button in document table row actions (MoreVertical dropdown)
+- Confirmation dialog before deletion
+- Toast notifications on success/error
 
-6. **[LOW] Error Boundary missing** — No user-friendly error display on client-side exceptions
-   - Fixed: Created `/src/components/error-boundary.tsx` ErrorBoundary class component that shows error message + stack trace + refresh button
+#### 6. Enhanced Document Grid Cards
+- Redesigned cards with: colored top stripe (2px), type icon, status badge
+- Author avatar with initials, relative time, folder name
+- Hover shadow effect and rounded-xl corners
+- Dark mode support
+
+#### 7. Mobile Sidebar (Sheet)
+- Replaced simple dark overlay with proper shadcn/ui Sheet component
+- Slides from left on mobile, contains full sidebar content
+- Auto-closes on folder/action selection
+- DRY: Sidebar content shared between desktop and mobile via useMemo
+
+### Files Created:
+- `/src/lib/activity-log.ts` — Activity logging utility
+- `/src/app/api/activity-log/route.ts` — Activity log API endpoint
+- `/src/components/activity-panel.tsx` — Notification/activity feed component
+- `/src/components/admin/activity-log-page.tsx` — Admin activity log page
+
+### Files Modified:
+- `/prisma/schema.prisma` — Added ActivityLog model
+- `/src/app/layout.tsx` — Added ThemeProvider wrapper
+- `/src/lib/db.ts` — Added SCHEMA_VERSION cache invalidation
+- `/src/lib/types.ts` — Added admin-activity to AppView union
+- `/src/app/api/auth/login/route.ts` — Added login activity logging
+- `/src/app/api/documents/route.ts` — Added document creation logging
+- `/src/app/api/documents/[id]/route.ts` — Added edit/delete/status change logging
+- `/src/components/dashboard/dashboard-layout.tsx` — Major overhaul (welcome banner, quick actions, mobile sheet, doc delete, enhanced grid, theme toggle, notification panel integration)
+- `/src/components/admin/admin-layout.tsx` — Added activity log nav item, theme toggle
 
 ### QA Test Results (agent-browser):
 
-| Flow | Status | Notes |
-|------|--------|-------|
-| Login page load | ✅ PASS | Professional split-layout, credentials display |
-| Login (admin) | ✅ PASS | Redirects to dashboard |
-| Dashboard load | ✅ PASS | Sidebar, folder tree, document table |
-| Create folder | ✅ PASS | Dialog, creates in sidebar tree |
-| New document (Счёт) | ✅ PASS | Dynamic form renders all 6 fields |
-| Fill & save document | ✅ PASS | Toast notification, auto-number (INVOICE-2026-001) |
-| View document in table | ✅ PASS | Shows type, number, status, author, dates |
-| Edit document | ✅ PASS | Form pre-populates with saved data |
-| Admin panel access | ✅ PASS | Only available for ADMIN role |
-| Admin dashboard | ✅ PASS | Stats cards, recent docs, chart |
-| Admin users page | ✅ PASS | Shows all 4 users with roles |
-| Admin doc types page | ✅ PASS | Card grid with 3 types |
-| Admin doc type form | ✅ PASS | Form builder with fields/preview |
-| New document (Договор) | ✅ PASS | Correct type, form renders |
-| New document (Служебная записка) | ✅ PASS | Select field with options |
-| Back navigation | ✅ PASS | Returns to previous view |
+| Feature | Status | Notes |
+|--------|--------|-------|
+| Dashboard load | ✅ PASS | Welcome banner, folders, documents |
+| Theme toggle (dark mode) | ✅ PASS | Smooth transition, all components styled |
+| Theme toggle (light mode) | ✅ PASS | Returns to light theme |
+| Notification panel | ✅ PASS | Popover opens, shows activity items |
+| Grid view | ✅ PASS | Enhanced cards with type color stripe |
+| Admin panel navigation | ✅ PASS | All nav items including "Журнал" |
+| Activity Log page | ⚠️ NEEDS RETEST | API 500 due to Prisma client cache (fixed in db.ts, needs server restart) |
 
-### Files Modified:
-- `/src/app/page.tsx` — Fixed loading guard, added ErrorBoundary wrapper
-- `/src/lib/api.ts` — NEW: Shared API fetch with response unwrapping
-- `/src/lib/types.ts` — Already correct (types match API responses)
-- `/src/lib/store.ts` — Already correct (SPA navigation works)
-- `/src/components/auth/login-page.tsx` — No changes needed
-- `/src/components/dashboard/dashboard-layout.tsx` — Fixed folder API calls
-- `/src/components/documents/document-form-view.tsx` — Fixed loadingLocal naming, replaced local apiFetch with shared
-- `/src/components/admin/admin-layout.tsx` — No changes needed
-- `/src/components/admin/admin-pages.tsx` — Fixed loadingLocal naming, fixed setLoading pollution, replaced local apiFetch with shared
-- `/src/components/error-boundary.tsx` — NEW: ErrorBoundary component
-- `/src/app/layout.tsx` — Updated metadata, added Sonner toaster
+### Known Issue:
+- The Activity Log API returns 500 because the dev server cached an old PrismaClient that doesn't have the `activityLog` model. **Fixed** by adding `SCHEMA_VERSION` cache invalidation in `db.ts`. Requires dev server restart to take effect.
+
+### Lint Status:
+- 0 errors, 1 pre-existing warning (react-hook-form compatible library warning in login-page.tsx)
 
 ## Recommendations for Next Phase:
 
-1. **BPMN Process Editor** — Key differentiator. Build visual BPMN 2.0 editor with drag-and-drop nodes (start/end, tasks, gateways, events)
-2. **Document Workflow/Approval** — Route documents through approval chains with task assignments
-3. **Notification System** — Real-time notifications for document status changes and task assignments  
-4. **Activity/Audit Log** — Track all actions in the system with timestamps
-5. **Document Attachments** — File upload support for documents
-6. **Advanced Search** — Full-text search across document content
-7. **Export/Print** — PDF generation for documents
-8. **Mobile Responsive** — Touch-friendly mobile interface adaptation
+1. **BPMN Process Editor** — Build visual BPMN 2.0 editor with drag-and-drop nodes
+2. **Document Workflow/Approval Chain** — Multi-step approval routing
+3. **Document Attachments** — File upload support
+4. **Real-time Notifications** — WebSocket-based push notifications
+5. **Document Comments** — Threaded comments on documents
+6. **Export/Print** — PDF generation for documents
+7. **Batch Operations** — Multi-select and bulk actions
+8. **Dashboard Analytics** — Charts and reports for document statistics

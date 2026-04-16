@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
+import { logActivity } from '@/lib/activity-log'
 import { Prisma } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
@@ -162,6 +163,15 @@ export async function POST(request: NextRequest) {
           select: { id: true, name: true, email: true },
         },
       },
+    })
+
+    // Log document creation
+    logActivity({
+      userId: user.id,
+      action: 'CREATE_DOCUMENT',
+      entityType: 'Document',
+      entityId: document.id,
+      details: `Создан документ: ${title} (${docNumber})`,
     })
 
     return NextResponse.json({ document }, { status: 201 })

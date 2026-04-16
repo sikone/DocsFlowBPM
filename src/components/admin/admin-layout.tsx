@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useSyncExternalStore } from 'react';
+import { useTheme } from 'next-themes';
 import {
   LayoutDashboard,
   FileText,
@@ -10,6 +11,9 @@ import {
   ArrowLeft,
   LogOut,
   ChevronRight,
+  Sun,
+  Moon,
+  Activity,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -33,6 +37,7 @@ import {
   PlaceholderProcesses,
   PlaceholderTasks,
 } from '@/components/admin/admin-pages';
+import { ActivityLogPage } from '@/components/admin/activity-log-page';
 
 const NAV_ITEMS: {
   label: string;
@@ -44,10 +49,17 @@ const NAV_ITEMS: {
   { label: 'Процессы', icon: GitBranch, page: { page: 'admin-processes' } },
   { label: 'Задачи', icon: CheckSquare, page: { page: 'admin-tasks' } },
   { label: 'Пользователи', icon: Users, page: { page: 'admin-users' } },
+  { label: 'Журнал', icon: Activity, page: { page: 'admin-activity' } },
 ];
 
 export default function AdminLayout() {
   const { user, view, navigate, logout } = useStore();
+  const { theme, setTheme } = useTheme();
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const currentPage = view.page;
 
@@ -89,6 +101,8 @@ export default function AdminLayout() {
         return <PlaceholderProcesses />;
       case 'admin-tasks':
         return <PlaceholderTasks />;
+      case 'admin-activity':
+        return <ActivityLogPage />;
       default:
         return <AdminDashboard />;
     }
@@ -202,6 +216,25 @@ export default function AdminLayout() {
                   </Avatar>
                 </div>
                 <Separator orientation="vertical" className="h-8" />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                    >
+                      {mounted && theme === 'dark' ? (
+                        <Sun className="w-4 h-4" />
+                      ) : (
+                        <Moon className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {mounted && theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+                  </TooltipContent>
+                </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button

@@ -21,6 +21,7 @@ model User {
   documents     Document[]
   createdFolders Folder[] @relation("FolderCreator")
   sessions      Session[]
+  activityLogs  ActivityLog[]
 }
 
 model Folder {
@@ -80,4 +81,20 @@ model Session {
   expiresAt DateTime
 
   user     User     @relation(fields: [userId], references: [id])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // LOGIN, LOGOUT, CREATE_DOCUMENT, EDIT_DOCUMENT, DELETE_DOCUMENT, CHANGE_STATUS, CREATE_FOLDER, DELETE_FOLDER, CREATE_USER, EDIT_USER, DELETE_USER
+  entityType String? // Document, Folder, User, DocumentType
+  entityId   String?
+  details   String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }

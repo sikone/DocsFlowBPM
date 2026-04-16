@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
+import { logActivity } from '@/lib/activity-log'
 
 export async function GET(
   request: NextRequest,
@@ -119,6 +120,28 @@ export async function PUT(
       },
     })
 
+    // Log status change
+    if (status !== undefined && status !== existingDoc.status) {
+      logActivity({
+        userId: user.id,
+        action: 'CHANGE_STATUS',
+        entityType: 'Document',
+        entityId: id,
+        details: `Статус изменён: ${existingDoc.status} → ${status}`,
+      })
+    }
+
+    // Log document edit
+    if (title !== undefined || data !== undefined) {
+      logActivity({
+        userId: user.id,
+        action: 'EDIT_DOCUMENT',
+        entityType: 'Document',
+        entityId: id,
+        details: `Изменён документ: ${updatedDocument.title}`,
+      })
+    }
+
     return NextResponse.json({ document: updatedDocument })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -147,6 +170,14 @@ export async function DELETE(
     if (!existingDoc) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
+
+    logActivity({
+      userId: user.id,
+      action: 'DELETE_DOCUMENT',
+      entityType: 'Document',
+      entityId: id,
+      details: `Удалён документ: ${existingDoc.title}`,
+    })
 
     await db.document.delete({ where: { id } })
 
