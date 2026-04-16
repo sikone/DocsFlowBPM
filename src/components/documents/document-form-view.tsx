@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useStore } from '@/lib/store';
 import type { Document, DocumentType, FormField } from '@/lib/types';
 import { STATUS_LABELS, STATUS_COLORS } from '@/lib/types';
+import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,29 +48,6 @@ import {
   Loader2,
   MoreVertical,
 } from 'lucide-react';
-
-// ────────────────────────────────────────────
-// Helper: fetch wrapper
-// ────────────────────────────────────────────
-async function apiFetch<T>(
-  url: string,
-  token: string,
-  options?: RequestInit
-): Promise<T> {
-  const separator = url.includes('?') ? '&' : '?';
-  const res = await fetch(`${url}${separator}token=${encodeURIComponent(token)}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-    ...options,
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: 'Ошибка сервера' }));
-    throw new Error(body.error || `HTTP ${res.status}`);
-  }
-  return res.json();
-}
 
 // ────────────────────────────────────────────
 // Field Renderer
@@ -378,7 +356,7 @@ export default function DocumentFormView() {
   const [title, setTitle] = useState('');
   const [status, setStatus] = useState<string>('DRAFT');
   const [saving, setSaving] = useState(false);
-  const [loading, setLoadingLocal] = useState(true);
+  const [loadingLocal, setLoadingLocal] = useState(true);
 
   // ── Detect mode ──
   useEffect(() => {

@@ -96,6 +96,7 @@ import {
   STATUS_LABELS,
 } from '@/lib/types';
 import type { User, UserRole, DocumentType, FormField, Document } from '@/lib/types';
+import { apiFetch } from '@/lib/api';
 import {
   BarChart,
   Bar,
@@ -105,23 +106,6 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from 'recharts';
-
-// ============================================================
-// Helper: API fetch with token
-// ============================================================
-function apiFetch<T>(url: string, token: string, options?: RequestInit): Promise<T> {
-  const sep = url.includes('?') ? '&' : '?';
-  return fetch(`${url}${sep}token=${encodeURIComponent(token)}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  }).then((res) => {
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
-    return res.json();
-  });
-}
 
 // ============================================================
 // 1. AdminDashboard
@@ -1299,7 +1283,7 @@ const PREDEFINED_COLORS = [
 ];
 
 export function AdminDocTypeForm() {
-  const { token, view, navigate, setLoading } = useStore();
+  const { token, view, navigate } = useStore();
   const typeId = view.page === 'admin-doc-type-form' ? view.typeId : undefined;
   const isEditing = !!typeId;
 
@@ -1310,7 +1294,7 @@ export function AdminDocTypeForm() {
   const [color, setColor] = useState('#10b981');
   const [formSchema, setFormSchema] = useState<FormField[]>([]);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoadingLocal] = useState(false);
+  const [loadingLocal, setLoadingLocal] = useState(false);
 
   // Generate system name from Russian name
   const generateSystemName = (text: string) => {
@@ -1367,7 +1351,6 @@ export function AdminDocTypeForm() {
   const handleSave = async () => {
     if (!token || !name.trim() || !systemName.trim()) return;
     setSaving(true);
-    setLoading(true);
     try {
       const body = {
         name: name.trim(),
@@ -1395,7 +1378,6 @@ export function AdminDocTypeForm() {
       /* silent */
     } finally {
       setSaving(false);
-      setLoading(false);
     }
   };
 

@@ -6,6 +6,7 @@ import LoginPage from '@/components/auth/login-page';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import DocumentFormView from '@/components/documents/document-form-view';
 import AdminLayout from '@/components/admin/admin-layout';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 function useMounted() {
   return useSyncExternalStore(
@@ -16,7 +17,7 @@ function useMounted() {
 }
 
 export default function Home() {
-  const { view, checkAuth, isLoading } = useStore();
+  const { view, user, checkAuth } = useStore();
   const mounted = useMounted();
   const initialized = useRef(false);
 
@@ -27,7 +28,8 @@ export default function Home() {
     }
   }, [checkAuth]);
 
-  if (!mounted || isLoading) {
+  // Show loading spinner only before initial auth check completes
+  if (!mounted || (!user && view.page !== 'login')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
@@ -40,17 +42,12 @@ export default function Home() {
     );
   }
 
-  if (view.page === 'login') {
-    return <LoginPage />;
-  }
-
-  if (view.page === 'new-document' || view.page === 'edit-document') {
-    return <DocumentFormView />;
-  }
-
-  if (view.page === 'admin' || view.page.startsWith('admin-')) {
-    return <AdminLayout />;
-  }
-
-  return <DashboardLayout />;
+  return (
+    <ErrorBoundary>
+      {view.page === 'login' && <LoginPage />}
+      {(view.page === 'new-document' || view.page === 'edit-document') && <DocumentFormView />}
+      {(view.page === 'admin' || view.page.startsWith('admin-')) && <AdminLayout />}
+      {view.page === 'dashboard' && <DashboardLayout />}
+    </ErrorBoundary>
+  );
 }
