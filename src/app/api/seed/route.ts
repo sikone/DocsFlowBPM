@@ -147,6 +147,68 @@ export async function POST() {
       }
     }
 
+    // ─── Seed Process Definitions ─────────────────────────────
+    const processesData = [
+      {
+        name: 'Согласование документа',
+        description: 'Стандартный процесс согласования внутренних документов',
+        systemName: 'DOCUMENT_APPROVAL',
+        status: 'ACTIVE',
+        steps: [
+          { id: 's1', name: 'Создание документа', type: 'START', assigneeRole: 'USER', order: 1 },
+          { id: 's2', name: 'Проверка руководителем', type: 'APPROVAL', assigneeRole: 'ADVANCED', order: 2 },
+          { id: 's3', name: 'Финальное согласование', type: 'APPROVAL', assigneeRole: 'ADMIN', order: 3 },
+          { id: 's4', name: 'Уведомление об утверждении', type: 'NOTIFICATION', assigneeRole: 'USER', order: 4 },
+        ],
+      },
+      {
+        name: 'Рассмотрение заявки',
+        description: 'Процесс рассмотрения и обработки заявок от сотрудников',
+        systemName: 'REQUEST_REVIEW',
+        status: 'ACTIVE',
+        steps: [
+          { id: 's1', name: 'Подача заявки', type: 'START', assigneeRole: 'USER', order: 1 },
+          { id: 's2', name: 'Предварительная проверка', type: 'APPROVAL', assigneeRole: 'ADVANCED', order: 2 },
+          { id: 's3', name: 'Проверка условий', type: 'CONDITION', assigneeRole: 'ADVANCED', order: 3 },
+          { id: 's4', name: 'Утверждение директором', type: 'APPROVAL', assigneeRole: 'ADMIN', order: 4 },
+          { id: 's5', name: 'Уведомление о результате', type: 'NOTIFICATION', assigneeRole: 'USER', order: 5 },
+        ],
+      },
+      {
+        name: 'Обработка договора',
+        description: 'Полный цикл обработки и согласования договоров',
+        systemName: 'CONTRACT_PROCESSING',
+        status: 'DRAFT',
+        steps: [
+          { id: 's1', name: 'Регистрация договора', type: 'START', assigneeRole: 'USER', order: 1 },
+          { id: 's2', name: 'Проверка юридическим отделом', type: 'APPROVAL', assigneeRole: 'ADVANCED', order: 2 },
+          { id: 's3', name: 'Финансовая проверка', type: 'APPROVAL', assigneeRole: 'ADVANCED', order: 3 },
+          { id: 's4', name: 'Подписание руководством', type: 'APPROVAL', assigneeRole: 'ADMIN', order: 4 },
+          { id: 's5', name: 'Уведомление о подписании', type: 'NOTIFICATION', assigneeRole: 'USER', order: 5 },
+        ],
+      },
+    ]
+
+    for (const pd of processesData) {
+      const existing = await db.processDefinition.findUnique({
+        where: { systemName: pd.systemName },
+      })
+      if (!existing) {
+        await db.processDefinition.create({
+          data: {
+            name: pd.name,
+            description: pd.description,
+            systemName: pd.systemName,
+            status: pd.status,
+            steps: JSON.stringify(pd.steps),
+          },
+        })
+        results.push({ entity: 'ProcessDefinition', action: `create ${pd.name}`, status: 'ok' })
+      } else {
+        results.push({ entity: 'ProcessDefinition', action: `skip ${pd.name} (exists)`, status: 'skipped' })
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Database seeded successfully',

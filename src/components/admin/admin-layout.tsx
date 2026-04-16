@@ -110,7 +110,7 @@ export default function AdminLayout() {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="flex h-screen bg-muted/40 overflow-hidden">
+      <div className="flex h-screen bg-muted/40 overflow-hidden animate-fade-in">
         {/* Sidebar */}
         <aside className="w-64 bg-slate-900 flex flex-col shrink-0">
           {/* Logo */}
@@ -129,7 +129,7 @@ export default function AdminLayout() {
           <Separator className="bg-slate-700/50" />
 
           {/* Navigation */}
-          <ScrollArea className="flex-1 py-4">
+          <ScrollArea className="flex-1 py-4 custom-scrollbar">
             <nav className="px-3 space-y-1">
               {NAV_ITEMS.map((item) => {
                 const Icon = item.icon;
@@ -253,8 +253,8 @@ export default function AdminLayout() {
           </header>
 
           {/* Content */}
-          <main className="flex-1 overflow-auto p-6">
-            <div className="max-w-7xl mx-auto">{renderContent()}</div>
+          <main className="flex-1 overflow-auto p-6 custom-scrollbar">
+            <div className="max-w-7xl mx-auto animate-fade-in">{renderContent()}</div>
           </main>
         </div>
       </div>

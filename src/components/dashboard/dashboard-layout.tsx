@@ -38,6 +38,16 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress';
 import {
   Dialog,
   DialogContent,
@@ -103,6 +113,16 @@ import {
   FileSpreadsheet,
   ScrollText,
   ClipboardList,
+  Download,
+  Printer,
+  FileJson,
+  CheckSquare,
+  Square,
+  Minus,
+  FileDown,
+  FolderInput,
+  X,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 // ─── Theme Toggle Component ─────────────────────────────────────────
@@ -293,6 +313,24 @@ export default function DashboardLayout() {
   const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
   const [deleteDocTitle, setDeleteDocTitle] = useState('');
   const [deleteDocSubmitting, setDeleteDocSubmitting] = useState(false);
+
+  // ── Bulk Selection State ────────────────────────────────────────────
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // ── Bulk Delete Dialog ─────────────────────────────────────────────
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteProgress, setBulkDeleteProgress] = useState({ current: 0, total: 0, active: false });
+
+  // ── Bulk Status Dialog ─────────────────────────────────────────────
+  const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+  const [bulkStatusValue, setBulkStatusValue] = useState<string>('');
+  const [bulkStatusSubmitting, setBulkStatusSubmitting] = useState(false);
+
+  // ── Bulk Move Dialog ───────────────────────────────────────────────
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
+  const [bulkMoveFolderId, setBulkMoveFolderId] = useState<string>('');
+  const [bulkMoveSubmitting, setBulkMoveSubmitting] = useState(false);
 
   // ── Folder path for breadcrumb ──────────────────────────────────────
   const folderPath = useMemo(() => {
@@ -620,6 +658,178 @@ export default function DashboardLayout() {
     [token, deleteDocTitle, documents, setDocuments, fetchData]
   );
 
+  // ── Toggle select mode ───────────────────────────────────────────
+  const toggleSelectMode = useCallback(() => {
+    setSelectMode((prev) => {
+      if (!prev) setSelectedIds(new Set());
+      return !prev;
+    });
+  }, []);
+
+  // ── Toggle document selection ───────────────────────────────────────
+  const toggleDocSelection = useCallback((docId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(docId)) {
+        next.delete(docId);
+      } else {
+        next.add(docId);
+      }
+      return next;
+    });
+  }, []);
+
+  // ── Toggle select all visible documents ─────────────────────────────
+  const toggleSelectAll = useCallback(() => {
+    const visibleIds = filteredDocuments.map((d) => d.id);
+    const allSelected = visibleIds.every((id) => selectedIds.has(id));
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(visibleIds));
+    }
+  }, [filteredDocuments, selectedIds]);
+
+  // ── Clear selection ─────────────────────────────────────────────────
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }, []);
+
+  // ── Check if a document is selected ─────────────────────────────────
+  const isDocSelected = useCallback(
+    (docId: string) => selectedIds.has(docId),
+    [selectedIds]
+  );
+
+  // ── Check if all visible are selected (for indeterminate) ────────────
+  const allVisibleSelected = useMemo(
+    () => filteredDocuments.length > 0 && filteredDocuments.every((d) => selectedIds.has(d.id)),
+    [filteredDocuments, selectedIds]
+  );
+  const someVisibleSelected = useMemo(
+    () => filteredDocuments.some((d) => selectedIds.has(d.id)),
+    [filteredDocuments, selectedIds]
+  );
+
+  // ── Handle bulk delete ───────────────────────────────────────────────
+  const handleBulkDelete = useCallback(async () => {
+    if (!token || selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    setBulkDeleteProgress({ current: 0, total: ids.length, active: true });
+    try {
+      const res = await fetch(`/api/documents/bulk-delete?token=${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (res.ok) {
+        toast.success('Документы удалены', {
+          description: `Успешно удалено ${ids.length} документов.`,
+        });
+        setDocuments(documents.filter((d) => !ids.includes(d.id)));
+        setSelectedIds(new Set());
+        setSelectMode(false);
+        fetchData();
+      } else {
+        toast.error('Ошибка удаления', {
+          description: 'Не удалось удалить выбранные документы.',
+        });
+      }
+    } catch {
+      toast.error('Ошибка соединения', {
+        description: 'Не удалось подключиться к серверу.',
+      });
+    } finally {
+      setBulkDeleteProgress({ current: 0, total: 0, active: false });
+      setBulkDeleteOpen(false);
+    }
+  }, [token, selectedIds, documents, setDocuments, fetchData]);
+
+  // ── Handle bulk status change ───────────────────────────────────────
+  const handleBulkStatusChange = useCallback(async () => {
+    if (!token || selectedIds.size === 0 || !bulkStatusValue) return;
+    const ids = Array.from(selectedIds);
+    setBulkStatusSubmitting(true);
+    try {
+      const res = await fetch(`/api/documents/bulk-status?token=${token}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, status: bulkStatusValue }),
+      });
+      if (res.ok) {
+        const statusLabel = STATUS_LABELS[bulkStatusValue] || bulkStatusValue;
+        toast.success('Статус обновлён', {
+          description: `Статус ${ids.length} документов изменён на «${statusLabel}».`,
+        });
+        setSelectedIds(new Set());
+        setSelectMode(false);
+        setBulkStatusOpen(false);
+        setBulkStatusValue('');
+        fetchData();
+      } else {
+        toast.error('Ошибка обновления', {
+          description: 'Не удалось изменить статус документов.',
+        });
+      }
+    } catch {
+      toast.error('Ошибка соединения', {
+        description: 'Не удалось подключиться к серверу.',
+      });
+    } finally {
+      setBulkStatusSubmitting(false);
+    }
+  }, [token, selectedIds, bulkStatusValue, fetchData]);
+
+  // ── Handle bulk move to folder ──────────────────────────────────────
+  const handleBulkMove = useCallback(async () => {
+    if (!token || selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const targetFolder = bulkMoveFolderId === '__none__' ? null : bulkMoveFolderId;
+    setBulkMoveSubmitting(true);
+    try {
+      const res = await fetch(`/api/documents/bulk-move?token=${token}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, folderId: targetFolder }),
+      });
+      if (res.ok) {
+        const folderName = targetFolder
+          ? folders.find((f) => f.id === targetFolder)?.name || 'папке'
+          : 'корневой каталог';
+        toast.success('Документы перемещены', {
+          description: `${ids.length} документов перемещены в ${folderName}.`,
+        });
+        setSelectedIds(new Set());
+        setSelectMode(false);
+        setBulkMoveOpen(false);
+        setBulkMoveFolderId('');
+        fetchData();
+      } else {
+        toast.error('Ошибка перемещения', {
+          description: 'Не удалось переместить документы.',
+        });
+      }
+    } catch {
+      toast.error('Ошибка соединения', {
+        description: 'Не удалось подключиться к серверу.',
+      });
+    } finally {
+      setBulkMoveSubmitting(false);
+    }
+  }, [token, selectedIds, bulkMoveFolderId, folders, fetchData]);
+
+  // ── Keyboard shortcut: Escape to clear selection ─────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && (selectMode || selectedIds.size > 0)) {
+        clearSelection();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectMode, selectedIds.size, clearSelection]);
+
   // ── Sidebar content (shared between desktop & mobile) ───────────────
   const sidebarContent = useMemo(() => (
     <>
@@ -654,7 +864,7 @@ export default function DashboardLayout() {
       <Separator className="bg-slate-700/50" />
 
       {/* ── Folder Tree ── */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 custom-scrollbar">
         <div className="py-2">
           {/* All Documents */}
           <button
@@ -774,13 +984,13 @@ export default function DashboardLayout() {
   // ══════════════════════════════════════════════════════════════════
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-muted/40">
+    <div className="flex h-screen w-screen overflow-hidden bg-muted/40 animate-fade-in">
       {/* ════════ SIDEBAR (Desktop) ════════ */}
       <aside
         className={`
           ${sidebarCollapsed ? 'w-0 lg:w-16' : 'w-72'}
           hidden md:flex flex-col bg-slate-900 text-slate-100 border-r border-slate-700/50
-          transition-all duration-300 ease-in-out overflow-hidden shrink-0
+          transition-all duration-300 ease-in-out overflow-hidden shrink-0 no-print
         `}
       >
         {!sidebarCollapsed && sidebarContent}
@@ -814,7 +1024,7 @@ export default function DashboardLayout() {
       {/* ════════ MAIN AREA ════════ */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* ════════ HEADER ════════ */}
-        <header className="flex items-center h-14 px-4 bg-background border-b shrink-0 z-30">
+        <header className="flex items-center h-14 px-4 bg-background border-b shrink-0 z-30 no-print">
           {/* Left: Hamburger + Breadcrumb */}
           <div className="flex items-center gap-3 min-w-0">
             <Button
@@ -985,13 +1195,13 @@ export default function DashboardLayout() {
         </header>
 
         {/* ════════ CONTENT AREA ════════ */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto animate-fade-in">
           {/* ── Toolbar ── */}
-          <div className="sticky top-0 z-10 bg-background border-b px-4 py-2.5 flex items-center gap-2 flex-wrap">
+          <div className="sticky top-0 z-10 bg-background border-b px-4 py-2.5 flex items-center gap-2 flex-wrap no-print">
             {/* New Document Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="h-9 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button className="h-9 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.98] transition-transform">
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Новый документ</span>
                 </Button>
@@ -1033,6 +1243,27 @@ export default function DashboardLayout() {
               </TooltipTrigger>
               <TooltipContent>Обновить</TooltipContent>
             </Tooltip>
+
+            {/* Select Mode Toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={selectMode ? 'default' : 'outline'}
+                  size="icon"
+                  className={`h-9 w-9 ${selectMode ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                  onClick={toggleSelectMode}
+                >
+                  {selectMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{selectMode ? 'Отменить выбор' : 'Выбрать документы'}</TooltipContent>
+            </Tooltip>
+
+            {selectMode && selectedIds.size > 0 && (
+              <Badge variant="secondary" className="h-6 gap-1 px-2 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                {selectedIds.size}
+              </Badge>
+            )}
 
             <Separator orientation="vertical" className="h-6" />
 
@@ -1138,6 +1369,80 @@ export default function DashboardLayout() {
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {/* Export dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 gap-2 text-sm">
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">Экспорт</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                <DropdownMenuLabel>Экспорт документов</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={async () => {
+                    try {
+                      const ids = filteredDocuments.map((d) => d.id);
+                      const res = await fetch('/api/documents/export', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', token: token || '' },
+                        body: JSON.stringify({ ids, format: 'json' }),
+                      });
+                      if (!res.ok) throw new Error('Export failed');
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `documents_${new Date().toISOString().slice(0, 10)}.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      toast.success('Экспорт JSON завершён');
+                    } catch { toast.error('Ошибка экспорта'); }
+                  }}
+                  disabled={filteredDocuments.length === 0}
+                  className="gap-2"
+                >
+                  <FileJson className="h-4 w-4 text-muted-foreground" />
+                  Экспорт JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={async () => {
+                    try {
+                      const ids = filteredDocuments.map((d) => d.id);
+                      const res = await fetch('/api/documents/export', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', token: token || '' },
+                        body: JSON.stringify({ ids, format: 'csv' }),
+                      });
+                      if (!res.ok) throw new Error('Export failed');
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `documents_${new Date().toISOString().slice(0, 10)}.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      toast.success('Экспорт CSV завершён');
+                    } catch { toast.error('Ошибка экспорта'); }
+                  }}
+                  disabled={filteredDocuments.length === 0}
+                  className="gap-2"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                  Экспорт CSV
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => window.print()}
+                  className="gap-2"
+                >
+                  <Printer className="h-4 w-4 text-muted-foreground" />
+                  Печать списка
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {/* Document count */}
             <div className="ml-auto text-sm text-muted-foreground">
               {filteredDocuments.length}{' '}
@@ -1180,7 +1485,7 @@ export default function DashboardLayout() {
                 {invoiceTypeId && (
                   <button
                     onClick={() => handleNewDocument(invoiceTypeId)}
-                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-card border border-border rounded-lg hover:shadow-sm hover:border-emerald-300 dark:hover:border-emerald-700 transition-all group"
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-card border border-border rounded-lg hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-700 transition-all group"
                   >
                     <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/30">
                       <FileSpreadsheet className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -1193,7 +1498,7 @@ export default function DashboardLayout() {
                 {contractTypeId && (
                   <button
                     onClick={() => handleNewDocument(contractTypeId)}
-                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-card border border-border rounded-lg hover:shadow-sm hover:border-emerald-300 dark:hover:border-emerald-700 transition-all group"
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-card border border-border rounded-lg hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-700 transition-all group"
                   >
                     <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-sky-50 dark:bg-sky-900/30">
                       <File className="h-4 w-4 text-sky-600 dark:text-sky-400" />
@@ -1206,7 +1511,7 @@ export default function DashboardLayout() {
                 {memoTypeId && (
                   <button
                     onClick={() => handleNewDocument(memoTypeId)}
-                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-card border border-border rounded-lg hover:shadow-sm hover:border-emerald-300 dark:hover:border-emerald-700 transition-all group"
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-card border border-border rounded-lg hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-700 transition-all group"
                   >
                     <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-violet-50 dark:bg-violet-900/30">
                       <ScrollText className="h-4 w-4 text-violet-600 dark:text-violet-400" />
@@ -1219,7 +1524,7 @@ export default function DashboardLayout() {
                 {user?.role === 'ADMIN' && (
                   <button
                     onClick={() => navigate({ page: 'admin' })}
-                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-card border border-border rounded-lg hover:shadow-sm hover:border-emerald-300 dark:hover:border-emerald-700 transition-all group"
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-card border border-border rounded-lg hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-700 transition-all group"
                   >
                     <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-muted">
                       <ClipboardList className="h-4 w-4 text-muted-foreground" />
@@ -1251,15 +1556,120 @@ export default function DashboardLayout() {
                   setDeleteDocId(id);
                   setDeleteDocTitle(title);
                 }}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                allVisibleSelected={allVisibleSelected}
+                someVisibleSelected={someVisibleSelected}
+                onToggleSelectAll={toggleSelectAll}
+                onToggleDocSelection={toggleDocSelection}
               />
             ) : (
-              <DocumentGrid documents={filteredDocuments} onDocClick={handleDocClick} />
+              <DocumentGrid
+                documents={filteredDocuments}
+                onDocClick={handleDocClick}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                onToggleDocSelection={toggleDocSelection}
+              />
+            )}
+
+            {/* ── Floating Selection Bar ── */}
+            {selectMode && selectedIds.size > 0 && (
+              <div className="fixed bottom-0 left-0 right-0 z-40 animate-in slide-in-from-bottom-2 duration-200">
+                <div className="mx-auto max-w-3xl px-4 pb-4">
+                  <div className="bg-card border border-t shadow-lg rounded-t-xl px-4 py-3 flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <div className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/50">
+                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                          {selectedIds.size}
+                        </span>
+                      </div>
+                      <span className="text-foreground">
+                        {selectedIds.size === 1
+                          ? 'документ выбран'
+                          : selectedIds.size < 5
+                          ? 'документа выбрано'
+                          : 'документов выбрано'}
+                      </span>
+                    </div>
+
+                    <div className="h-5 w-px bg-border" />
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                        onClick={() => setBulkDeleteOpen(true)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Удалить</span>
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 gap-1.5 text-foreground hover:bg-accent"
+                        onClick={() => {
+                          setBulkStatusValue('');
+                          setBulkStatusOpen(true);
+                        }}
+                      >
+                        <ArrowRightLeft className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Статус</span>
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 gap-1.5 text-foreground hover:bg-accent"
+                        onClick={() => {
+                          setBulkMoveFolderId('');
+                          setBulkMoveOpen(true);
+                        }}
+                      >
+                        <FolderInput className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Переместить</span>
+                      </Button>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 gap-1.5 text-muted-foreground cursor-not-allowed opacity-60"
+                        disabled
+                        onClick={() => {
+                          toast.info('Экспорт будет доступен в следующей версии');
+                        }}
+                          >
+                            <FileDown className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Экспорт</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Экспорт будет доступен в следующей версии</TooltipContent>
+                      </Tooltip>
+                    </div>
+
+                    <div className="ml-auto">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={clearSelection}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </main>
 
         {/* ════════ STATUS BAR ════════ */}
-        <footer className="flex items-center justify-between h-7 px-4 bg-background border-t text-[11px] text-muted-foreground shrink-0">
+        <footer className="flex items-center justify-between h-7 px-4 bg-background border-t text-[11px] text-muted-foreground shrink-0 no-print">
           <div className="flex items-center gap-3">
             <span>
               {selectedFolderId
@@ -1316,7 +1726,7 @@ export default function DashboardLayout() {
             <Button
               onClick={handleCreateFolder}
               disabled={!newFolderName.trim() || newFolderSubmitting}
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform"
             >
               {newFolderSubmitting ? 'Создание...' : 'Создать'}
             </Button>
@@ -1357,7 +1767,7 @@ export default function DashboardLayout() {
             <Button
               onClick={handleRenameFolder}
               disabled={!renameFolderName.trim() || renameSubmitting}
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform"
             >
               {renameSubmitting ? 'Сохранение...' : 'Сохранить'}
             </Button>
@@ -1380,13 +1790,134 @@ export default function DashboardLayout() {
             <AlertDialogAction
               onClick={() => deleteDocId && handleDeleteDocument(deleteDocId)}
               disabled={deleteDocSubmitting}
-              className="bg-rose-600 hover:bg-rose-700 text-white"
+              className="bg-rose-600 hover:bg-rose-700 text-white active:scale-[0.98] transition-transform"
             >
               {deleteDocSubmitting ? 'Удаление...' : 'Удалить'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ════════ BULK DELETE DIALOG ════════ */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Удалить документы?</DialogTitle>
+            <DialogDescription>
+              Вы уверены, что хотите удалить <span className="font-medium">{selectedIds.size} документов</span>?
+              Это действие нельзя отменить.
+            </DialogDescription>
+          </DialogHeader>
+          {bulkDeleteProgress.active && (
+            <div className="py-2 space-y-2">
+              <Progress value={(bulkDeleteProgress.current / bulkDeleteProgress.total) * 100} className="h-2" />
+              <p className="text-xs text-muted-foreground text-center">
+                Удаление {bulkDeleteProgress.current} из {bulkDeleteProgress.total}...
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)} disabled={bulkDeleteProgress.active}>
+              Отмена
+            </Button>
+            <Button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteProgress.active}
+              className="bg-rose-600 hover:bg-rose-700 text-white active:scale-[0.98] transition-transform"
+            >
+              {bulkDeleteProgress.active ? 'Удаление...' : `Удалить (${selectedIds.size})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ════════ BULK STATUS DIALOG ════════ */}
+      <Dialog open={bulkStatusOpen} onOpenChange={(open) => { if (!open) { setBulkStatusOpen(false); setBulkStatusValue(''); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Изменить статус</DialogTitle>
+            <DialogDescription>
+              Выберите новый статус для <span className="font-medium">{selectedIds.size} документов</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Select value={bulkStatusValue} onValueChange={setBulkStatusValue}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Выберите статус" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setBulkStatusOpen(false); setBulkStatusValue(''); }}
+              disabled={bulkStatusSubmitting}
+            >
+              Отмена
+            </Button>
+            <Button
+              onClick={handleBulkStatusChange}
+              disabled={!bulkStatusValue || bulkStatusSubmitting}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {bulkStatusSubmitting ? 'Применение...' : 'Применить'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ════════ BULK MOVE DIALOG ════════ */}
+      <Dialog open={bulkMoveOpen} onOpenChange={(open) => { if (!open) { setBulkMoveOpen(false); setBulkMoveFolderId(''); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Переместить в папку</DialogTitle>
+            <DialogDescription>
+              Выберите папку для перемещения <span className="font-medium">{selectedIds.size} документов</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Select value={bulkMoveFolderId} onValueChange={setBulkMoveFolderId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Выберите папку" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">
+                  <span className="text-muted-foreground">Без папки (удалить привязку)</span>
+                </SelectItem>
+                <SelectSeparator />
+                {folders.map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    {folder.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setBulkMoveOpen(false); setBulkMoveFolderId(''); }}
+              disabled={bulkMoveSubmitting}
+            >
+              Отмена
+            </Button>
+            <Button
+              onClick={handleBulkMove}
+              disabled={!bulkMoveFolderId || bulkMoveSubmitting}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {bulkMoveSubmitting ? 'Перемещение...' : 'Переместить'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1548,9 +2079,19 @@ interface DocumentTableProps {
   sortDir: SortDir;
   onSort: (field: SortField) => void;
   onDeleteDoc: (id: string, title: string) => void;
+  selectMode: boolean;
+  selectedIds: Set<string>;
+  allVisibleSelected: boolean;
+  someVisibleSelected: boolean;
+  onToggleSelectAll: () => void;
+  onToggleDocSelection: (id: string) => void;
 }
 
-function DocumentTable({ documents, onDocClick, sortField, sortDir, onSort, onDeleteDoc }: DocumentTableProps) {
+function DocumentTable({
+  documents, onDocClick, sortField, sortDir, onSort, onDeleteDoc,
+  selectMode, selectedIds, allVisibleSelected, someVisibleSelected,
+  onToggleSelectAll, onToggleDocSelection,
+}: DocumentTableProps) {
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronRight className="h-3 w-3 ml-1 opacity-30" />;
     return (
@@ -1563,10 +2104,19 @@ function DocumentTable({ documents, onDocClick, sortField, sortDir, onSort, onDe
   }
 
   return (
-    <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
+    <div className="bg-card rounded-lg border shadow-sm overflow-hidden custom-scrollbar max-h-96 overflow-y-auto">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/60">
+            {selectMode && (
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
+                  onCheckedChange={onToggleSelectAll}
+                  className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600 data-[state=indeterminate]:bg-emerald-600 data-[state=indeterminate]:border-emerald-600"
+                />
+              </TableHead>
+            )}
             <TableHead
               className="w-40 cursor-pointer select-none hover:bg-muted transition-colors"
               onClick={() => onSort('title')}
@@ -1621,9 +2171,20 @@ function DocumentTable({ documents, onDocClick, sortField, sortDir, onSort, onDe
           {documents.map((doc) => (
             <TableRow
               key={doc.id}
-              className="cursor-pointer group"
+              className={`cursor-pointer group transition-colors hover:bg-muted/50 ${selectMode && selectedIds.has(doc.id) ? 'bg-emerald-50 dark:bg-emerald-950/20' : ''}`}
               onClick={() => onDocClick(doc.id)}
             >
+              {selectMode && (
+                <TableCell>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedIds.has(doc.id)}
+                      onCheckedChange={() => onToggleDocSelection(doc.id)}
+                      className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                    />
+                  </div>
+                </TableCell>
+              )}
               <TableCell>
                 <div className="flex items-center gap-2">
                   <span style={{ color: doc.type?.color || '#64748b' }}>
@@ -1725,9 +2286,14 @@ function DocumentTable({ documents, onDocClick, sortField, sortDir, onSort, onDe
 interface DocumentGridProps {
   documents: Document[];
   onDocClick: (id: string) => void;
+  selectMode: boolean;
+  selectedIds: Set<string>;
+  onToggleDocSelection: (id: string) => void;
 }
 
-function DocumentGrid({ documents, onDocClick }: DocumentGridProps) {
+function DocumentGrid({
+  documents, onDocClick, selectMode, selectedIds, onToggleDocSelection,
+}: DocumentGridProps) {
   if (documents.length === 0) {
     return <EmptyState />;
   }
@@ -1747,9 +2313,23 @@ function DocumentGrid({ documents, onDocClick }: DocumentGridProps) {
           <div
             key={doc.id}
             onClick={() => onDocClick(doc.id)}
-            className="group bg-card rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
+            className={`group bg-card rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden relative ${selectMode && selectedIds.has(doc.id) ? 'ring-2 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' : ''}`}
             style={{ borderTopColor: docColor }}
           >
+            {/* Selection Checkbox */}
+            {selectMode && (
+              <div
+                className="absolute top-2.5 right-2.5 z-10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Checkbox
+                  checked={selectedIds.has(doc.id)}
+                  onCheckedChange={() => onToggleDocSelection(doc.id)}
+                  className="bg-background/80 backdrop-blur-sm data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                />
+              </div>
+            )}
+
             {/* Top gradient stripe */}
             <div
               className="h-[2px] w-full"
@@ -1837,7 +2417,7 @@ function EmptyState() {
 // ══════════════════════════════════════════════════════════════════════
 function LoadingSkeleton() {
   return (
-    <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
+    <div className="bg-card rounded-lg border shadow-sm overflow-hidden custom-scrollbar max-h-96 overflow-y-auto">
       {/* Toolbar skeleton */}
       <div className="p-4 border-b space-y-3">
         <div className="flex items-center gap-3">

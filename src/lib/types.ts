@@ -88,11 +88,11 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 
 export const STATUS_COLORS: Record<string, string> = {
-  DRAFT: 'bg-slate-100 text-slate-700 border-slate-300',
-  IN_PROGRESS: 'bg-sky-50 text-sky-700 border-sky-300',
-  APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-300',
-  REJECTED: 'bg-rose-50 text-rose-700 border-rose-300',
-  COMPLETED: 'bg-violet-50 text-violet-700 border-violet-300',
+  DRAFT: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600',
+  IN_PROGRESS: 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-700',
+  APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-700',
+  REJECTED: 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-700',
+  COMPLETED: 'bg-violet-50 text-violet-700 border-violet-300 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-700',
 };
 
 export const ROLE_LABELS: Record<string, string> = {

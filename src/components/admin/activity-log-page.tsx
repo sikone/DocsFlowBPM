@@ -80,21 +80,21 @@ const ACTION_LABELS: Record<string, string> = {
 
 function getActionBadgeClass(action: string): string {
   if (action === 'LOGIN' || action === 'LOGOUT') {
-    return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800';
   }
   if (action.startsWith('CREATE_')) {
-    return 'bg-sky-50 text-sky-700 border-sky-200';
+    return 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800';
   }
   if (action.startsWith('EDIT_')) {
-    return 'bg-amber-50 text-amber-700 border-amber-200';
+    return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800';
   }
   if (action.startsWith('DELETE_')) {
-    return 'bg-rose-50 text-rose-700 border-rose-200';
+    return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800';
   }
   if (action === 'CHANGE_STATUS') {
-    return 'bg-violet-50 text-violet-700 border-violet-200';
+    return 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-800';
   }
-  return 'bg-slate-50 text-slate-700 border-slate-200';
+  return 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
 }
 
 const ENTITY_TYPE_LABELS: Record<string, string> = {
@@ -117,11 +117,11 @@ function formatDateTime(dateStr: string): string {
 function getRoleBadgeClass(role: string): string {
   switch (role) {
     case 'ADMIN':
-      return 'bg-red-100 text-red-700 border-red-200';
+      return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800';
     case 'ADVANCED':
-      return 'bg-amber-100 text-amber-700 border-amber-200';
+      return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800';
     default:
-      return 'bg-slate-100 text-slate-700 border-slate-200';
+      return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
   }
 }
 
@@ -253,8 +253,8 @@ export function ActivityLogPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Журнал активности</h1>
-          <p className="text-slate-500 mt-1">История всех действий в системе</p>
+          <h1 className="text-2xl font-bold text-foreground">Журнал активности</h1>
+          <p className="text-muted-foreground mt-1">История всех действий в системе</p>
         </div>
         <Button variant="outline" className="gap-2" disabled>
           <Download className="w-4 h-4" />
@@ -268,7 +268,7 @@ export function ActivityLogPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
             {/* Action type filter */}
             <div className="flex flex-col gap-1.5 min-w-0 flex-1 sm:max-w-xs w-full">
-              <label className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                 <Filter className="w-3 h-3" />
                 Тип действия
               </label>
@@ -289,7 +289,7 @@ export function ActivityLogPage() {
 
             {/* Entity type filter */}
             <div className="flex flex-col gap-1.5 min-w-0 flex-1 sm:max-w-xs w-full">
-              <label className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                 <FileText className="w-3 h-3" />
                 Тип сущности
               </label>
@@ -308,14 +308,14 @@ export function ActivityLogPage() {
 
             {/* Date range placeholder */}
             <div className="flex flex-col gap-1.5 min-w-0 flex-1 sm:max-w-xs w-full">
-              <label className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                 <Clock className="w-3 h-3" />
                 Период
               </label>
               <Input
                 value="Все время"
                 readOnly
-                className="w-full text-slate-500 cursor-default bg-slate-50"
+                className="w-full text-muted-foreground cursor-default bg-muted"
               />
             </div>
           </div>
@@ -323,8 +323,8 @@ export function ActivityLogPage() {
       </Card>
 
       {/* Activity table */}
-      <Card>
-        <CardContent className="p-0">
+      <Card className="overflow-hidden">
+        <CardContent className="p-0 custom-scrollbar max-h-[600px] overflow-y-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -340,11 +340,11 @@ export function ActivityLogPage() {
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2">
-                      <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center">
                         <ClipboardList className="w-5 h-5 text-rose-400" />
                       </div>
-                      <p className="text-slate-600 font-medium">Ошибка загрузки</p>
-                      <p className="text-sm text-slate-400">{error}</p>
+                      <p className="text-foreground font-medium">Ошибка загрузки</p>
+                      <p className="text-sm text-muted-foreground">{error}</p>
                       <Button
                         variant="outline"
                         size="sm"
@@ -364,11 +364,11 @@ export function ActivityLogPage() {
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-16">
                     <div className="flex flex-col items-center gap-2">
-                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
-                        <Search className="w-6 h-6 text-slate-300" />
+                      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                        <Search className="w-6 h-6 text-muted-foreground/40" />
                       </div>
-                      <p className="text-slate-500 font-medium">Нет записей в журнале</p>
-                      <p className="text-sm text-slate-400">
+                      <p className="text-muted-foreground font-medium">Нет записей в журнале</p>
+                      <p className="text-sm text-muted-foreground/70">
                         Журнал пока пуст или фильтры не дают результатов
                       </p>
                     </div>
@@ -377,16 +377,16 @@ export function ActivityLogPage() {
               )}
 
               {!error && !loading && filteredLogs.map((log) => (
-                <TableRow key={log.id}>
+                <TableRow key={log.id} className="transition-colors hover:bg-muted/50">
                   {/* Time */}
-                  <TableCell className="text-sm text-slate-600 whitespace-nowrap">
+                  <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                     {formatDateTime(log.createdAt)}
                   </TableCell>
 
                   {/* User */}
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-900">
+                      <span className="text-sm font-medium text-foreground">
                         {log.user.name}
                       </span>
                       <Badge
@@ -411,10 +411,10 @@ export function ActivityLogPage() {
                   {/* Entity */}
                   <TableCell className="text-sm">
                     {log.entityType ? (
-                      <span className="text-slate-700">
+                      <span className="text-muted-foreground">
                         {ENTITY_TYPE_LABELS[log.entityType] || log.entityType}
                         {log.entityId && (
-                          <span className="text-slate-400 ml-1.5 font-mono text-xs">
+                          <span className="text-muted-foreground ml-1.5 font-mono text-xs">
                             {log.entityId.length > 8
                               ? `#${log.entityId.slice(0, 8)}…`
                               : `#${log.entityId}`}
@@ -422,16 +422,16 @@ export function ActivityLogPage() {
                         )}
                       </span>
                     ) : (
-                      <span className="text-slate-400">—</span>
+                      <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
 
                   {/* Details */}
-                  <TableCell className="text-sm text-slate-600 max-w-xs">
+                  <TableCell className="text-sm text-muted-foreground max-w-xs">
                     {log.details ? (
                       <span className="line-clamp-2">{log.details}</span>
                     ) : (
-                      <span className="text-slate-400">—</span>
+                      <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
                 </TableRow>
@@ -443,10 +443,10 @@ export function ActivityLogPage() {
 
       {/* Pagination info */}
       {!error && !loading && (
-        <div className="flex items-center justify-between text-sm text-slate-500">
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
           <p>
-            Показано <span className="font-medium text-slate-700">{displayedCount}</span> из{' '}
-            <span className="font-medium text-slate-700">{total}</span>
+            Показано <span className="font-medium text-foreground">{displayedCount}</span> из{' '}
+            <span className="font-medium text-foreground">{total}</span>
           </p>
         </div>
       )}

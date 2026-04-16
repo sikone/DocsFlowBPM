@@ -18,11 +18,13 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  documents     Document[]
-  createdFolders Folder[] @relation("FolderCreator")
-  sessions      Session[]
-  activityLogs  ActivityLog[]
-  comments      Comment[]
+  documents      Document[]
+  createdFolders Folder[]      @relation("FolderCreator")
+  sessions       Session[]
+  activityLogs   ActivityLog[]
+  comments       Comment[]
+  assignedTasks  Task[]        @relation("AssignedTasks")
+  createdTasks   Task[]        @relation("CreatedTasks")
 }
 
 model Folder {
@@ -73,6 +75,7 @@ model Document {
   folder   Folder?      @relation(fields: [folderId], references: [id])
   creator  User         @relation(fields: [createdById], references: [id])
   comments Comment[]
+  tasks    Task[]
 }
 
 model Session {
@@ -114,5 +117,44 @@ model Comment {
 
   @@index([documentId])
   @@index([userId])
+  @@index([createdAt])
+}
+
+model ProcessDefinition {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  systemName  String   @unique
+  version     Int      @default(1)
+  status      String   @default("ACTIVE") // ACTIVE, DRAFT, ARCHIVED
+  steps       String   @default("[]") // JSON: array of step definitions
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Task {
+  id           String    @id @default(cuid())
+  title        String
+  description  String?
+  type         String    @default("APPROVAL") // APPROVAL, REVIEW, NOTIFICATION
+  status       String    @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED
+  priority     String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  documentId   String?
+  assignedToId String
+  createdById  String
+  dueDate      DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  document   Document? @relation(fields: [documentId], references: [id])
+  assignedTo User     @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  creator    User     @relation("CreatedTasks", fields: [createdById], references: [id])
+
+  @@index([assignedToId])
+  @@index([createdById])
+  @@index([status])
+  @@index([priority])
+  @@index([documentId])
   @@index([createdAt])
 }

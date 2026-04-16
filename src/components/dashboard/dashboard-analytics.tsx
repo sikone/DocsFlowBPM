@@ -320,7 +320,7 @@ export default function DashboardAnalytics() {
           {/* ═══ Statistics Overview Bar ═══ */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {/* Total Documents */}
-            <Card className="py-4 gap-0 shadow-none">
+            <Card className="py-4 gap-0 transition-shadow hover:shadow-md">
               <CardContent className="px-4 py-0">
                 <div className="flex items-center gap-2.5">
                   <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 shrink-0">
@@ -339,7 +339,7 @@ export default function DashboardAnalytics() {
             </Card>
 
             {/* Documents this week */}
-            <Card className="py-4 gap-0 shadow-none">
+            <Card className="py-4 gap-0 transition-shadow hover:shadow-md">
               <CardContent className="px-4 py-0">
                 <div className="flex items-center gap-2.5">
                   <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-sky-50 dark:bg-sky-900/30 shrink-0">
@@ -358,7 +358,7 @@ export default function DashboardAnalytics() {
             </Card>
 
             {/* Most Active Folder */}
-            <Card className="py-4 gap-0 shadow-none col-span-2 sm:col-span-1">
+            <Card className="py-4 gap-0 transition-shadow hover:shadow-md col-span-2 sm:col-span-1">
               <CardContent className="px-4 py-0">
                 <div className="flex items-center gap-2.5">
                   <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-900/30 shrink-0">
@@ -377,7 +377,7 @@ export default function DashboardAnalytics() {
             </Card>
 
             {/* Status Distribution Mini */}
-            <Card className="py-4 gap-0 shadow-none col-span-2 sm:col-span-3 lg:col-span-2">
+            <Card className="py-4 gap-0 transition-shadow hover:shadow-md col-span-2 sm:col-span-3 lg:col-span-2">
               <CardContent className="px-4 py-0">
                 <div className="flex items-center gap-3 flex-wrap">
                   {Object.entries(stats.statusCounts).map(([status, count]) => (
@@ -397,7 +397,7 @@ export default function DashboardAnalytics() {
           {/* ═══ Charts Row ═══ */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {/* ── Documents by Status (Donut Chart) ── */}
-            <Card className="shadow-none">
+            <Card className="transition-shadow hover:shadow-md">
               <CardHeader className="pb-2 px-4 pt-4 gap-0">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <Activity className="h-4 w-4 text-muted-foreground" />
@@ -441,7 +441,7 @@ export default function DashboardAnalytics() {
             </Card>
 
             {/* ── Documents Over Time (Bar Chart) ── */}
-            <Card className="shadow-none">
+            <Card className="transition-shadow hover:shadow-md">
               <CardHeader className="pb-2 px-4 pt-4 gap-0">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
@@ -485,7 +485,7 @@ export default function DashboardAnalytics() {
             </Card>
 
             {/* ── Recent Activity Timeline ── */}
-            <Card className="shadow-none md:col-span-2 xl:col-span-1">
+            <Card className="transition-shadow hover:shadow-md md:col-span-2 xl:col-span-1">
               <CardHeader className="pb-2 px-4 pt-4 gap-0">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />

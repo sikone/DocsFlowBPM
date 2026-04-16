@@ -316,7 +316,7 @@ export default function ProfilePage() {
 
   // ── Render ──
   return (
-    <div className="min-h-screen bg-muted/40">
+    <div className="min-h-screen bg-muted/40 animate-fade-in">
       {/* ═══ Header ═══ */}
       <header className="sticky top-0 z-30 bg-background border-b">
         <div className="flex items-center h-14 px-4 gap-3">

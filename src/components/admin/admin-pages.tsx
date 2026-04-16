@@ -171,29 +171,29 @@ export function AdminDashboard() {
       label: 'Всего документов',
       value: stats.documents,
       icon: FileText,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-50',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bg: 'bg-emerald-50 dark:bg-emerald-900/30',
     },
     {
       label: 'Пользователи',
       value: stats.users,
       icon: Users,
-      color: 'text-sky-600',
-      bg: 'bg-sky-50',
+      color: 'text-sky-600 dark:text-sky-400',
+      bg: 'bg-sky-50 dark:bg-sky-900/30',
     },
     {
       label: 'Типы документов',
       value: stats.docTypes,
       icon: FileText,
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
+      color: 'text-amber-600 dark:text-amber-400',
+      bg: 'bg-amber-50 dark:bg-amber-900/30',
     },
     {
       label: 'Папки',
       value: stats.folders,
       icon: FolderOpen,
-      color: 'text-violet-600',
-      bg: 'bg-violet-50',
+      color: 'text-violet-600 dark:text-violet-400',
+      bg: 'bg-violet-50 dark:bg-violet-900/30',
     },
   ];
 
@@ -208,8 +208,8 @@ export function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Дашборд</h1>
-        <p className="text-slate-500 mt-1">Обзор системы управления документами</p>
+        <h1 className="text-2xl font-bold text-foreground">Дашборд</h1>
+        <p className="text-muted-foreground mt-1">Обзор системы управления документами</p>
       </div>
 
       {/* Stat cards */}
@@ -221,8 +221,8 @@ export function AdminDashboard() {
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500 font-medium">{card.label}</p>
-                    <p className="text-3xl font-bold text-slate-900 mt-1">{card.value}</p>
+                    <p className="text-sm text-muted-foreground font-medium">{card.label}</p>
+                    <p className="text-3xl font-bold text-foreground mt-1">{card.value}</p>
                   </div>
                   <div className={`w-12 h-12 rounded-xl ${card.bg} flex items-center justify-center`}>
                     <Icon className={`w-6 h-6 ${card.color}`} />
@@ -230,7 +230,7 @@ export function AdminDashboard() {
                 </div>
                 <div className="flex items-center gap-1 mt-3">
                   <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                  <span className="text-xs text-emerald-600 font-medium">Активно</span>
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Активно</span>
                 </div>
               </CardContent>
             </Card>
@@ -251,7 +251,7 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent>
             {recentDocs.length === 0 ? (
-              <p className="text-sm text-slate-400 py-8 text-center">Документы не найдены</p>
+              <p className="text-sm text-muted-foreground py-8 text-center">Документы не найдены</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -266,7 +266,7 @@ export function AdminDashboard() {
                   {recentDocs.map((doc) => (
                     <TableRow key={doc.id}>
                       <TableCell className="font-medium text-sm">{doc.title}</TableCell>
-                      <TableCell className="text-sm text-slate-500">
+                      <TableCell className="text-sm text-muted-foreground">
                         {doc.type?.name || '—'}
                       </TableCell>
                       <TableCell>
@@ -274,7 +274,7 @@ export function AdminDashboard() {
                           {STATUS_LABELS[doc.status] || doc.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-xs text-slate-400">
+                      <TableCell className="text-xs text-muted-foreground">
                         {new Date(doc.createdAt).toLocaleDateString('ru-RU')}
                       </TableCell>
                     </TableRow>
@@ -293,18 +293,20 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent>
             {chartData.length === 0 ? (
-              <p className="text-sm text-slate-400 py-8 text-center">Нет данных</p>
+              <p className="text-sm text-muted-foreground py-8 text-center">Нет данных</p>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={chartData} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
+                  <YAxis tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} allowDecimals={false} />
                   <RechartsTooltip
                     contentStyle={{
                       borderRadius: '8px',
-                      border: '1px solid #e2e8f0',
+                      border: '1px solid var(--border)',
                       fontSize: '12px',
+                      backgroundColor: 'var(--popover)',
+                      color: 'var(--popover-foreground)',
                     }}
                   />
                   <Bar dataKey="count" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -433,11 +435,11 @@ export function AdminUsers() {
   const getRoleBadgeClass = (role: string) => {
     switch (role) {
       case 'ADMIN':
-        return 'bg-red-100 text-red-700 border-red-200';
+        return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800';
       case 'ADVANCED':
-        return 'bg-amber-100 text-amber-700 border-amber-200';
+        return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800';
       default:
-        return 'bg-slate-100 text-slate-700 border-slate-200';
+        return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
     }
   };
 
@@ -453,8 +455,8 @@ export function AdminUsers() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Пользователи</h1>
-          <p className="text-slate-500 mt-1">Управление пользователями системы</p>
+          <h1 className="text-2xl font-bold text-foreground">Пользователи</h1>
+          <p className="text-muted-foreground mt-1">Управление пользователями системы</p>
         </div>
         <Button onClick={openCreate} className="gap-2">
           <Plus className="w-4 h-4" />
@@ -464,7 +466,7 @@ export function AdminUsers() {
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           placeholder="Поиск по имени или email..."
           value={search}
@@ -489,7 +491,7 @@ export function AdminUsers() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-slate-400">
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     Пользователи не найдены
                   </TableCell>
                 </TableRow>
@@ -497,7 +499,7 @@ export function AdminUsers() {
                 filtered.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell className="text-slate-500">{user.email}</TableCell>
+                    <TableCell className="text-muted-foreground">{user.email}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={`text-xs ${getRoleBadgeClass(user.role)}`}>
                         {ROLE_LABELS[user.role] || user.role}
@@ -508,8 +510,8 @@ export function AdminUsers() {
                         variant="outline"
                         className={
                           user.active
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 text-xs'
-                            : 'bg-slate-50 text-slate-500 border-slate-200 text-xs'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800 text-xs'
+                            : 'bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 text-xs'
                         }
                       >
                         {user.active ? 'Активен' : 'Неактивен'}
@@ -603,7 +605,7 @@ export function AdminUsers() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="user-password">
-                Пароль {editingUser && <span className="text-slate-400 font-normal">(оставьте пустым, чтобы не менять)</span>}
+                Пароль {editingUser && <span className="text-muted-foreground font-normal">(оставьте пустым, чтобы не менять)</span>}
               </Label>
               <Input
                 id="user-password"
@@ -742,8 +744,8 @@ export function AdminDocTypes() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Типы документов</h1>
-          <p className="text-slate-500 mt-1">Управление шаблонами документов</p>
+          <h1 className="text-2xl font-bold text-foreground">Типы документов</h1>
+          <p className="text-muted-foreground mt-1">Управление шаблонами документов</p>
         </div>
         <Button
           onClick={() => navigate({ page: 'admin-doc-type-form' })}
@@ -757,9 +759,9 @@ export function AdminDocTypes() {
       {docTypes.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
-            <FileText className="w-12 h-12 text-slate-300 mb-4" />
-            <p className="text-slate-500 font-medium">Нет типов документов</p>
-            <p className="text-slate-400 text-sm mt-1">Создайте первый тип документа</p>
+            <FileText className="w-12 h-12 text-muted-foreground/40 mb-4" />
+            <p className="text-muted-foreground font-medium">Нет типов документов</p>
+            <p className="text-sm text-muted-foreground/70 mt-1">Создайте первый тип документа</p>
             <Button
               variant="outline"
               className="mt-4"
@@ -791,7 +793,7 @@ export function AdminDocTypes() {
                       </div>
                       <div>
                         <CardTitle className="text-base">{type.name}</CardTitle>
-                        <p className="text-xs text-slate-400 font-mono mt-0.5">{type.systemName}</p>
+                        <p className="text-xs text-muted-foreground font-mono mt-0.5">{type.systemName}</p>
                       </div>
                     </div>
                     <DropdownMenu>
@@ -850,7 +852,7 @@ export function AdminDocTypes() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-slate-500 line-clamp-2 min-h-[2.5rem]">
+                  <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5rem]">
                     {type.description || 'Без описания'}
                   </p>
                   <div className="flex items-center gap-3 mt-4 pt-3 border-t border-slate-100">
@@ -861,8 +863,8 @@ export function AdminDocTypes() {
                       variant="outline"
                       className={`text-xs ${
                         type.active
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : 'bg-slate-50 text-slate-500 border-slate-200'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
+                          : 'bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
                       }`}
                     >
                       {type.active ? 'Активен' : 'Неактивен'}
@@ -975,7 +977,7 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
                     onClick={() => addField(ft.value)}
                     className="gap-2"
                   >
-                    {Icon && <Icon className="w-4 h-4 text-slate-400" />}
+                    {Icon && <Icon className="w-4 h-4 text-muted-foreground" />}
                     {ft.label}
                   </DropdownMenuItem>
                 );
@@ -987,9 +989,9 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
         {fields.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center py-12">
-              <List className="w-10 h-10 text-slate-300 mb-3" />
-              <p className="text-sm text-slate-400">Нет полей</p>
-              <p className="text-xs text-slate-300 mt-1">Нажмите &quot;Добавить поле&quot; для начала</p>
+              <List className="w-10 h-10 text-muted-foreground/40 mb-3" />
+              <p className="text-sm text-muted-foreground">Нет полей</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Нажмите &quot;Добавить поле&quot; для начала</p>
             </CardContent>
           </Card>
         ) : (
@@ -1004,8 +1006,8 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
                   key={field.id}
                   className={`cursor-pointer transition-all ${
                     isSelected
-                      ? 'ring-2 ring-emerald-500 border-emerald-300'
-                      : 'hover:border-slate-300'
+                      ? 'ring-2 ring-emerald-500 border-emerald-300 dark:border-emerald-700'
+                      : 'hover:border-muted-foreground/30'
                   }`}
                   onClick={() => setSelectedFieldId(field.id)}
                 >
@@ -1014,7 +1016,7 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
                       {/* Drag handle */}
                       <div className="flex flex-col gap-0.5 shrink-0">
                         <button
-                          className="text-slate-300 hover:text-slate-500"
+                          className="text-muted-foreground/40 hover:text-muted-foreground"
                           onClick={(e) => {
                             e.stopPropagation();
                             moveField(index, 'up');
@@ -1026,7 +1028,7 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
                           </svg>
                         </button>
                         <button
-                          className="text-slate-300 hover:text-slate-500"
+                          className="text-muted-foreground/40 hover:text-muted-foreground"
                           onClick={(e) => {
                             e.stopPropagation();
                             moveField(index, 'down');
@@ -1043,10 +1045,10 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
                       <div
                         className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 ${
                           field.type === 'heading'
-                            ? 'bg-slate-100 text-slate-600'
+                            ? 'bg-muted text-muted-foreground'
                             : field.type === 'separator'
-                            ? 'bg-slate-100 text-slate-400'
-                            : 'bg-emerald-50 text-emerald-600'
+                            ? 'bg-muted text-muted-foreground'
+                            : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
                         }`}
                       >
                         {Icon ? (
@@ -1059,14 +1061,14 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
                       {/* Field info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-slate-900 truncate">
+                          <span className="text-sm font-medium text-foreground truncate">
                             {field.label}
                           </span>
                           {field.required && (
                             <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
                           )}
                         </div>
-                        <span className="text-xs text-slate-400">{typeLabel}</span>
+                        <span className="text-xs text-muted-foreground">{typeLabel}</span>
                       </div>
 
                       {/* Column selector */}
@@ -1583,53 +1585,7 @@ export function AdminDocTypeForm() {
 }
 
 // ============================================================
-// 6. PlaceholderProcesses
+// 6. Processes & Tasks are in separate files
 // ============================================================
-export function PlaceholderProcesses() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Процессы</h1>
-        <p className="text-slate-500 mt-1">Управление BPMN-процессами</p>
-      </div>
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-20">
-          <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-            <GitBranch className="w-8 h-8 text-slate-300" />
-          </div>
-          <h3 className="text-lg font-semibold text-slate-700">Раздел в разработке</h3>
-          <p className="text-sm text-slate-400 mt-1 max-w-sm text-center">
-            Управление BPMN-процессами будет доступно в следующей версии. Здесь вы сможете создавать
-            и редактировать процессы утверждения документов.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// ============================================================
-// 7. PlaceholderTasks
-// ============================================================
-export function PlaceholderTasks() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Задачи</h1>
-        <p className="text-slate-500 mt-1">Управление задачами и уведомлениями</p>
-      </div>
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-20">
-          <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-            <CheckSquare className="w-8 h-8 text-slate-300" />
-          </div>
-          <h3 className="text-lg font-semibold text-slate-700">Раздел в разработке</h3>
-          <p className="text-sm text-slate-400 mt-1 max-w-sm text-center">
-            Система задач будет доступна в следующей версии. Здесь вы сможете отслеживать задачи,
-            назначать исполнителей и контролировать процесс обработки документов.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+export { AdminProcessesPage as PlaceholderProcesses } from '@/components/admin/admin-processes-page';
+export { AdminTasksPage as PlaceholderTasks } from '@/components/admin/admin-tasks-page';

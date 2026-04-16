@@ -300,7 +300,7 @@ export default function ActivityPanel() {
             )}
           </div>
           <button
-            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+            className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium transition-colors"
             onClick={() => {}}
           >
             Все события
@@ -368,7 +368,7 @@ export default function ActivityPanel() {
             <Separator />
             <div className="px-4 py-2.5 text-center border-t">
               <button
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+                className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium transition-colors"
                 onClick={() => {}}
               >
                 Показать все

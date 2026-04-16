@@ -72,6 +72,8 @@ import {
   FormInput,
   Info,
   MessageSquare,
+  Printer,
+  Download,
 } from 'lucide-react';
 
 // ────────────────────────────────────────────
@@ -1107,9 +1109,9 @@ export default function DocumentFormView() {
 
   // ── Properties Sidebar Content ──
   const propertiesContent = (
-    <div className="p-4 lg:p-5 space-y-4">
+    <div className="p-4 lg:p-5 space-y-4 custom-scrollbar overflow-y-auto">
       {/* Document Type Card / Thumbnail */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden transition-shadow hover:shadow-md">
         <div
           className="h-20 flex items-center justify-center relative"
           style={{ backgroundColor: `${docType.color}15` }}
@@ -1136,7 +1138,7 @@ export default function DocumentFormView() {
       </Card>
 
       {/* Document Properties Card */}
-      <Card className="py-4">
+      <Card className="py-4 transition-shadow hover:shadow-md">
         <CardHeader className="pb-3 px-4">
           <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Свойства документа
@@ -1229,7 +1231,7 @@ export default function DocumentFormView() {
       </Card>
 
       {/* Document Links Card (placeholder) */}
-      <Card className="py-4">
+      <Card className="py-4 transition-shadow hover:shadow-md">
         <CardHeader className="pb-3 px-4">
           <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Связанные документы
@@ -1250,7 +1252,7 @@ export default function DocumentFormView() {
       </Card>
 
       {/* Sharing Card (placeholder) */}
-      <Card className="py-4">
+      <Card className="py-4 transition-shadow hover:shadow-md">
         <CardHeader className="pb-3 px-4">
           <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Доступ и обмен
@@ -1273,7 +1275,7 @@ export default function DocumentFormView() {
       </Card>
 
       {/* Action History Card */}
-      <Card className="py-4">
+      <Card className="py-4 transition-shadow hover:shadow-md">
         <CardHeader className="pb-3 px-4">
           <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             История действий
@@ -1378,7 +1380,7 @@ export default function DocumentFormView() {
   );
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full animate-fade-in">
       {/* ═══ Unsaved Changes Dialog ═══ */}
       <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
         <AlertDialogContent>
@@ -1392,7 +1394,7 @@ export default function DocumentFormView() {
             <AlertDialogCancel onClick={handleDiscardChanges}>
               Отменить изменения
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleSaveAndLeave} className="bg-emerald-600 hover:bg-emerald-700">
+            <AlertDialogAction onClick={handleSaveAndLeave} className="bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform">
               <Save className="h-4 w-4 mr-1.5" />
               Сохранить и выйти
             </AlertDialogAction>
@@ -1516,13 +1518,75 @@ export default function DocumentFormView() {
 
             <Separator orientation="vertical" className="h-6 mx-0.5 hidden sm:block" />
 
+            {/* Print button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.print()}
+                  className="gap-1.5 text-xs no-print"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Печать</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Печать документа</TooltipContent>
+            </Tooltip>
+
+            {/* Export JSON button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!document) return;
+                    const exportData = {
+                      id: document.id,
+                      title,
+                      number: document.number,
+                      type: docType?.name || null,
+                      typeName: docType?.systemName || null,
+                      status,
+                      folderId: document.folderId || null,
+                      creatorName: document.creator?.name || null,
+                      creatorEmail: document.creator?.email || null,
+                      data: formData,
+                      createdAt: document.createdAt,
+                      updatedAt: document.updatedAt,
+                    };
+                    const blob = new Blob(
+                      [JSON.stringify(exportData, null, 2)],
+                      { type: 'application/json' }
+                    );
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${document.number || 'document'}_${new Date().toISOString().slice(0, 10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    toast.success('Документ экспортирован', {
+                      description: 'JSON-файл скачан.',
+                    });
+                  }}
+                  disabled={!document}
+                  className="gap-1.5 text-xs no-print"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">JSON</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Экспорт в JSON</TooltipContent>
+            </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   size="sm"
                   onClick={handleSave}
                   disabled={saving}
-                  className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700"
+                  className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform no-print"
                 >
                   {saving ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1720,7 +1784,7 @@ export default function DocumentFormView() {
                 size="sm"
                 onClick={handleSave}
                 disabled={saving}
-                className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 h-10 px-5"
+                className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform h-10 px-5"
               >
                 {saving ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
