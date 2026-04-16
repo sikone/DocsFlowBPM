@@ -209,6 +209,77 @@ export async function POST() {
       }
     }
 
+    // ─── Seed Document Templates ──────────────────────────────
+    const invoiceType = await db.documentType.findUnique({
+      where: { systemName: 'invoice' },
+    })
+    const contractType = await db.documentType.findUnique({
+      where: { systemName: 'contract' },
+    })
+    const memoType = await db.documentType.findUnique({
+      where: { systemName: 'memo' },
+    })
+
+    const templatesData = []
+
+    if (invoiceType) {
+      templatesData.push({
+        name: 'Быстрый счёт',
+        description: 'Шаблон счёта с предзаполненными полями поставщика',
+        typeId: invoiceType.id,
+        data: JSON.stringify({ supplier: 'ООО "Компания"' }),
+        icon: 'receipt',
+        color: '#f59e0b',
+      })
+    }
+    if (contractType) {
+      templatesData.push({
+        name: 'Стандартный договор',
+        description: 'Шаблон договора с предзаполненными сторонами',
+        typeId: contractType.id,
+        data: JSON.stringify({ parties: 'ООО "Компания" — Заказчик' }),
+        icon: 'file-signature',
+        color: '#3b82f6',
+      })
+    }
+    if (memoType) {
+      templatesData.push({
+        name: 'Заявка на отпуск',
+        description: 'Шаблон служебной записки для заявления на отпуск',
+        typeId: memoType.id,
+        data: JSON.stringify({ priority: 'Средний' }),
+        icon: 'calendar',
+        color: '#10b981',
+      })
+    }
+
+    for (const td of templatesData) {
+      if (!td.typeId) {
+        results.push({ entity: 'DocumentTemplate', action: `skip ${td.name} (type not found)`, status: 'skipped' })
+        continue
+      }
+
+      const existing = await db.documentTemplate.findFirst({
+        where: { name: td.name, typeId: td.typeId },
+      })
+      if (!existing) {
+        await db.documentTemplate.create({
+          data: {
+            name: td.name,
+            description: td.description,
+            typeId: td.typeId,
+            data: td.data,
+            icon: td.icon,
+            color: td.color,
+            createdById: adminUser.id,
+          },
+        })
+        results.push({ entity: 'DocumentTemplate', action: `create ${td.name}`, status: 'ok' })
+      } else {
+        results.push({ entity: 'DocumentTemplate', action: `skip ${td.name} (exists)`, status: 'skipped' })
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Database seeded successfully',

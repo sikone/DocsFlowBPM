@@ -257,6 +257,16 @@
   transform: translateX(30%) translateY(30%);
 }
 
+/* Subtle dot pattern for login form background */
+.login-pattern {
+  background-image: radial-gradient(circle, oklch(0.7 0 0 / 0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.dark .login-pattern {
+  background-image: radial-gradient(circle, oklch(0.4 0 0 / 0.2) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
 /* Print styles */
 @media print {
   .no-print { display: none !important; }
@@ -265,4 +275,253 @@
     box-shadow: none !important;
     text-shadow: none !important;
   }
+}
+
+/* ===== Enhanced Animations ===== */
+
+/* Slide in from right animation */
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Scale in animation */
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Shimmer loading effect */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Smooth number count-up animation */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Animation Utility Classes ===== */
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out both;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.2s ease-out both;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, oklch(0.9 0 0 / 50%) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.dark .animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, oklch(0.3 0 0 / 50%) 50%, transparent 100%);
+  background-size: 200% 100%;
+}
+
+.animate-count-up {
+  animation: countUp 0.4s ease-out both;
+}
+
+/* Stagger animation delays for lists */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+
+/* ===== Glassmorphism Utility ===== */
+
+.glass {
+  background: oklch(1 0 0 / 70%);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid oklch(0.9 0 0 / 50%);
+}
+
+.dark .glass {
+  background: oklch(0.15 0 0 / 70%);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid oklch(1 0 0 / 8%);
+}
+
+/* ===== Gradient Text Utility ===== */
+
+.text-gradient {
+  background: linear-gradient(135deg, oklch(0.5 0.15 160), oklch(0.55 0.2 180));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ===== Focus Ring Utility ===== */
+
+.focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-color 0.2s ease;
+}
+
+.focus-ring:focus-visible {
+  outline-color: oklch(0.6 0.2 160 / 50%);
+}
+
+/* ===== Hover Lift for Cards ===== */
+
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px oklch(0 0 0 / 10%), 0 4px 10px -6px oklch(0 0 0 / 10%);
+}
+
+.dark .hover-lift:hover {
+  box-shadow: 0 8px 25px -5px oklch(0 0 0 / 30%), 0 4px 10px -6px oklch(0 0 0 / 20%);
+}
+
+/* ===== Input Glow ===== */
+
+.input-glow {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.input-glow:focus-within {
+  box-shadow: 0 0 0 3px oklch(0.6 0.2 160 / 15%);
+  border-color: oklch(0.6 0.2 160 / 50%);
+}
+
+/* ===== Link Underline Animation ===== */
+
+.link-underline {
+  position: relative;
+  text-decoration: none;
+}
+
+.link-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: currentColor;
+  transition: width 0.3s ease;
+}
+
+.link-underline:hover::after {
+  width: 100%;
+}
+
+/* ===== Badge Pulse Animation ===== */
+
+.badge-pulse {
+  position: relative;
+}
+
+.badge-pulse::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: inherit;
+  animation: pulseBadge 2s ease-in-out infinite;
+  z-index: -1;
+  opacity: 0.4;
+}
+
+/* ===== Tooltip Enhancement ===== */
+
+.tooltip-enhanced {
+  font-size: 12px;
+  max-width: 240px;
+  line-height: 1.5;
+}
+
+/* ===== Table Row Hover ===== */
+
+.table-row-hover {
+  transition: background-color 0.15s ease;
+}
+
+.table-row-hover:hover {
+  background-color: oklch(0.97 0 0);
+}
+
+.dark .table-row-hover:hover {
+  background-color: oklch(0.22 0 0);
+}
+
+/* ===== Smooth Accordion/Collapsible ===== */
+
+.accordion-smooth {
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+}
+
+/* ===== Badge Variants for Document Statuses ===== */
+
+.badge-draft {
+  background-color: oklch(0.95 0.01 250);
+  color: oklch(0.35 0.05 250);
+  border: 1px solid oklch(0.88 0.02 250);
+}
+
+.dark .badge-draft {
+  background-color: oklch(0.25 0.02 250);
+  color: oklch(0.75 0.05 250);
+  border-color: oklch(0.35 0.03 250);
+}
+
+.badge-progress {
+  background-color: oklch(0.95 0.03 230);
+  color: oklch(0.4 0.15 230);
+  border: 1px solid oklch(0.88 0.05 230);
+}
+
+.dark .badge-progress {
+  background-color: oklch(0.2 0.04 230);
+  color: oklch(0.75 0.15 230);
+  border-color: oklch(0.3 0.06 230);
+}
+
+.badge-approved {
+  background-color: oklch(0.95 0.03 160);
+  color: oklch(0.4 0.15 160);
+  border: 1px solid oklch(0.88 0.05 160);
+}
+
+.dark .badge-approved {
+  background-color: oklch(0.2 0.04 160);
+  color: oklch(0.75 0.15 160);
+  border-color: oklch(0.3 0.06 160);
+}
+
+.badge-rejected {
+  background-color: oklch(0.95 0.03 25);
+  color: oklch(0.45 0.18 25);
+  border: 1px solid oklch(0.88 0.06 25);
+}
+
+.dark .badge-rejected {
+  background-color: oklch(0.2 0.04 25);
+  color: oklch(0.75 0.18 25);
+  border-color: oklch(0.3 0.06 25);
+}
+
+.badge-completed {
+  background-color: oklch(0.95 0.03 290);
+  color: oklch(0.4 0.15 290);
+  border: 1px solid oklch(0.88 0.05 290);
+}
+
+.dark .badge-completed {
+  background-color: oklch(0.2 0.04 290);
+  color: oklch(0.75 0.15 290);
+  border-color: oklch(0.3 0.06 290);
 }

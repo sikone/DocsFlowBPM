@@ -83,8 +83,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
-import ActivityPanel from '@/components/activity-panel';
+import NotificationCenter from '@/components/notification-center';
 import DashboardAnalytics from '@/components/dashboard/dashboard-analytics';
+import StatsSummaryBar from '@/components/dashboard/stats-summary-bar';
+import KeyboardShortcutsDialog from '@/components/keyboard-shortcuts-dialog';
 import {
   FileText,
   FolderOpen,
@@ -1237,11 +1239,14 @@ export default function DashboardLayout() {
               </DropdownMenu>
             </div>
 
-            {/* Notification Panel */}
-            <ActivityPanel />
+            {/* Notification Center */}
+            <NotificationCenter token={token} />
 
             {/* Theme Toggle */}
             <ThemeToggle />
+
+            {/* Keyboard Shortcuts */}
+            <KeyboardShortcutsDialog />
 
             <Separator orientation="vertical" className="h-6 mx-1" />
 
@@ -1646,8 +1651,13 @@ export default function DashboardLayout() {
             </div>
           )}
 
+          {/* ── Stats Summary Bar ── */}
+          <div className="px-4 pt-3">
+            <StatsSummaryBar token={token} />
+          </div>
+
           {/* ── Analytics Panel ── */}
-          <DashboardAnalytics />
+          <DashboardAnalytics token={token} />
 
           {/* ── Document Content ── */}
           <div className="p-4">

@@ -25,6 +25,7 @@ model User {
   comments       Comment[]
   assignedTasks  Task[]        @relation("AssignedTasks")
   createdTasks   Task[]        @relation("CreatedTasks")
+  templates      DocumentTemplate[]
 }
 
 model Folder {
@@ -57,6 +58,26 @@ model DocumentType {
   updatedAt   DateTime @updatedAt
 
   documents Document[]
+  templates DocumentTemplate[]
+}
+
+model DocumentTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  typeId      String
+  data        String   @default("{}") // JSON pre-filled field data
+  icon        String   @default("file-text")
+  color       String   @default("#6b7280")
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  type    DocumentType @relation(fields: [typeId], references: [id])
+  creator User        @relation(fields: [createdById], references: [id])
+
+  @@index([typeId])
+  @@index([createdById])
 }
 
 model Document {

@@ -155,7 +155,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right login form panel */}
-      <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 dark:from-slate-950 dark:via-background dark:to-emerald-950/20 login-pattern px-4 sm:px-6 lg:px-8 py-8">
         <div className="w-full max-w-md">
           {/* Mobile logo - only shown on mobile/tablet */}
           <div className="flex lg:hidden flex-col items-center gap-3 mb-8">
@@ -168,20 +168,20 @@ export default function LoginPage() {
               </div>
             </div>
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                DocFlow <span className="text-emerald-600">BPM</span>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                DocFlow <span className="text-emerald-600 dark:text-emerald-400">BPM</span>
               </h1>
-              <p className="text-slate-500 text-sm mt-1">Система управления документами</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Система управления документами</p>
             </div>
           </div>
 
           {/* Login card */}
-          <Card className="border-slate-200/80 shadow-xl shadow-emerald-500/5 bg-white/90 backdrop-blur-sm">
+          <Card className="border-slate-200/80 dark:border-slate-700/60 shadow-xl shadow-emerald-500/5 dark:shadow-emerald-500/10 bg-white/90 dark:bg-slate-900/80 backdrop-blur-sm">
             <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-2xl font-bold text-slate-900 text-center">
+              <CardTitle className="text-2xl font-bold text-slate-900 dark:text-slate-100 text-center">
                 Вход в систему
               </CardTitle>
-              <p className="text-sm text-slate-500 text-center">
+              <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
                 Введите свои учётные данные для продолжения
               </p>
             </CardHeader>
@@ -190,7 +190,7 @@ export default function LoginPage() {
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                 {/* Error message */}
                 {error && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="rounded-lg border border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm text-red-700 dark:text-red-400 animate-in fade-in slide-in-from-top-1 duration-200">
                     <div className="flex items-center gap-2">
                       <svg
                         className="h-4 w-4 shrink-0 text-red-500"
@@ -212,7 +212,7 @@ export default function LoginPage() {
 
                 {/* Email field */}
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-slate-700 font-medium">
+                  <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 font-medium">
                     Электронная почта
                   </Label>
                   <div className="relative">
@@ -222,7 +222,7 @@ export default function LoginPage() {
                       type="email"
                       placeholder="user@example.com"
                       autoComplete="email"
-                      className="pl-10 h-11 bg-white border-slate-200 focus-visible:border-emerald-400 focus-visible:ring-emerald-400/30 transition-all duration-200"
+                      className="pl-10 h-11 bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus-visible:border-emerald-400 focus-visible:ring-emerald-400/30 dark:focus-visible:border-emerald-500 dark:focus-visible:ring-emerald-500/30 text-foreground placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-200"
                       disabled={isLoading}
                       {...register('email')}
                     />
@@ -249,7 +249,7 @@ export default function LoginPage() {
 
                 {/* Password field */}
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-slate-700 font-medium">
+                  <Label htmlFor="password" className="text-slate-700 dark:text-slate-300 font-medium">
                     Пароль
                   </Label>
                   <div className="relative">
@@ -259,14 +259,14 @@ export default function LoginPage() {
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Введите пароль"
                       autoComplete="current-password"
-                      className="pl-10 pr-10 h-11 bg-white border-slate-200 focus-visible:border-emerald-400 focus-visible:ring-emerald-400/30 transition-all duration-200"
+                      className="pl-10 pr-10 h-11 bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus-visible:border-emerald-400 focus-visible:ring-emerald-400/30 dark:focus-visible:border-emerald-500 dark:focus-visible:ring-emerald-500/30 text-foreground placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-200"
                       disabled={isLoading}
                       {...register('password')}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded-sm"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded-sm"
                       tabIndex={-1}
                       aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
                     >
@@ -307,11 +307,11 @@ export default function LoginPage() {
                       setValue('remember', checked === true, { shouldValidate: true })
                     }}
                     disabled={isLoading}
-                    className="border-slate-300 data-[state=checked]:bg-slate-900 data-[state=checked]:border-slate-900"
+                    className="border-slate-300 dark:border-slate-600 data-[state=checked]:bg-slate-900 data-[state=checked]:border-slate-900 dark:data-[state=checked]:bg-emerald-600 dark:data-[state=checked]:border-emerald-600"
                   />
                   <Label
                     htmlFor="remember"
-                    className="text-sm text-slate-600 font-normal cursor-pointer select-none"
+                    className="text-sm text-slate-600 dark:text-slate-400 font-normal cursor-pointer select-none"
                   >
                     Запомнить меня
                   </Label>
@@ -321,7 +321,7 @@ export default function LoginPage() {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-medium text-base transition-all duration-200 shadow-lg shadow-emerald-600/25"
+                  className="w-full h-11 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 active:scale-[0.98] text-white font-medium text-base transition-all duration-200 shadow-lg shadow-emerald-600/25 dark:shadow-emerald-500/20"
                 >
                   {isLoading ? (
                     <>
@@ -335,21 +335,21 @@ export default function LoginPage() {
               </form>
 
               {/* Test credentials hint */}
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-2">
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 space-y-2">
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Тестовые учётные данные
                 </p>
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                     <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                     <span className="font-mono font-medium">admin@bpmn.local</span>
-                    <span className="text-slate-400">/</span>
+                    <span className="text-slate-400 dark:text-slate-500">/</span>
                     <span className="font-mono">admin123</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                     <span className="inline-block w-2 h-2 rounded-full bg-amber-500 shrink-0" />
                     <span className="font-mono font-medium">employee@bpmn.local</span>
-                    <span className="text-slate-400">/</span>
+                    <span className="text-slate-400 dark:text-slate-500">/</span>
                     <span className="font-mono">emp123</span>
                   </div>
                 </div>
@@ -358,7 +358,7 @@ export default function LoginPage() {
           </Card>
 
           {/* Footer */}
-          <p className="text-center text-xs text-slate-400 mt-6">
+          <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-6">
             DocFlow BPM &copy; 2025. Все права защищены.
           </p>
         </div>
