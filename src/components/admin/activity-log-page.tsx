@@ -324,7 +324,8 @@ export function ActivityLogPage() {
 
       {/* Activity table */}
       <Card className="overflow-hidden">
-        <CardContent className="p-0 custom-scrollbar max-h-[600px] overflow-y-auto">
+        <CardContent className="p-0 overflow-x-auto">
+          <div className="custom-scrollbar max-h-[600px] overflow-y-auto min-w-[640px]">
           <Table>
             <TableHeader>
               <TableRow>
@@ -438,6 +439,7 @@ export function ActivityLogPage() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 

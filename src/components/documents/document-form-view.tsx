@@ -127,6 +127,7 @@ function FormFieldRenderer({
     return (
       <div className="col-span-full pt-4 pb-1">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <span className="w-1 h-4 rounded-full bg-emerald-500" />
           {field.label}
           <span className="block flex-1 h-px bg-border/50" />
         </h3>
@@ -438,10 +439,10 @@ function StatusDropdown({
         <Button
           variant="outline"
           size="sm"
-          className={`gap-1.5 text-xs font-medium ${STATUS_COLORS[currentStatus] || ''} border hover:opacity-90 transition-all duration-200 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+          className={`gap-1.5 text-xs font-medium border hover:opacity-90 transition-all duration-200 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
           disabled={disabled}
         >
-          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+          <span className={`h-2 w-2 rounded-full ${getStatusDotColor(currentStatus)}`} />
           {STATUS_LABELS[currentStatus] || currentStatus}
           <ChevronDown className="h-3 w-3 opacity-60" />
         </Button>
@@ -510,14 +511,14 @@ function AutoSaveIndicator({ status }: { status: AutoSaveStatus }) {
     case 'saved':
       return (
         <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
-          <Check className="h-3 w-3" />
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-saved-pulse" />
           Сохранено
         </span>
       );
     case 'unsaved':
       return (
         <span className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
           Не сохранено
         </span>
       );
@@ -593,6 +594,7 @@ export default function DocumentFormView() {
       try {
         setLoadingLocal(true);
         const typeId = (view as { typeId: string }).typeId;
+        const preTitle = (view as { title?: string }).title;
         const types: DocumentType[] = await apiFetch('/api/document-types', token);
         const type = types.find((t) => t.id === typeId);
         if (!type) {
@@ -618,8 +620,9 @@ export default function DocumentFormView() {
           }
         });
         setFormData(defaults);
-        setTitle(`${type.name} — новый`);
-        initialDataRef.current = { title: `${type.name} — новый`, formData: { ...defaults }, status: 'DRAFT' };
+        const initialTitle = preTitle || `${type.name} — новый`;
+        setTitle(initialTitle);
+        initialDataRef.current = { title: initialTitle, formData: { ...defaults }, status: 'DRAFT' };
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Ошибка загрузки');
       } finally {
@@ -1090,9 +1093,15 @@ export default function DocumentFormView() {
   if (loadingLocal) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-3">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto" />
-          <p className="text-sm text-muted-foreground">Загрузка документа...</p>
+        <div className="text-center space-y-4">
+          <div className="relative inline-block">
+            <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mx-auto" />
+            <div className="absolute inset-0 rounded-full bg-emerald-500/10 animate-ping" style={{ animationDuration: '2s' }} />
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground font-medium">Загрузка документа...</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Пожалуйста, подождите</p>
+          </div>
         </div>
       </div>
     );
@@ -1611,7 +1620,7 @@ export default function DocumentFormView() {
             <div className="lg:hidden flex border-b px-2 pt-1">
               <button
                 onClick={() => setMobileTab('form')}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-all duration-300 ${
                   mobileTab === 'form'
                     ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
                     : 'border-transparent text-muted-foreground'
@@ -1622,7 +1631,7 @@ export default function DocumentFormView() {
                 {requiredFields.length > 0 && (
                   <Badge
                     variant="secondary"
-                    className={`text-[10px] px-1.5 py-0 h-4 ml-1 ${
+                    className={`text-[10px] px-1.5 py-0 h-4 ml-1 transition-colors ${
                       filledRequired.length === requiredFields.length
                         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
                         : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
@@ -1634,7 +1643,7 @@ export default function DocumentFormView() {
               </button>
               <button
                 onClick={() => setMobileTab('properties')}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-all duration-300 ${
                   mobileTab === 'properties'
                     ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
                     : 'border-transparent text-muted-foreground'
@@ -1648,7 +1657,7 @@ export default function DocumentFormView() {
             {/* Form content */}
             <div
               ref={formScrollRef}
-              className={`flex-1 overflow-y-auto relative ${mobileTab !== 'form' ? 'hidden lg:block' : ''}`}
+              className={`flex-1 overflow-y-auto relative transition-opacity duration-200 ${mobileTab !== 'form' ? 'hidden lg:block opacity-0' : 'opacity-100'}`}
             >
               {/* Scroll shadow top */}
               {showTopShadow && (

@@ -217,7 +217,7 @@ export function AdminDashboard() {
         {statCards.map((card) => {
           const Icon = card.icon;
           return (
-            <Card key={card.label} className="relative overflow-hidden">
+            <Card key={card.label} className="relative overflow-hidden transition-shadow hover:shadow-md">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
@@ -251,36 +251,43 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent>
             {recentDocs.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Документы не найдены</p>
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center mb-3">
+                  <FileText className="w-6 h-6 text-muted-foreground/40" />
+                </div>
+                <p className="text-sm text-muted-foreground">Документы пока не созданы</p>
+ </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Название</TableHead>
-                    <TableHead>Тип</TableHead>
-                    <TableHead>Статус</TableHead>
-                    <TableHead>Дата</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentDocs.map((doc) => (
-                    <TableRow key={doc.id}>
-                      <TableCell className="font-medium text-sm">{doc.title}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {doc.type?.name || '—'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {STATUS_LABELS[doc.status] || doc.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {new Date(doc.createdAt).toLocaleDateString('ru-RU')}
-                      </TableCell>
+              <div className="overflow-x-auto -mx-6 px-6">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Название</TableHead>
+                      <TableHead>Тип</TableHead>
+                      <TableHead>Статус</TableHead>
+                      <TableHead className="hidden sm:table-cell">Дата</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {recentDocs.map((doc) => (
+                      <TableRow key={doc.id}>
+                        <TableCell className="font-medium text-sm">{doc.title}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {doc.type?.name || '—'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {STATUS_LABELS[doc.status] || doc.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground hidden sm:table-cell">
+                          {new Date(doc.createdAt).toLocaleDateString('ru-RU')}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -293,7 +300,12 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent>
             {chartData.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Нет данных</p>
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center mb-3">
+                  <TrendingUp className="w-6 h-6 text-muted-foreground/40" />
+                </div>
+                <p className="text-sm text-muted-foreground">Нет данных для отображения</p>
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={chartData} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
@@ -465,7 +477,7 @@ export function AdminUsers() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-sm">
+      <div className="relative max-w-full sm:max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           placeholder="Поиск по имени или email..."
@@ -478,11 +490,12 @@ export function AdminUsers() {
       {/* Users table */}
       <Card>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Имя</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead className="hidden sm:table-cell">Email</TableHead>
                 <TableHead>Роль</TableHead>
                 <TableHead>Статус</TableHead>
                 <TableHead className="text-right">Действия</TableHead>
@@ -491,15 +504,18 @@ export function AdminUsers() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    Пользователи не найдены
+                  <TableCell colSpan={5} className="text-center py-12">
+                    <div className="flex flex-col items-center">
+                      <Users className="w-10 h-10 text-muted-foreground/30 mb-2" />
+                      <p className="text-muted-foreground text-sm">Пользователи не найдены</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                    <TableCell className="text-muted-foreground hidden sm:table-cell">{user.email}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={`text-xs ${getRoleBadgeClass(user.role)}`}>
                         {ROLE_LABELS[user.role] || user.role}
@@ -567,12 +583,13 @@ export function AdminUsers() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
       {/* Add/Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-w-[calc(100vw-2rem)]">
           <DialogHeader>
             <DialogTitle>
               {editingUser ? 'Редактировать пользователя' : 'Новый пользователь'}
@@ -757,14 +774,16 @@ export function AdminDocTypes() {
       </div>
 
       {docTypes.length === 0 ? (
-        <Card>
+        <Card className="transition-shadow hover:shadow-md">
           <CardContent className="flex flex-col items-center justify-center py-16">
-            <FileText className="w-12 h-12 text-muted-foreground/40 mb-4" />
+            <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+              <FileText className="w-8 h-8 text-muted-foreground/30" />
+            </div>
             <p className="text-muted-foreground font-medium">Нет типов документов</p>
-            <p className="text-sm text-muted-foreground/70 mt-1">Создайте первый тип документа</p>
+            <p className="text-sm text-muted-foreground/70 mt-1 mb-4">Создайте первый тип документа для начала работы</p>
             <Button
               variant="outline"
-              className="mt-4"
+              className="mt-0"
               onClick={() => navigate({ page: 'admin-doc-type-form' })}
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -777,7 +796,7 @@ export function AdminDocTypes() {
           {docTypes.map((type) => {
             const fieldCount = getFieldCount(type.formSchema);
             return (
-              <Card key={type.id} className="group relative overflow-hidden">
+              <Card key={type.id} className="group relative overflow-hidden transition-shadow hover:shadow-md">
                 <div
                   className="absolute top-0 left-0 w-full h-1"
                   style={{ backgroundColor: type.color || '#10b981' }}
@@ -801,7 +820,7 @@ export function AdminDocTypes() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="h-8 w-8 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                         >
                           <MoreHorizontal className="w-4 h-4" />
                         </Button>
@@ -987,11 +1006,13 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
         </div>
 
         {fields.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center py-12">
-              <List className="w-10 h-10 text-muted-foreground/40 mb-3" />
-              <p className="text-sm text-muted-foreground">Нет полей</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Нажмите &quot;Добавить поле&quot; для начала</p>
+          <Card className="border-dashed border-2">
+            <CardContent className="flex flex-col items-center py-14">
+              <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+                <List className="w-7 h-7 text-muted-foreground/40" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground">Пустая форма</p>
+              <p className="text-xs text-muted-foreground/60 mt-1 mb-3">Нажмите «Добавить поле» чтобы начать построение формы</p>
             </CardContent>
           </Card>
         ) : (

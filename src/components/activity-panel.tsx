@@ -226,6 +226,48 @@ export default function ActivityPanel() {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
+
+  // Track last viewed activity time in localStorage
+  const markAsViewed = useCallback(() => {
+    try {
+      localStorage.setItem('last_viewed_activity', new Date().toISOString());
+    } catch { /* silent */ }
+    setHasUnread(false);
+  }, []);
+
+  // Check for unread activities on mount and periodically
+  useEffect(() => {
+    if (!token) return;
+
+    const checkUnread = async () => {
+      try {
+        const res = await fetch(`/api/activity-log?limit=1&token=${encodeURIComponent(token)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const latestLog = Array.isArray(data.logs) && data.logs.length > 0
+          ? data.logs[0]
+          : null;
+
+        if (latestLog) {
+          const lastViewed = localStorage.getItem('last_viewed_activity');
+          if (!lastViewed) {
+            // First time: mark everything as read
+            setHasUnread(false);
+            localStorage.setItem('last_viewed_activity', new Date().toISOString());
+          } else {
+            const viewedTime = new Date(lastViewed).getTime();
+            const logTime = new Date(latestLog.createdAt).getTime();
+            setHasUnread(logTime > viewedTime);
+          }
+        }
+      } catch { /* silent */ }
+    };
+
+    checkUnread();
+    const interval = setInterval(checkUnread, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, [token]);
 
   const fetchLogs = useCallback(async () => {
     if (!token) return;
@@ -252,14 +294,16 @@ export default function ActivityPanel() {
     }
   }, [token]);
 
-  // Fetch logs when popover opens
+  // Fetch logs when popover opens and mark as viewed
   useEffect(() => {
     if (open) {
       fetchLogs();
+      markAsViewed();
     }
-  }, [open, fetchLogs]);
+  }, [open, fetchLogs, markAsViewed]);
 
   const unreadCount = Math.min(total, 99);
+  const showBadge = hasUnread || unreadCount > 0;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -271,9 +315,9 @@ export default function ActivityPanel() {
               size="icon"
               className="h-9 w-9 relative"
             >
-              <Bell className="h-4 w-4" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-rose-500 text-white text-[10px] font-bold leading-none px-1">
+              <Bell className={`h-4 w-4 ${hasUnread ? 'animate-pulse-once' : ''}`} />
+              {showBadge && (
+                <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center rounded-full text-white text-[10px] font-bold leading-none px-1 ${hasUnread ? 'bg-rose-500 animate-pulse-badge' : 'bg-muted-foreground/60'}`}>
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}

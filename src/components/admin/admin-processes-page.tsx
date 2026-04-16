@@ -334,6 +334,7 @@ export function AdminProcessesPage() {
       {/* Table */}
       <Card>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -449,6 +450,7 @@ export function AdminProcessesPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -461,7 +463,7 @@ export function AdminProcessesPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto max-w-[calc(100vw-2rem)]">
           <DialogHeader>
             <DialogTitle>
               {editingProcess ? 'Редактировать процесс' : 'Новый процесс'}
@@ -619,49 +621,51 @@ export function AdminProcessesPage() {
                                 onChange={(e) =>
                                   updateStep(step.id, { name: e.target.value })
                                 }
-                                className="h-7 text-sm flex-1 min-w-[120px]"
+                                className="h-7 text-sm min-w-[120px]"
                                 onClick={(e) => e.stopPropagation()}
                               />
-                              <Select
-                                value={step.type}
-                                onValueChange={(val) =>
-                                  updateStep(step.id, {
-                                    type: val as ProcessStep['type'],
-                                    name:
-                                      STEP_TYPE_LABELS[val] === step.name
-                                        ? STEP_TYPE_LABELS[val] || step.name
-                                        : step.name,
-                                  })
-                                }
-                              >
-                                <SelectTrigger className="w-32 h-7 text-xs" onClick={(e) => e.stopPropagation()}>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Object.entries(STEP_TYPE_LABELS).map(([key, label]) => (
-                                    <SelectItem key={key} value={key} className="text-xs">
-                                      {label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <Select
-                                value={step.assigneeRole}
-                                onValueChange={(val) =>
-                                  updateStep(step.id, { assigneeRole: val as ProcessStep['assigneeRole'] })
-                                }
-                              >
-                                <SelectTrigger className="w-28 h-7 text-xs" onClick={(e) => e.stopPropagation()}>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Object.entries(ASSIGNEE_ROLE_LABELS).map(([key, label]) => (
-                                    <SelectItem key={key} value={key} className="text-xs">
-                                      {label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Select
+                                  value={step.type}
+                                  onValueChange={(val) =>
+                                    updateStep(step.id, {
+                                      type: val as ProcessStep['type'],
+                                      name:
+                                        STEP_TYPE_LABELS[val] === step.name
+                                          ? STEP_TYPE_LABELS[val] || step.name
+                                          : step.name,
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="w-28 sm:w-32 h-7 text-xs" onClick={(e) => e.stopPropagation()}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Object.entries(STEP_TYPE_LABELS).map(([key, label]) => (
+                                      <SelectItem key={key} value={key} className="text-xs">
+                                        {label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Select
+                                  value={step.assigneeRole}
+                                  onValueChange={(val) =>
+                                    updateStep(step.id, { assigneeRole: val as ProcessStep['assigneeRole'] })
+                                  }
+                                >
+                                  <SelectTrigger className="w-24 sm:w-28 h-7 text-xs" onClick={(e) => e.stopPropagation()}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Object.entries(ASSIGNEE_ROLE_LABELS).map(([key, label]) => (
+                                      <SelectItem key={key} value={key} className="text-xs">
+                                        {label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             </div>
 
                             {/* Delete */}

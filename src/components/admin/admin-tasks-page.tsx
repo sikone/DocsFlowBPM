@@ -390,7 +390,7 @@ export function AdminTasksPage() {
       </div>
 
       {/* Statistics cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         {statCards.map((card) => {
           const Icon = card.icon;
           return (
@@ -466,6 +466,7 @@ export function AdminTasksPage() {
       {/* Table */}
       <Card>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <div className="max-h-[480px] overflow-y-auto">
             <Table>
               <TableHeader>
@@ -637,12 +638,13 @@ export function AdminTasksPage() {
               </TableBody>
             </Table>
           </div>
+          </div>
         </CardContent>
       </Card>
 
       {/* Create Task Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-w-[calc(100vw-2rem)]">
           <DialogHeader>
             <DialogTitle>Новая задача</DialogTitle>
             <DialogDescription>Создайте задачу для согласования или проверки</DialogDescription>

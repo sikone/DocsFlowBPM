@@ -11,6 +11,9 @@ interface StoreState {
   // Navigation
   view: AppView;
 
+  // Recent pages for command palette
+  recentPages: string[];
+
   // Data cache
   folders: Folder[];
   documentTypes: DocumentType[];
@@ -30,6 +33,9 @@ interface StoreState {
   navigate: (view: AppView) => void;
   goBack: () => void;
 
+  // Recent pages
+  addRecentPage: (page: string) => void;
+
   // Data actions
   setFolders: (folders: Folder[]) => void;
   setDocumentTypes: (types: DocumentType[]) => void;
@@ -47,12 +53,25 @@ const getInitialView = (): AppView => {
   return token ? { page: 'dashboard' } : { page: 'login' };
 };
 
+const getInitialRecentPages = (): string[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem('recent_pages');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed.slice(0, 5) : [];
+    }
+  } catch { /* silent */ }
+  return [];
+};
+
 export const useStore = create<StoreState>((set, get) => ({
   user: null,
   token: null,
   isLoading: false,
   error: null,
   view: { page: 'login' },
+  recentPages: getInitialRecentPages(),
   folders: [],
   documentTypes: [],
   documents: [],
@@ -138,7 +157,46 @@ export const useStore = create<StoreState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 
-  navigate: (view: AppView) => set({ view }),
+  navigate: (view: AppView) => {
+    const state = get();
+    // Derive a readable page label for recent pages
+    const pageKey = view.page as string;
+    const pageLabels: Record<string, string> = {
+      'dashboard': 'Панель управления',
+      'new-document': 'Новый документ',
+      'edit-document': 'Редактирование документа',
+      'admin': 'Панель администратора',
+      'admin-users': 'Управление пользователями',
+      'admin-doc-types': 'Типы документов',
+      'admin-doc-type-form': 'Конструктор форм',
+      'admin-processes': 'Процессы',
+      'admin-tasks': 'Задачи',
+      'admin-activity': 'Журнал активности',
+      'profile': 'Профиль',
+    };
+    const label = pageLabels[pageKey] || pageKey;
+
+    // Add to recent pages (deduplicated, max 5)
+    const filtered = state.recentPages.filter((p) => p !== label);
+    const newRecent = [label, ...filtered].slice(0, 5);
+
+    set({ view, recentPages: newRecent });
+
+    // Persist to localStorage
+    try {
+      localStorage.setItem('recent_pages', JSON.stringify(newRecent));
+    } catch { /* silent */ }
+  },
+
+  addRecentPage: (page: string) => {
+    const state = get();
+    const filtered = state.recentPages.filter((p) => p !== page);
+    const newRecent = [page, ...filtered].slice(0, 5);
+    set({ recentPages: newRecent });
+    try {
+      localStorage.setItem('recent_pages', JSON.stringify(newRecent));
+    } catch { /* silent */ }
+  },
 
   goBack: () => {
     const { view } = get();

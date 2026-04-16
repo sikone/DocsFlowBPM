@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useSyncExternalStore } from 'react';
+import React, { useState, useMemo, useSyncExternalStore } from 'react';
 import { useTheme } from 'next-themes';
 import {
   LayoutDashboard,
@@ -14,12 +14,20 @@ import {
   Sun,
   Moon,
   Activity,
+  Menu,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
 import {
   Tooltip,
   TooltipContent,
@@ -61,6 +69,8 @@ export default function AdminLayout() {
     () => false,
   );
 
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+
   const currentPage = view.page;
 
   const handleLogout = async () => {
@@ -87,6 +97,78 @@ export default function AdminLayout() {
     }
   };
 
+  const handleNavigate = (page: AppView) => {
+    navigate(page);
+    setMobileSheetOpen(false);
+  };
+
+  // ── Shared sidebar content (used in both desktop aside & mobile sheet) ──
+  const sidebarContent = useMemo(() => (
+    <>
+      {/* Logo */}
+      <div className="p-6 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center">
+            <FileText className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-white font-bold text-lg leading-tight">DocFlow BPM</h1>
+            <p className="text-slate-400 text-xs">Панель администратора</p>
+          </div>
+        </div>
+      </div>
+
+      <Separator className="bg-slate-700/50" />
+
+      {/* Navigation */}
+      <ScrollArea className="flex-1 py-4 custom-scrollbar">
+        <nav className="px-3 space-y-1">
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive =
+              item.page.page === 'admin'
+                ? currentPage === 'admin'
+                : currentPage === item.page.page;
+
+            return (
+              <button
+                key={item.page.page}
+                onClick={() => handleNavigate(item.page)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
+                  isActive
+                    ? 'bg-emerald-500/15 text-emerald-400'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Icon
+                  className={`w-5 h-5 shrink-0 ${
+                    isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-slate-300'
+                  }`}
+                />
+                <span className="flex-1 text-left">{item.label}</span>
+                {isActive && (
+                  <ChevronRight className="w-4 h-4 text-emerald-400/60" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </ScrollArea>
+
+      {/* Bottom section */}
+      <div className="p-3 mt-auto">
+        <Separator className="bg-slate-700/50 mb-3" />
+        <button
+          onClick={() => handleNavigate({ page: 'dashboard' })}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-150"
+        >
+          <ArrowLeft className="w-5 h-5 shrink-0" />
+          <span>Вернуться в систему</span>
+        </button>
+      </div>
+    </>
+  ), [currentPage, handleNavigate]);
+
   const renderContent = () => {
     switch (currentPage) {
       case 'admin':
@@ -111,81 +193,44 @@ export default function AdminLayout() {
   return (
     <TooltipProvider delayDuration={0}>
       <div className="flex h-screen bg-muted/40 overflow-hidden animate-fade-in">
-        {/* Sidebar */}
-        <aside className="w-64 bg-slate-900 flex flex-col shrink-0">
-          {/* Logo */}
-          <div className="p-6 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-white font-bold text-lg leading-tight">DocFlow BPM</h1>
-                <p className="text-slate-400 text-xs">Панель администратора</p>
-              </div>
-            </div>
-          </div>
-
-          <Separator className="bg-slate-700/50" />
-
-          {/* Navigation */}
-          <ScrollArea className="flex-1 py-4 custom-scrollbar">
-            <nav className="px-3 space-y-1">
-              {NAV_ITEMS.map((item) => {
-                const Icon = item.icon;
-                const isActive =
-                  item.page.page === 'admin'
-                    ? currentPage === 'admin'
-                    : currentPage === item.page.page;
-
-                return (
-                  <button
-                    key={item.page.page}
-                    onClick={() => navigate(item.page)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
-                      isActive
-                        ? 'bg-emerald-500/15 text-emerald-400'
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
-                    <Icon
-                      className={`w-5 h-5 shrink-0 ${
-                        isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-slate-300'
-                      }`}
-                    />
-                    <span className="flex-1 text-left">{item.label}</span>
-                    {isActive && (
-                      <ChevronRight className="w-4 h-4 text-emerald-400/60" />
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
-          </ScrollArea>
-
-          {/* Bottom section */}
-          <div className="p-3 mt-auto">
-            <Separator className="bg-slate-700/50 mb-3" />
-            <button
-              onClick={() => navigate({ page: 'dashboard' })}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-150"
-            >
-              <ArrowLeft className="w-5 h-5 shrink-0" />
-              <span>Вернуться в систему</span>
-            </button>
-          </div>
+        {/* ═══ Desktop Sidebar ═══ */}
+        <aside className="hidden md:flex w-64 bg-slate-900 flex-col shrink-0">
+          {sidebarContent}
         </aside>
 
-        {/* Main area */}
+        {/* ═══ Mobile Sidebar (Sheet) ═══ */}
+        <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
+          <SheetContent side="left" className="w-64 p-0 bg-slate-900 border-slate-700/50">
+            <div className="flex flex-col h-full">
+              <SheetHeader className="sr-only">
+                <SheetTitle>Навигация</SheetTitle>
+                <SheetDescription>Меню администратора</SheetDescription>
+              </SheetHeader>
+              {sidebarContent}
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* ═══ Main area ═══ */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <header className="h-16 bg-background border-b flex items-center justify-between px-6 shrink-0">
+          <header className="h-16 bg-background border-b flex items-center justify-between px-4 md:px-6 shrink-0">
             <div className="flex items-center gap-3">
+              {/* Hamburger menu — mobile only */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0 md:hidden"
+                onClick={() => setMobileSheetOpen(true)}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => navigate({ page: 'admin' })}
-                    className="p-2 rounded-lg hover:bg-accent transition-colors"
+                    className="p-2 rounded-lg hover:bg-accent transition-colors hidden md:block"
                   >
                     <ArrowLeft className="w-4 h-4 text-muted-foreground" />
                   </button>
@@ -198,7 +243,7 @@ export default function AdminLayout() {
             </div>
 
             {user && (
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 sm:gap-4">
                 <div className="flex items-center gap-3">
                   <div className="text-right hidden sm:block">
                     <p className="text-sm font-medium text-foreground">{user.name}</p>
@@ -215,7 +260,7 @@ export default function AdminLayout() {
                     </AvatarFallback>
                   </Avatar>
                 </div>
-                <Separator orientation="vertical" className="h-8" />
+                <Separator orientation="vertical" className="h-8 hidden sm:block" />
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -253,7 +298,7 @@ export default function AdminLayout() {
           </header>
 
           {/* Content */}
-          <main className="flex-1 overflow-auto p-6 custom-scrollbar">
+          <main className="flex-1 overflow-auto p-4 md:p-6 custom-scrollbar">
             <div className="max-w-7xl mx-auto animate-fade-in">{renderContent()}</div>
           </main>
         </div>

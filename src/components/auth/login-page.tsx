@@ -36,7 +36,6 @@ export default function LoginPage() {
     handleSubmit,
     formState: { errors },
     setValue,
-    watch,
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -46,7 +45,7 @@ export default function LoginPage() {
     },
   })
 
-  const rememberValue = watch('remember')
+  const [remembered, setRemembered] = useState(false)
 
   const onSubmit = async (data: LoginFormValues) => {
     clearError()
@@ -56,17 +55,21 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left branding panel - hidden on mobile */}
-      <div className="hidden lg:flex lg:w-1/2 xl:w-[45%] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 xl:w-[45%] relative overflow-hidden animate-gradient-shift">
+        {/* Animated gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-slate-900/80 via-transparent to-emerald-900/40 animate-pulse-slow" />
+
         {/* Decorative elements */}
         <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-white/10 blur-3xl" />
-          <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-white/5 blur-3xl" />
-          <div className="absolute top-1/2 left-1/3 w-48 h-48 rounded-full bg-white/8 blur-2xl" />
+          <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-emerald-400/10 blur-3xl" />
+          <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-teal-400/8 blur-3xl" />
+          <div className="absolute top-1/2 left-1/3 w-48 h-48 rounded-full bg-cyan-400/8 blur-2xl" />
         </div>
 
         {/* Grid pattern overlay */}
         <div
-          className="absolute inset-0 opacity-[0.03]"
+          className="absolute inset-0 opacity-[0.04]"
           style={{
             backgroundImage:
               'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
@@ -79,10 +82,10 @@ export default function LoginPage() {
           {/* Logo area */}
           <div className="flex flex-col items-center gap-6">
             <div className="relative">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-300 flex items-center justify-center shadow-2xl">
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-300 flex items-center justify-center shadow-2xl animate-pulse-glow">
                 <FileText className="w-10 h-10 text-slate-800" />
               </div>
-              <div className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg">
+              <div className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg animate-pulse-badge">
                 <Shield className="w-4 h-4 text-white" />
               </div>
             </div>
@@ -98,7 +101,7 @@ export default function LoginPage() {
 
             {/* Feature cards */}
             <div className="mt-10 space-y-4 w-full max-w-sm">
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm transition-transform duration-300 hover:-translate-y-0.5 hover:bg-white/8 hover:border-white/15">
                 <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
                   <FileText className="w-5 h-5 text-emerald-400" />
                 </div>
@@ -108,7 +111,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm transition-transform duration-300 hover:-translate-y-0.5 hover:bg-white/8 hover:border-white/15">
                 <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
                   <Shield className="w-5 h-5 text-amber-400" />
                 </div>
@@ -118,7 +121,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm transition-transform duration-300 hover:-translate-y-0.5 hover:bg-white/8 hover:border-white/15">
                 <div className="w-10 h-10 rounded-lg bg-sky-500/20 flex items-center justify-center shrink-0">
                   <svg
                     className="w-5 h-5 text-sky-400"
@@ -144,12 +147,15 @@ export default function LoginPage() {
 
         {/* Version badge */}
         <div className="absolute bottom-6 left-6">
-          <span className="text-slate-500 text-xs font-mono">v1.0.0</span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 text-xs font-mono">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            v1.1
+          </span>
         </div>
       </div>
 
       {/* Right login form panel */}
-      <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 px-4 sm:px-6 lg:px-8 py-8">
         <div className="w-full max-w-md">
           {/* Mobile logo - only shown on mobile/tablet */}
           <div className="flex lg:hidden flex-col items-center gap-3 mb-8">
@@ -170,7 +176,7 @@ export default function LoginPage() {
           </div>
 
           {/* Login card */}
-          <Card className="border-slate-200 shadow-lg bg-white/80 backdrop-blur-sm">
+          <Card className="border-slate-200/80 shadow-xl shadow-emerald-500/5 bg-white/90 backdrop-blur-sm">
             <CardHeader className="space-y-1 pb-4">
               <CardTitle className="text-2xl font-bold text-slate-900 text-center">
                 Вход в систему
@@ -216,7 +222,7 @@ export default function LoginPage() {
                       type="email"
                       placeholder="user@example.com"
                       autoComplete="email"
-                      className="pl-10 h-11 bg-white border-slate-200 focus-visible:border-slate-400 focus-visible:ring-slate-400/30"
+                      className="pl-10 h-11 bg-white border-slate-200 focus-visible:border-emerald-400 focus-visible:ring-emerald-400/30 transition-all duration-200"
                       disabled={isLoading}
                       {...register('email')}
                     />
@@ -253,7 +259,7 @@ export default function LoginPage() {
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Введите пароль"
                       autoComplete="current-password"
-                      className="pl-10 pr-10 h-11 bg-white border-slate-200 focus-visible:border-slate-400 focus-visible:ring-slate-400/30"
+                      className="pl-10 pr-10 h-11 bg-white border-slate-200 focus-visible:border-emerald-400 focus-visible:ring-emerald-400/30 transition-all duration-200"
                       disabled={isLoading}
                       {...register('password')}
                     />
@@ -295,10 +301,11 @@ export default function LoginPage() {
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="remember"
-                    checked={rememberValue}
-                    onCheckedChange={(checked) =>
+                    checked={remembered}
+                    onCheckedChange={(checked) => {
+                      setRemembered(checked === true)
                       setValue('remember', checked === true, { shouldValidate: true })
-                    }
+                    }}
                     disabled={isLoading}
                     className="border-slate-300 data-[state=checked]:bg-slate-900 data-[state=checked]:border-slate-900"
                   />
@@ -314,7 +321,7 @@ export default function LoginPage() {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white font-medium text-base transition-all duration-200"
+                  className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-medium text-base transition-all duration-200 shadow-lg shadow-emerald-600/25"
                 >
                   {isLoading ? (
                     <>

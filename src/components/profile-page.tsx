@@ -338,11 +338,14 @@ export default function ProfilePage() {
       {/* ═══ Content ═══ */}
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* ─── Profile Header Card ─── */}
-        <Card>
-          <CardContent className="p-6">
+        <Card className="overflow-hidden">
+          <div className="h-24 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 relative">
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMSkiLz48L3N2Zz4=')] opacity-10" />
+          </div>
+          <CardContent className="p-6 -mt-10 relative">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
               {/* Avatar */}
-              <div className={`flex items-center justify-center w-20 h-20 rounded-full text-white text-2xl font-bold shrink-0 ${getRoleColor(user?.role as UserRole)}`}>
+              <div className={`flex items-center justify-center w-20 h-20 rounded-full text-white text-2xl font-bold shrink-0 ring-4 ring-background shadow-lg ${getRoleColor(user?.role as UserRole)}`}>
                 {userInitials}
               </div>
 
@@ -410,7 +413,7 @@ export default function ProfilePage() {
         {/* ─── Two Column Grid ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* ─── Stats Card ─── */}
-          <Card>
+          <Card className="transition-shadow hover:shadow-md">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-muted-foreground" />
@@ -426,9 +429,9 @@ export default function ProfilePage() {
                 </div>
               ) : docStats ? (
                 <>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 border border-emerald-100 dark:border-emerald-900/40">
                     <span className="text-sm font-medium">Всего документов</span>
-                    <span className="text-2xl font-bold">{docStats.total}</span>
+                    <span className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{docStats.total}</span>
                   </div>
 
                   <Separator />
@@ -470,7 +473,7 @@ export default function ProfilePage() {
           </Card>
 
           {/* ─── Account Settings Card ─── */}
-          <Card>
+          <Card className="transition-shadow hover:shadow-md">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <Lock className="h-5 w-5 text-muted-foreground" />
@@ -557,7 +560,7 @@ export default function ProfilePage() {
               <Button
                 onClick={handleChangePassword}
                 disabled={passwordSubmitting || !currentPassword || !newPassword || !confirmPassword}
-                className="w-full"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-md shadow-emerald-600/20 hover:shadow-lg hover:shadow-emerald-600/30"
               >
                 {passwordSubmitting ? (
                   <span className="flex items-center gap-2">
@@ -576,7 +579,7 @@ export default function ProfilePage() {
         </div>
 
         {/* ─── Activity Summary Card ─── */}
-        <Card>
+        <Card className="transition-shadow hover:shadow-md">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -586,7 +589,7 @@ export default function ProfilePage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 text-xs"
+                className="h-8 text-xs hover:bg-muted transition-colors"
                 onClick={fetchActivity}
                 disabled={activityLoading}
               >

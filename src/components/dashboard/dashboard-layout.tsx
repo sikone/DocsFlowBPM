@@ -123,6 +123,8 @@ import {
   FolderInput,
   X,
   ArrowRightLeft,
+  Copy,
+  Palette,
 } from 'lucide-react';
 
 // ─── Theme Toggle Component ─────────────────────────────────────────
@@ -227,7 +229,7 @@ function formatRelativeTime(dateStr: string): string {
   }
 }
 
-// ─── Helper: get folder icon color ───────────────────────────────────
+// ─── Helper: get folder icon color from hex ─────────────────────────
 function getFolderColor(color: string): string {
   const map: Record<string, string> = {
     blue: 'text-blue-400',
@@ -240,7 +242,10 @@ function getFolderColor(color: string): string {
     pink: 'text-pink-400',
     slate: 'text-slate-400',
   };
-  return map[color] || 'text-slate-400';
+  // If it's a named color, map it; otherwise assume it's a hex and use inline style
+  if (map[color]) return map[color];
+  // Return empty string — caller will use inline style
+  return '';
 }
 
 // ─── Helper: get doc type icon ───────────────────────────────────────
@@ -256,6 +261,41 @@ function getDocTypeIcon(systemName: string) {
     REPORT: <FileText className="h-4 w-4" />,
   };
   return iconMap[systemName] || <File className="h-4 w-4" />;
+}
+
+// ─── Predefined folder colors ──────────────────────────────────────
+const FOLDER_COLORS = [
+  '#3b82f6', // blue
+  '#10b981', // emerald
+  '#f59e0b', // amber
+  '#f43f5e', // rose
+  '#8b5cf6', // violet
+  '#06b6d4', // cyan
+  '#f97316', // orange
+  '#ec4899', // pink
+  '#64748b', // slate
+] as const;
+
+// ─── Color Picker Component ────────────────────────────────────────
+function ColorPicker({ value, onChange }: { value: string; onChange: (color: string) => void }) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      {FOLDER_COLORS.map((color) => (
+        <button
+          key={color}
+          type="button"
+          className={`w-7 h-7 rounded-full transition-all duration-150 hover:scale-110 ${
+            value === color
+              ? 'ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110'
+              : 'opacity-70 hover:opacity-100'
+          }`}
+          style={{ backgroundColor: color }}
+          onClick={() => onChange(color)}
+          aria-label={color}
+        />
+      ))}
+    </div>
+  );
 }
 
 // ─── Sort config ─────────────────────────────────────────────────────
@@ -298,12 +338,14 @@ export default function DashboardLayout() {
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
+  const [newFolderColor, setNewFolderColor] = useState('#3b82f6');
   const [newFolderSubmitting, setNewFolderSubmitting] = useState(false);
 
   // ── Rename Dialog ───────────────────────────────────────────────────
   const [renameFolderOpen, setRenameFolderOpen] = useState(false);
   const [renameFolderId, setRenameFolderId] = useState<string | null>(null);
   const [renameFolderName, setRenameFolderName] = useState('');
+  const [renameFolderColor, setRenameFolderColor] = useState('#3b82f6');
   const [renameSubmitting, setRenameSubmitting] = useState(false);
 
   // ── Mobile Sidebar Sheet ────────────────────────────────────────────
@@ -331,6 +373,16 @@ export default function DashboardLayout() {
   const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
   const [bulkMoveFolderId, setBulkMoveFolderId] = useState<string>('');
   const [bulkMoveSubmitting, setBulkMoveSubmitting] = useState(false);
+
+  // ── New Document Dialog ────────────────────────────────────────────
+  const [newDocDialogOpen, setNewDocDialogOpen] = useState(false);
+  const [newDocTypeId, setNewDocTypeId] = useState<string>('');
+  const [newDocTitle, setNewDocTitle] = useState('');
+  const [newDocFolderId, setNewDocFolderId] = useState<string>('');
+  const [newDocSubmitting, setNewDocSubmitting] = useState(false);
+
+  // ── Duplicating Document ───────────────────────────────────────────
+  const [duplicatingDocId, setDuplicatingDocId] = useState<string | null>(null);
 
   // ── Folder path for breadcrumb ──────────────────────────────────────
   const folderPath = useMemo(() => {
@@ -487,13 +539,29 @@ export default function DashboardLayout() {
     setSelectedFolder(null);
   }, [setSelectedFolder]);
 
-  // ── Handle new document creation ───────────────────────────────────
+  // ── Handle new document creation (opens dialog) ───────────────────
   const handleNewDocument = useCallback(
     (typeId: string) => {
-      navigate({ page: 'new-document', typeId, folderId: selectedFolderId || undefined });
+      const docType = documentTypes.find((dt) => dt.id === typeId);
+      setNewDocTypeId(typeId);
+      setNewDocTitle(docType ? `${docType.name} — новый` : 'Новый документ');
+      setNewDocFolderId(selectedFolderId || '');
+      setNewDocDialogOpen(true);
     },
-    [navigate, selectedFolderId]
+    [documentTypes, selectedFolderId]
   );
+
+  // ── Handle confirm new document from dialog ─────────────────────────
+  const handleConfirmNewDocument = useCallback(() => {
+    if (!newDocTypeId) return;
+    setNewDocDialogOpen(false);
+    navigate({
+      page: 'new-document',
+      typeId: newDocTypeId,
+      folderId: newDocFolderId || undefined,
+      title: newDocTitle,
+    });
+  }, [newDocTypeId, newDocFolderId, newDocTitle, navigate]);
 
   // ── Handle document row click ──────────────────────────────────────
   const handleDocClick = useCallback(
@@ -514,12 +582,14 @@ export default function DashboardLayout() {
         body: JSON.stringify({
           name: newFolderName.trim(),
           parentId: newFolderParentId,
+          color: newFolderColor,
         }),
       });
       if (res.ok) {
         setNewFolderOpen(false);
         setNewFolderName('');
         setNewFolderParentId(null);
+        setNewFolderColor('#3b82f6');
         fetchData();
       }
     } catch (err) {
@@ -527,7 +597,7 @@ export default function DashboardLayout() {
     } finally {
       setNewFolderSubmitting(false);
     }
-  }, [newFolderName, newFolderParentId, token, fetchData]);
+  }, [newFolderName, newFolderParentId, newFolderColor, token, fetchData]);
 
   // ── Handle rename folder ───────────────────────────────────────────
   const handleRenameFolder = useCallback(async () => {
@@ -539,12 +609,14 @@ export default function DashboardLayout() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: renameFolderName.trim(),
+          color: renameFolderColor,
         }),
       });
       if (res.ok) {
         setRenameFolderOpen(false);
         setRenameFolderId(null);
         setRenameFolderName('');
+        setRenameFolderColor('#3b82f6');
         fetchData();
       }
     } catch (err) {
@@ -552,7 +624,7 @@ export default function DashboardLayout() {
     } finally {
       setRenameSubmitting(false);
     }
-  }, [renameFolderId, renameFolderName, token, fetchData]);
+  }, [renameFolderId, renameFolderName, renameFolderColor, token, fetchData]);
 
   // ── Handle delete folder ───────────────────────────────────────────
   const handleDeleteFolder = useCallback(
@@ -656,6 +728,40 @@ export default function DashboardLayout() {
       }
     },
     [token, deleteDocTitle, documents, setDocuments, fetchData]
+  );
+
+  // ── Handle duplicate document ──────────────────────────────────────
+  const handleDuplicateDoc = useCallback(
+    async (docId: string) => {
+      if (!token) return;
+      setDuplicatingDocId(docId);
+      try {
+        const res = await fetch(`/api/documents/${docId}/duplicate?token=${token}`, {
+          method: 'POST',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const newDoc = data.document;
+          toast.success('Документ скопирован', {
+            description: `«${newDoc.title}» создан.`,
+          });
+          fetchData();
+          // Navigate to the new document in edit mode
+          navigate({ page: 'edit-document', documentId: newDoc.id });
+        } else {
+          toast.error('Ошибка копирования', {
+            description: 'Не удалось скопировать документ.',
+          });
+        }
+      } catch {
+        toast.error('Ошибка соединения', {
+          description: 'Не удалось подключиться к серверу.',
+        });
+      } finally {
+        setDuplicatingDocId(null);
+      }
+    },
+    [token, fetchData, navigate]
   );
 
   // ── Toggle select mode ───────────────────────────────────────────
@@ -916,6 +1022,7 @@ export default function DashboardLayout() {
               onRename={(f) => {
                 setRenameFolderId(f.id);
                 setRenameFolderName(f.name);
+                setRenameFolderColor(f.color || '#3b82f6');
                 setRenameFolderOpen(true);
               }}
               onDelete={handleDeleteFolder}
@@ -1201,7 +1308,7 @@ export default function DashboardLayout() {
             {/* New Document Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="h-9 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.98] transition-transform">
+                <Button className="h-9 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.98] transition-all shadow-md shadow-emerald-600/20 hover:shadow-lg hover:shadow-emerald-600/30">
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Новый документ</span>
                 </Button>
@@ -1457,11 +1564,12 @@ export default function DashboardLayout() {
           {/* ── Welcome Banner ── */}
           {!isLoading && (
             <div className="px-4 pt-4 pb-0">
-              <div className="rounded-xl border border-emerald-200/60 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 dark:border-emerald-800/40 p-4 md:p-5 flex items-center gap-4">
-                <div className="hidden sm:flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 shrink-0">
+              <div className="rounded-xl border border-emerald-200/60 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/30 dark:via-teal-950/20 dark:to-cyan-950/20 dark:border-emerald-800/40 p-4 md:p-5 flex items-center gap-4 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-emerald-200/30 to-transparent rounded-bl-full" />
+                <div className="hidden sm:flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 shrink-0 shadow-sm">
                   <FileText className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 relative">
                   <h2 className="text-base md:text-lg font-semibold text-foreground">
                     Добро пожаловать, {userFirstName}!
                   </h2>
@@ -1556,6 +1664,8 @@ export default function DashboardLayout() {
                   setDeleteDocId(id);
                   setDeleteDocTitle(title);
                 }}
+                onDuplicateDoc={handleDuplicateDoc}
+                duplicatingDocId={duplicatingDocId}
                 selectMode={selectMode}
                 selectedIds={selectedIds}
                 allVisibleSelected={allVisibleSelected}
@@ -1567,6 +1677,8 @@ export default function DashboardLayout() {
               <DocumentGrid
                 documents={filteredDocuments}
                 onDocClick={handleDocClick}
+                onDuplicateDoc={handleDuplicateDoc}
+                duplicatingDocId={duplicatingDocId}
                 selectMode={selectMode}
                 selectedIds={selectedIds}
                 onToggleDocSelection={toggleDocSelection}
@@ -1671,6 +1783,11 @@ export default function DashboardLayout() {
         {/* ════════ STATUS BAR ════════ */}
         <footer className="flex items-center justify-between h-7 px-4 bg-background border-t text-[11px] text-muted-foreground shrink-0 no-print">
           <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              DocFlow BPM v1.1
+            </span>
+            <Separator orientation="vertical" className="h-3" />
             <span>
               {selectedFolderId
                 ? `Папка: ${folderPath.map((f) => f.name).join(' / ')}`
@@ -1682,6 +1799,8 @@ export default function DashboardLayout() {
             </span>
           </div>
           <div className="flex items-center gap-3">
+            <span>&copy; {new Date().getFullYear()}</span>
+            <Separator orientation="vertical" className="h-3" />
             <span>{user?.name}</span>
             <Separator orientation="vertical" className="h-3" />
             <span>{new Date().toLocaleTimeString('ru-RU')}</span>
@@ -1700,17 +1819,27 @@ export default function DashboardLayout() {
                 : 'Создать новую папку в корне'}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-2">
-            <Input
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="Название папки"
-              className="h-10"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreateFolder();
-              }}
-            />
+          <div className="py-2 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Название папки</label>
+              <Input
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="Название папки"
+                className="h-10"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreateFolder();
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <Palette className="h-3.5 w-3.5" />
+                Цвет
+              </label>
+              <ColorPicker value={newFolderColor} onChange={setNewFolderColor} />
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -1719,6 +1848,7 @@ export default function DashboardLayout() {
                 setNewFolderOpen(false);
                 setNewFolderName('');
                 setNewFolderParentId(null);
+                setNewFolderColor('#3b82f6');
               }}
             >
               Отмена
@@ -1741,17 +1871,27 @@ export default function DashboardLayout() {
             <DialogTitle>Переименовать папку</DialogTitle>
             <DialogDescription>Введите новое название для папки</DialogDescription>
           </DialogHeader>
-          <div className="py-2">
-            <Input
-              value={renameFolderName}
-              onChange={(e) => setRenameFolderName(e.target.value)}
-              placeholder="Название папки"
-              className="h-10"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleRenameFolder();
-              }}
-            />
+          <div className="py-2 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Название папки</label>
+              <Input
+                value={renameFolderName}
+                onChange={(e) => setRenameFolderName(e.target.value)}
+                placeholder="Название папки"
+                className="h-10"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleRenameFolder();
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <Palette className="h-3.5 w-3.5" />
+                Цвет
+              </label>
+              <ColorPicker value={renameFolderColor} onChange={setRenameFolderColor} />
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -1760,6 +1900,7 @@ export default function DashboardLayout() {
                 setRenameFolderOpen(false);
                 setRenameFolderId(null);
                 setRenameFolderName('');
+                setRenameFolderColor('#3b82f6');
               }}
             >
               Отмена
@@ -1918,6 +2059,73 @@ export default function DashboardLayout() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ════════ NEW DOCUMENT DIALOG ════════ */}
+      <Dialog open={newDocDialogOpen} onOpenChange={setNewDocDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Новый документ</DialogTitle>
+            <DialogDescription>
+              Укажите название и папку для нового документа.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Название документа</label>
+              <Input
+                value={newDocTitle}
+                onChange={(e) => setNewDocTitle(e.target.value)}
+                placeholder="Название документа"
+                className="h-10"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleConfirmNewDocument();
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Папка</label>
+              <Select value={newDocFolderId} onValueChange={setNewDocFolderId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Выберите папку" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">
+                    <span className="text-muted-foreground">Без папки</span>
+                  </SelectItem>
+                  <SelectSeparator />
+                  {folders.map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: folder.color || '#64748b' }}
+                        />
+                        {folder.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setNewDocDialogOpen(false)}
+            >
+              Отмена
+            </Button>
+            <Button
+              onClick={handleConfirmNewDocument}
+              disabled={!newDocTitle.trim()}
+              className="bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform"
+            >
+              Создать
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1957,7 +2165,9 @@ function FolderTreeNode({
   const hasChildren = children.length > 0;
   const isExpanded = expandedFolders.has(folder.id);
   const isSelected = selectedFolderId === folder.id;
-  const docCount = folder._count?.documents ?? countDocsInFolder(folder.id);
+  const docCount = countDocsInFolder(folder.id);
+  const folderColorClass = getFolderColor(folder.color);
+  const folderInlineColor = folderColorClass ? undefined : folder.color || '#64748b';
 
   return (
     <div>
@@ -1996,11 +2206,15 @@ function FolderTreeNode({
           className="flex items-center gap-1.5 flex-1 min-w-0 py-1.5"
         >
           {isExpanded || isSelected ? (
-            <FolderOpen className={`h-4 w-4 shrink-0 ${getFolderColor(folder.color)}`} />
+            <FolderOpen className={`h-4 w-4 shrink-0 ${folderColorClass}`} style={folderInlineColor ? { color: folderInlineColor } : undefined} />
           ) : (
-            <Folder className={`h-4 w-4 shrink-0 ${getFolderColor(folder.color)}`} />
+            <Folder className={`h-4 w-4 shrink-0 ${folderColorClass}`} style={folderInlineColor ? { color: folderInlineColor } : undefined} />
           )}
           <span className="truncate">{folder.name}</span>
+          <span
+            className="w-2 h-2 rounded-full shrink-0"
+            style={{ backgroundColor: folder.color || '#64748b' }}
+          />
           {docCount > 0 && (
             <Badge
               variant="secondary"
@@ -2045,7 +2259,7 @@ function FolderTreeNode({
 
       {/* Children */}
       {hasChildren && isExpanded && (
-        <div>
+        <div className="folder-tree-enter">
           {children.map((child) => (
             <FolderTreeNode
               key={child.id}
@@ -2079,6 +2293,8 @@ interface DocumentTableProps {
   sortDir: SortDir;
   onSort: (field: SortField) => void;
   onDeleteDoc: (id: string, title: string) => void;
+  onDuplicateDoc: (id: string) => void;
+  duplicatingDocId: string | null;
   selectMode: boolean;
   selectedIds: Set<string>;
   allVisibleSelected: boolean;
@@ -2089,6 +2305,7 @@ interface DocumentTableProps {
 
 function DocumentTable({
   documents, onDocClick, sortField, sortDir, onSort, onDeleteDoc,
+  onDuplicateDoc, duplicatingDocId,
   selectMode, selectedIds, allVisibleSelected, someVisibleSelected,
   onToggleSelectAll, onToggleDocSelection,
 }: DocumentTableProps) {
@@ -2100,7 +2317,7 @@ function DocumentTable({
   };
 
   if (documents.length === 0) {
-    return <EmptyState />;
+    return <EmptyState isSearch />;
   }
 
   return (
@@ -2171,7 +2388,7 @@ function DocumentTable({
           {documents.map((doc) => (
             <TableRow
               key={doc.id}
-              className={`cursor-pointer group transition-colors hover:bg-muted/50 ${selectMode && selectedIds.has(doc.id) ? 'bg-emerald-50 dark:bg-emerald-950/20' : ''}`}
+              className={`cursor-pointer group transition-colors hover:bg-muted/50 even:bg-muted/20 ${selectMode && selectedIds.has(doc.id) ? 'bg-emerald-50 dark:bg-emerald-950/20' : ''}`}
               onClick={() => onDocClick(doc.id)}
             >
               {selectMode && (
@@ -2260,6 +2477,13 @@ function DocumentTable({
                         <Pencil className="mr-2 h-4 w-4" />
                         Редактировать
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => onDuplicateDoc(doc.id)}
+                        disabled={duplicatingDocId === doc.id}
+                      >
+                        <Copy className="mr-2 h-4 w-4" />
+                        Дублировать
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => onDeleteDoc(doc.id, doc.title)}
@@ -2286,16 +2510,18 @@ function DocumentTable({
 interface DocumentGridProps {
   documents: Document[];
   onDocClick: (id: string) => void;
+  onDuplicateDoc: (id: string) => void;
+  duplicatingDocId: string | null;
   selectMode: boolean;
   selectedIds: Set<string>;
   onToggleDocSelection: (id: string) => void;
 }
 
 function DocumentGrid({
-  documents, onDocClick, selectMode, selectedIds, onToggleDocSelection,
+  documents, onDocClick, onDuplicateDoc, duplicatingDocId, selectMode, selectedIds, onToggleDocSelection,
 }: DocumentGridProps) {
   if (documents.length === 0) {
-    return <EmptyState />;
+    return <EmptyState isSearch />;
   }
 
   return (
@@ -2313,7 +2539,7 @@ function DocumentGrid({
           <div
             key={doc.id}
             onClick={() => onDocClick(doc.id)}
-            className={`group bg-card rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden relative ${selectMode && selectedIds.has(doc.id) ? 'ring-2 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' : ''}`}
+            className={`group card-shine bg-card rounded-xl border shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 cursor-pointer overflow-hidden relative ${selectMode && selectedIds.has(doc.id) ? 'ring-2 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' : ''}`}
             style={{ borderTopColor: docColor }}
           >
             {/* Selection Checkbox */}
@@ -2329,6 +2555,33 @@ function DocumentGrid({
                 />
               </div>
             )}
+
+            {/* More menu */}
+            <div
+              className="absolute top-2.5 right-2.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 bg-background/80 backdrop-blur-sm">
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onClick={() => onDocClick(doc.id)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Редактировать
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => onDuplicateDoc(doc.id)}
+                    disabled={duplicatingDocId === doc.id}
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    Дублировать
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
 
             {/* Top gradient stripe */}
             <div
@@ -2397,16 +2650,28 @@ function DocumentGrid({
 // ══════════════════════════════════════════════════════════════════════
 // ── EMPTY STATE ──────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════
-function EmptyState() {
+function EmptyState({ isSearch = false }: { isSearch?: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-4">
-      <div className="flex items-center justify-center w-20 h-20 rounded-full bg-muted mb-6">
-        <Inbox className="h-10 w-10 text-muted-foreground" />
+      <div className="relative mb-6">
+        <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-muted to-muted/60">
+          {isSearch ? (
+            <Search className="h-10 w-10 text-muted-foreground/60" />
+          ) : (
+            <Inbox className="h-10 w-10 text-muted-foreground/60" />
+          )}
+        </div>
+        <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
+          <Plus className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+        </div>
       </div>
-      <h3 className="text-lg font-medium text-foreground mb-1">Документы не найдены</h3>
+      <h3 className="text-lg font-semibold text-foreground mb-1">
+        {isSearch ? 'Ничего не найдено' : 'Документы не найдены'}
+      </h3>
       <p className="text-sm text-muted-foreground text-center max-w-sm">
-        В этой папке пока нет документов. Создайте новый документ, нажав кнопку «Новый
-        документ».
+        {isSearch
+          ? 'Попробуйте изменить поисковый запрос или фильтр для поиска документов.'
+          : 'В этой папке пока нет документов. Создайте новый документ, нажав кнопку «Новый документ» в панели инструментов.'}
       </p>
     </div>
   );
