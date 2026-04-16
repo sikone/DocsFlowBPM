@@ -27,6 +27,7 @@ model User {
   createdTasks       Task[]        @relation("CreatedTasks")
   templates          DocumentTemplate[]
   favoriteDocuments  FavoriteDocument[]  @relation("UserFavorites")
+  createdTags         DocumentTag[]       @relation("TagCreator")
 }
 
 model Folder {
@@ -99,6 +100,35 @@ model Document {
   comments    Comment[]
   tasks       Task[]
   favoritedBy FavoriteDocument[]
+  tagLinks   DocumentTagLink[]
+}
+
+model DocumentTag {
+  id         String   @id @default(cuid())
+  name       String
+  color      String   @default("#6b7280")
+  createdById String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  creator     User              @relation("TagCreator", fields: [createdById], references: [id])
+  documents   DocumentTagLink[]
+
+  @@index([createdById])
+}
+
+model DocumentTagLink {
+  id         String      @id @default(cuid())
+  documentId String
+  tagId       String
+  createdAt  DateTime    @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag      DocumentTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, tagId])
+  @@index([documentId])
+  @@index([tagId])
 }
 
 model FavoriteDocument {

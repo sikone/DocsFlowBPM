@@ -283,6 +283,31 @@ export async function POST() {
       }
     }
 
+    // ─── Seed Document Tags ────────────────────────────────────
+    const tagsData = [
+      { name: 'Срочно', color: '#ef4444' },
+      { name: 'На согласование', color: '#f59e0b' },
+      { name: 'Архив', color: '#6b7280' },
+      { name: 'Важно', color: '#8b5cf6' },
+      { name: 'На проверке', color: '#06b6d4' },
+    ]
+
+    for (const tg of tagsData) {
+      const existing = await db.documentTag.findFirst({ where: { name: tg.name } })
+      if (!existing) {
+        await db.documentTag.create({
+          data: {
+            name: tg.name,
+            color: tg.color,
+            createdById: adminUser.id,
+          },
+        })
+        results.push({ entity: 'DocumentTag', action: `create ${tg.name}`, status: 'ok' })
+      } else {
+        results.push({ entity: 'DocumentTag', action: `skip ${tg.name} (exists)`, status: 'skipped' })
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Database seeded successfully',

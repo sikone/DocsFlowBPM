@@ -50,6 +50,12 @@ export interface DocumentType {
   updatedAt: string;
 }
 
+export interface DocumentTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface Document {
   id: string;
   title: string;
@@ -63,6 +69,7 @@ export interface Document {
   updatedAt: string;
   type?: DocumentType;
   creator?: { id: string; name: string; email: string };
+  tagLinks?: Array<{ id: string; tagId: string; tag: DocumentTag }>;
 }
 
 export type AppView =

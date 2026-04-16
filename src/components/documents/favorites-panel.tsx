@@ -60,7 +60,7 @@ export default function FavoritesPanel({ token, onDocumentClick }: FavoritesPane
   return (
     <div>
       <div className="px-3 py-2 flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           Избранное
         </span>
         {favorites.length > 0 && (
@@ -83,7 +83,7 @@ export default function FavoritesPanel({ token, onDocumentClick }: FavoritesPane
               <button
                 key={doc.id}
                 onClick={() => onDocumentClick(doc.id)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-slate-800/60 rounded-md transition-colors group"
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-md transition-colors group"
               >
                 <Star className="h-3 w-3 text-amber-400 fill-amber-400 shrink-0" />
                 <span className="truncate">{doc.title}</span>

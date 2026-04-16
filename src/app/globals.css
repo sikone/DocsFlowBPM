@@ -370,6 +370,18 @@
   outline-color: oklch(0.6 0.2 160 / 50%);
 }
 
+/* ===== Animated Status Pop ===== */
+
+@keyframes statusPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.animate-status-pop {
+  animation: statusPop 0.3s ease-out;
+}
+
 /* ===== Hover Lift for Cards ===== */
 
 .hover-lift {

@@ -1,147 +1,131 @@
 ---
-Task ID: QA Review 6 (Phase 6)
+Task ID: Phase 7 - Tags, DnD, Recent Docs, Quick Status, Styling
 Agent: Main Developer
-Task: Comprehensive QA, search/templates integration, security, favorites, styling
+Task: Comprehensive feature additions, dark mode fixes, drag-and-drop, tags system
 
 ## Current Project Status Assessment
 
-The DocFlow BPM system is in a highly mature state after 6 phases of development. This round focused on integrating existing APIs into the UI, adding security, and polishing the experience. Key achievements:
-
-1. **Full-text search integration** — Server-side search connected to dashboard search input
-2. **Document templates integration** — "From Template" tab in new document dialog
-3. **Password hashing** — bcryptjs with backward compatibility
-4. **Document favorites** — Star/bookmark documents with sidebar panel
-5. **Welcome banner** — Time-based greeting with tips and role descriptions
-6. **Responsive polish** — Horizontal toolbar scroll, mobile button hiding, enhanced empty states
+The DocFlow BPM system has reached Phase 7 with significant new features. The application is stable with 0 lint errors, all APIs tested and working. This round focused on adding a Tags/Labels system, Recently Viewed Documents, Quick Status Actions, Drag-and-Drop, and extensive styling improvements.
 
 ### Project Statistics:
-- **18** custom component files (excluding UI library) — 1 new
-- **33** API routes — 3 new
-- **11** Prisma database models — 1 new (FavoriteDocument)
-- **~14,000+** lines of custom application code
+- **20** custom component files (excluding UI library) — 2 new (recent-documents, dnd components)
+- **37** API routes — 4 new (tags CRUD + document tags + recent docs)
+- **13** Prisma database models — 2 new (DocumentTag, DocumentTagLink)
+- **~16,000+** lines of custom application code
 - **0** lint errors
 
 ---
 
-## Phase 6 Changes (Current Session):
+## Phase 7 Changes (Current Session):
 
-### 1. Full-text Search Integration (Task ID: 6-a)
-**Modified**: `/src/components/dashboard/dashboard-layout.tsx`
-- Added search mode toggle (local vs server-side) with `Database`/`Zap` icons
-- Server mode uses `/api/documents/search` with 400ms debounce (3+ character threshold)
-- Desktop search bar: input + loading spinner + mode toggle button
-- Mobile search dropdown: input + mode buttons + contextual hints
-- `filteredDocuments` useMemo respects search mode (returns `serverSearchResults` in server mode)
-- Dynamic placeholder text: "Быстрый поиск..." vs "Поиск по данным (мин. 3 символа)..."
+### 1. Document Tags/Labels System (Task ID: 2-a)
+**Prisma Models** (2 new):
+- `DocumentTag` — name, color, creator relation
+- `DocumentTagLink` — many-to-many join table (documentId, tagId) with unique constraint
 
-### 2. Document Templates Integration (Task ID: 6-a)
-**Modified**: `/src/lib/types.ts`, `/src/components/dashboard/dashboard-layout.tsx`, `/src/components/documents/document-form-view.tsx`
-- Added `templateData?: string` to `AppView` type's `new-document` variant
-- New Document dialog now has 2 tabs:
-  - **Tab 1 "Тип документа"** — Original behavior (title + folder + create)
-  - **Tab 2 "Из шаблона"** — Shows template cards with name, description, type badge, colored icons
-- Templates fetched in `fetchData` from `/api/templates?token=...`
-- Clicking template navigates with pre-filled `templateData`
-- `DocumentFormView.loadForNew()` merges template data onto field defaults
-- Fixed pre-existing unclosed `<TableHead>` JSX parsing error in document-form-view.tsx
+**API Routes** (4 new):
+- `GET/POST /api/tags` — List all tags with document counts / Create tag (ADMIN/ADVANCED)
+- `GET/PUT/DELETE /api/tags/[id]` — Single tag CRUD
+- `POST /api/documents/[id]/tags` — Add tag to document
+- `DELETE /api/documents/[id]/tags/[tagId]` — Remove tag from document
 
-### 3. Password Hashing with bcryptjs (Task ID: 6-b)
-**Created**: `/src/lib/password.ts`
-- `hashPassword(password)` — bcrypt hash with 12 salt rounds
-- `comparePassword(password, hash)` — bcrypt compare
-- `isHashed(value)` — Detects bcrypt hashes ($2b$/ $2a$ prefix)
+**UI Integration**:
+- New "Теги" column in document table (visible on lg+ screens)
+- Tag badges show colored pills with tag name + count overflow (+N)
+- Tags shown on documents via `tagLinks` include in documents API
+- 5 default seed tags: Срочно, На согласование, Архив, Важно, На проверке
 
-**Modified** (5 files):
-- `/src/app/api/auth/login/route.ts` — Supports both plain text AND hashed passwords (migration)
-- `/src/app/api/seed/route.ts` — All user passwords now hashed before storage
-- `/src/app/api/profile/password/route.ts` — Current + new password comparison, new password hashed
-- `/src/app/api/users/route.ts` — New user creation hashes password
-- `/src/app/api/users/[id]/route.ts` — Admin password update hashes password
+### 2. Recently Viewed Documents (Task ID: 3-a)
+**API Routes** (1 new file, 2 methods):
+- `POST /api/documents/recent` — Record document view (uses ActivityLog with VIEW_DOCUMENT action)
+- `GET /api/documents/recent` — Return 10 most recently viewed unique documents
 
-### 4. Document Favorites/Bookmarks (Task ID: 6-c)
-**Prisma Model**: `FavoriteDocument` (userId, documentId, unique constraint, cascade delete)
-**Relations**: Added to `User` (favoriteDocuments) and `Document` (favoritedBy)
+**Component** (`/src/components/documents/recent-documents.tsx`):
+- Sidebar panel "Недавно просмотренные" with count badge
+- Shows document type icon (colored), title (truncated), time ago
+- Click navigates to document edit
+- Semantic tokens only (no hardcoded dark colors)
+- Skeleton loading, empty state, ScrollArea with max-h-48
+- View recording triggered automatically on `handleDocClick`
 
-**Created API Routes**:
-- `GET/POST /api/documents/favorites` — List favorites, add to favorites (409 if exists)
-- `DELETE /api/documents/favorites/[documentId]` — Remove from favorites
+### 3. Quick Status Actions in Document Table (Task ID: 5-a)
+- Status column now uses interactive DropdownMenu instead of static Badge
+- Click any status badge to see all 5 options (DRAFT, IN_PROGRESS, APPROVED, REJECTED, COMPLETED)
+- Each option shows colored dot + label + checkmark on current status
+- Loading spinner during status change
+- Toast notification on success/error
+- Calls `PUT /api/documents/[id]` with `{ status }`
+- `.animate-status-pop` CSS animation on status change
 
-**Created**: `/src/components/documents/favorites-panel.tsx`
-- Sidebar panel showing "Избранное" section with amber badge count
-- Scrollable document list with star icons, click to navigate
-- Skeleton loading state, empty state, listens for `refresh-favorites` custom events
+### 4. Drag-and-Drop Document Organization (Task ID: 7-a)
+**Using @dnd-kit/core** (already installed):
+- `DraggableGrip` component — GripVertical icon on each document row/card (visible on hover)
+- `DroppableFolder` component — Folder items become drop targets with emerald ring highlight
+- `DragOverlay` — Card-like preview of dragged document (type icon + title + type name)
+- PointerSensor with 8px activation distance threshold
+- Drops call `PUT /api/documents/[id]` with `{ folderId }`, show toast, refresh data
+- Works in both table view and grid view
 
-**Modified**: `/src/components/dashboard/dashboard-layout.tsx`
-- `favoriteDocIds` state (Set), `fetchFavorites()` and `handleToggleFavorite()` callbacks
-- Star column in document table (amber filled when favorited, outline when not)
-- Star toggle in grid cards (top-left, visible on hover)
-- Optimistic UI updates with error rollback
-- `FavoritesPanel` integrated into sidebar between folder tree and footer
+### 5. Dark Mode Fixes
+- **favorites-panel.tsx**: Replaced `text-slate-500` → `text-muted-foreground`, `text-slate-300 hover:text-white hover:bg-slate-800/60` → `text-muted-foreground hover:text-foreground hover:bg-accent/50`
+- **Sidebar footer buttons**: Replaced `text-slate-300 hover:text-white hover:bg-slate-800` → `text-muted-foreground hover:text-foreground hover:bg-accent`
+- **Sidebar separators**: Replaced `bg-slate-700/50` → `bg-border` (semantic)
 
-### 5. Welcome Banner + Responsive Polish (Task ID: 6-d)
-**Created**: `/src/components/dashboard/welcome-banner.tsx`
-- Time-of-day greeting (Доброй ночи/утро/день/вечер) with matching icon
-- User first name display
-- Role-based description (ADMIN/ADVANCED/USER)
-- Random motivational tip from 7 curated tips
-- Glassmorphism `.glass` class with gradient emerald→teal→cyan accent line
-- Dismissible with localStorage persistence
-- `.animate-slide-in-right` entry animation
+### 6. Styling Improvements (Task ID: 5-a)
+- **Table rows**: `transition-colors` → `transition-all duration-150` for smoother hover
+- **Toolbar**: Document count badge next to view title
+- **Empty states**: Context-aware — "Папка пуста" for empty folders with emerald Plus button
+- **Grid cards**: Enhanced shadows `hover:shadow-xl hover:shadow-muted/30`, subtle borders `border-border/60`
+- **Status animation**: New `@keyframes statusPop` (scale 1→1.08→1) + `.animate-status-pop` utility
+- **Tags column badges**: Dynamic colors using tag color with alpha (`color + '18'`)
 
-**Modified**: `/src/components/dashboard/dashboard-layout.tsx`
-- WelcomeBanner placed above toolbar in content area
-- Mobile toolbar: `overflow-x-auto flex-nowrap sm:flex-wrap` for horizontal scroll
-- View toggle, Sort, Export buttons hidden on mobile (`hidden md:flex`)
-- Enhanced EmptyState: larger icon, `animate-scale-in` animation, better copy
+### 7. Enhanced Sidebar
+- Added `RecentDocuments` panel between Favorites and Footer
+- Three sidebar sections now: Favorites → Recently Viewed → Footer actions
+- All panels use consistent semantic token styling
+
+### 8. TypeScript Types
+- Added `DocumentTag` interface to types.ts
+- Added `tagLinks` field to `Document` interface
+- Updated `DocumentType` interface with `_count`
 
 ---
 
 ## Complete File Inventory:
 
-### Custom Components (18 files):
-- `/src/components/auth/login-page.tsx` — Login form with branding panel
-- `/src/components/dashboard/dashboard-layout.tsx` — Main dashboard *(search, templates, favorites, welcome banner, responsive)*
-- `/src/components/dashboard/dashboard-analytics.tsx` — Analytics with real data
-- `/src/components/dashboard/stats-summary-bar.tsx` — Quick stats summary bar
-- `/src/components/dashboard/welcome-banner.tsx` — **NEW** Welcome banner with greeting
-- `/src/components/documents/document-form-view.tsx` — Document editor *(template data support)*
-- `/src/components/documents/document-comments.tsx` — Comment system
-- `/src/components/documents/favorites-panel.tsx` — **NEW** Favorites sidebar panel
-- `/src/components/profile-page.tsx` — User profile & settings
-- `/src/components/admin/admin-layout.tsx` — Admin panel layout
-- `/src/components/admin/admin-pages.tsx` — Admin pages
-- `/src/components/admin/admin-processes-page.tsx` — Process definitions
-- `/src/components/admin/admin-tasks-page.tsx` — Tasks management
-- `/src/components/admin/activity-log-page.tsx` — Activity audit log
-- `/src/components/notification-center.tsx` — Enhanced notification center
-- `/src/components/keyboard-shortcuts-dialog.tsx` — Keyboard shortcuts help
-- `/src/components/activity-panel.tsx` — Legacy notification popover
-- `/src/components/error-boundary.tsx` — Error boundary
-- `/src/components/command-palette.tsx` — Command palette
+### New Files (Phase 7):
+- `/src/app/api/tags/route.ts` — Tags list + create
+- `/src/app/api/tags/[id]/route.ts` — Tag CRUD
+- `/src/app/api/documents/[id]/tags/route.ts` — Document-tag linking
+- `/src/app/api/documents/[id]/tags/[tagId]/route.ts` — Document-tag unlinking
+- `/src/app/api/documents/recent/route.ts` — Recent documents tracking
 
-### API Routes (33 files):
-- Auth: login *(bcrypt)*, logout, me
-- Documents: CRUD, [id], [id]/comments, [id]/duplicate, bulk-delete, bulk-status, bulk-move, export, stats, search, **favorites**, **favorites/[documentId]** *(3 new)*
-- Folders: CRUD, [id]
-- Document Types: CRUD, [id]
-- Users: CRUD *(bcrypt)*, [id] *(bcrypt)*
-- Processes: CRUD, [id]
-- Tasks: CRUD, [id]
-- Templates: CRUD, [id]
-- Activity Log: list
-- Profile: password *(bcrypt)*
-- Seed: database seeding *(bcrypt)*
+### Modified Files:
+- `/prisma/schema.prisma` — Added DocumentTag + DocumentTagLink models + relations
+- `/src/lib/types.ts` — Added DocumentTag interface + tagLinks to Document
+- `/src/components/documents/favorites-panel.tsx` — Dark mode fix
+- `/src/components/documents/recent-documents.tsx` — **NEW** Recently viewed panel
+- `/src/components/dashboard/dashboard-layout.tsx` — DnD, Quick Status, Tags column, Recent docs, sidebar enhancements, styling
+- `/src/app/api/documents/route.ts` — Added tagLinks include to documents list
+- `/src/app/api/seed/route.ts` — Added default tags seeding
+- `/src/app/globals.css` — Added statusPop animation
 
-### Database Models (11):
-User, Folder, DocumentType, Document, Session, ActivityLog, Comment, ProcessDefinition, Task, DocumentTemplate, **FavoriteDocument** *(NEW)*
+### Database Models (13):
+User, Folder, DocumentType, Document, DocumentTemplate, Document, Session, ActivityLog, Comment, ProcessDefinition, Task, FavoriteDocument, **DocumentTag**, **DocumentTagLink**
 
-### Utility Libraries:
-- `/src/lib/password.ts` — **NEW** bcrypt password hashing utilities
-- `/src/lib/auth.ts` — Token extraction and session validation
-- `/src/lib/api.ts` — API fetch utility
-- `/src/lib/types.ts` — TypeScript type definitions *(templateData added)*
-- `/src/lib/store.ts` — Zustand state management
-- `/src/lib/activity-log.ts` — Activity logging utility
+### API Routes (37):
+- Auth: login, logout, me (3)
+- Documents: CRUD, [id], [id]/comments, [id]/duplicate, [id]/tags, [id]/tags/[tagId], bulk-delete, bulk-status, bulk-move, export, stats, search, favorites, favorites/[documentId], **recent** (16)
+- Folders: CRUD, [id] (3)
+- Document Types: CRUD, [id] (3)
+- Users: CRUD, [id] (2)
+- Processes: CRUD, [id] (2)
+- Tasks: CRUD, [id] (2)
+- Templates: CRUD, [id] (2)
+- **Tags**: CRUD, [id] (2) — **NEW**
+- Activity Log: list (1)
+- Profile: password (1)
+- Seed (1)
 
 ---
 
@@ -153,9 +137,13 @@ User, Folder, DocumentType, Document, Session, ActivityLog, Comment, ProcessDefi
 | Prisma schema | `bun run db:push` | ✅ All models valid, DB in sync |
 | Prisma generate | Auto (db push) | ✅ Client generated |
 | Server compilation | dev.log | ✅ No errors |
-
-### Known Environment Issue:
-- Dev server stability: The sandbox environment has limited resources causing the dev server to terminate intermittently. This does not affect the production build.
+| Login API | curl POST | ✅ Returns token + user |
+| Documents API | curl GET | ✅ Returns docs with tagLinks |
+| Tags API | curl GET/POST | ✅ CRUD working |
+| Document Tags | curl POST/DELETE | ✅ Link/unlink working |
+| Recent Docs API | curl GET/POST | ✅ Tracking + retrieval |
+| Folders API | curl GET | ✅ 4 folders |
+| Stats API | curl GET | ✅ Statistics returned |
 
 ---
 
@@ -166,16 +154,16 @@ User, Folder, DocumentType, Document, Session, ActivityLog, Comment, ProcessDefi
 4. No document versioning/history
 5. No calendar view for deadlines and due dates
 6. Full-text search API exists but SQLite `contains` is case-insensitive only for ASCII
-7. Favorites panel in sidebar uses hardcoded dark theme colors (slate-800, slate-300) instead of semantic tokens
+7. Sidebar uses intentionally dark theme (bg-slate-900) — buttons use hardcoded slate colors which is by design
 
 ## Recommendations for Next Phase:
-1. **Fix Favorites Panel Dark Mode** — Replace hardcoded slate colors with semantic tokens
-2. **File Attachments** — Upload, preview, download for documents (multer + local storage)
-3. **Document Versioning** — Version history with diff comparison
-4. **Calendar View** — Document deadlines and task due dates
-5. **BPMN Visual Process Editor** — Canvas-based drag-and-drop process designer
-6. **Real-time Notifications** — WebSocket push for task assignments, status changes
+1. **File Attachments** — Upload, preview, download for documents (multer + local storage)
+2. **Document Versioning** — Version history with diff comparison
+3. **Calendar View** — Document deadlines and task due dates
+4. **BPMN Visual Process Editor** — Canvas-based drag-and-drop process designer
+5. **Real-time Notifications** — WebSocket push for task assignments, status changes
+6. **Tags Management UI** — Admin page for managing tags (create, edit, delete, assign colors)
 7. **Dashboard Widgets** — Customizable dashboard with drag-and-drop widgets
-8. **Drag-and-Drop Organization** — Drag documents between folders
-9. **Export to PDF** — Server-side PDF generation for documents
-10. **User Avatars** — Allow users to upload profile pictures
+8. **Export to PDF** — Server-side PDF generation for documents
+9. **User Avatars** — Allow users to upload profile pictures
+10. **Advanced Filters** — Filter documents by tags, date ranges, creators

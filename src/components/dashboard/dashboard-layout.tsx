@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor, DragStartEvent, DragEndEvent, closestCenter, useDraggable } from '@dnd-kit/core';
+import { useDroppable } from '@dnd-kit/core';
 import { useTheme } from 'next-themes';
 import { useStore } from '@/lib/store';
 import type { Folder, Document, DocumentType } from '@/lib/types';
@@ -94,6 +96,7 @@ import DashboardAnalytics from '@/components/dashboard/dashboard-analytics';
 import StatsSummaryBar from '@/components/dashboard/stats-summary-bar';
 import KeyboardShortcutsDialog from '@/components/keyboard-shortcuts-dialog';
 import FavoritesPanel from '@/components/documents/favorites-panel';
+import RecentDocuments from '@/components/documents/recent-documents';
 import WelcomeBanner from '@/components/dashboard/welcome-banner';
 import {
   FileText,
@@ -126,6 +129,7 @@ import {
   Download,
   Printer,
   FileJson,
+  Check,
   CheckSquare,
   Square,
   Minus,
@@ -139,6 +143,7 @@ import {
   Zap,
   Loader2,
   Star,
+  GripVertical,
 } from 'lucide-react';
 
 // ─── Theme Toggle Component ─────────────────────────────────────────
@@ -312,6 +317,32 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (color: str
   );
 }
 
+// ─── Draggable Doc Grip Handle ──────────────────────────────────────
+function DraggableGrip({ docId }: { docId: string }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: docId });
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={`flex items-center justify-center w-6 h-6 shrink-0 cursor-grab active:cursor-grabbing transition-opacity duration-150 ${isDragging ? 'opacity-0' : 'opacity-0 group-hover:opacity-50 hover:!opacity-100'}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <GripVertical className="h-4 w-4 text-muted-foreground" />
+    </div>
+  );
+}
+
+// ─── Droppable Folder Wrapper ────────────────────────────────────────
+function DroppableFolder({ folderId, children, isDragging }: { folderId: string; children: React.ReactNode; isDragging: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id: folderId });
+  return (
+    <div ref={setNodeRef} className={`rounded-md transition-all duration-200 ${isOver && isDragging ? 'ring-2 ring-emerald-400 ring-offset-1 ring-offset-slate-900 bg-emerald-500/10' : ''}`}>
+      {children}
+    </div>
+  );
+}
+
 // ─── Sort config ─────────────────────────────────────────────────────
 type SortField = 'createdAt' | 'updatedAt' | 'title' | 'status';
 type SortDir = 'asc' | 'desc';
@@ -398,6 +429,9 @@ export default function DashboardLayout() {
   // ── Duplicating Document ───────────────────────────────────────────
   const [duplicatingDocId, setDuplicatingDocId] = useState<string | null>(null);
 
+  // ── Quick Status Change ────────────────────────────────────────────
+  const [statusChangingDocId, setStatusChangingDocId] = useState<string | null>(null);
+
   // ── Favorites State ────────────────────────────────────────────────
   const [favoriteDocIds, setFavoriteDocIds] = useState<Set<string>>(new Set());
 
@@ -418,6 +452,58 @@ export default function DashboardLayout() {
     color: string;
     type?: { id: string; name: string; systemName: string };
   }>>([]);
+
+  // ── Drag & Drop State ───────────────────────────────────────────────
+  const [activeDragDoc, setActiveDragDoc] = useState<Document | null>(null);
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const docId = event.active.id as string;
+    const doc = documents.find((d) => d.id === docId) || null;
+    setActiveDragDoc(doc);
+  }, [documents]);
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragDoc(null);
+
+    if (!over || !token) return;
+    const docId = active.id as string;
+    const targetFolderId = over.id as string;
+
+    // Don't move if dropped on itself or not on a folder
+    if (docId === targetFolderId) return;
+    const targetFolder = folders.find((f) => f.id === targetFolderId);
+    if (!targetFolder) return;
+
+    // Don't move if already in this folder
+    const doc = documents.find((d) => d.id === docId);
+    if (doc?.folderId === targetFolderId) return;
+
+    try {
+      const res = await fetch(`/api/documents/${docId}?token=${token}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId: targetFolderId }),
+      });
+      if (res.ok) {
+        toast.success('Документ перемещён', {
+          description: `«${doc?.title}» перемещён в «${targetFolder.name}».`,
+        });
+        fetchData();
+      } else {
+        toast.error('Ошибка перемещения', {
+          description: 'Не удалось переместить документ.',
+        });
+      }
+    } catch {
+      toast.error('Ошибка соединения', {
+        description: 'Не удалось подключиться к серверу.',
+      });
+    }
+  }, [token, folders, documents, fetchData]);
 
   // ── Folder path for breadcrumb ──────────────────────────────────────
   const folderPath = useMemo(() => {
@@ -662,9 +748,17 @@ export default function DashboardLayout() {
   // ── Handle document row click ──────────────────────────────────────
   const handleDocClick = useCallback(
     (docId: string) => {
+      // Record document view for recently viewed feature
+      if (token) {
+        fetch(`/api/documents/recent?token=${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ documentId: docId }),
+        }).catch(() => {});
+      }
       navigate({ page: 'edit-document', documentId: docId });
     },
-    [navigate]
+    [navigate, token]
   );
 
   // ── Handle create folder ───────────────────────────────────────────
@@ -859,6 +953,36 @@ export default function DashboardLayout() {
     },
     [token, fetchData, navigate]
   );
+
+  // ── Handle quick status change (inline in table) ────────────────────
+  const handleQuickStatusChange = useCallback(async (docId: string, newStatus: string) => {
+    if (!token) return;
+    setStatusChangingDocId(docId);
+    try {
+      const res = await fetch(`/api/documents/${docId}?token=${token}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        const statusLabel = STATUS_LABELS[newStatus] || newStatus;
+        toast.success('Статус обновлён', {
+          description: `Статус документа изменён на «${statusLabel}».`,
+        });
+        fetchData();
+      } else {
+        toast.error('Ошибка обновления', {
+          description: 'Не удалось изменить статус документа.',
+        });
+      }
+    } catch {
+      toast.error('Ошибка соединения', {
+        description: 'Не удалось подключиться к серверу.',
+      });
+    } finally {
+      setStatusChangingDocId(null);
+    }
+  }, [token, fetchData]);
 
   // ── Toggle select mode ───────────────────────────────────────────
   const toggleSelectMode = useCallback(() => {
@@ -1197,12 +1321,13 @@ export default function DashboardLayout() {
                 setNewFolderOpen(true);
               }}
               collapsed={false}
+              isDragging={!!activeDragDoc}
             />
           ))}
         </div>
       </ScrollArea>
 
-      <Separator className="bg-slate-700/50" />
+      <Separator />
 
       {/* ── Favorites Panel ── */}
       <FavoritesPanel
@@ -1213,7 +1338,18 @@ export default function DashboardLayout() {
         }}
       />
 
-      <Separator className="bg-slate-700/50" />
+      <Separator />
+
+      {/* ── Recent Documents Panel ── */}
+      <RecentDocuments
+        token={token}
+        onDocumentClick={(docId) => {
+          navigate({ page: 'edit-document', documentId: docId });
+          setMobileSheetOpen(false);
+        }}
+      />
+
+      <Separator />
 
       {/* ── Sidebar Footer ── */}
       <div className="p-3 space-y-1">
@@ -1223,7 +1359,7 @@ export default function DashboardLayout() {
             setNewFolderParentId(null);
             setNewFolderOpen(true);
           }}
-          className="w-full justify-start gap-2 text-slate-300 hover:text-white hover:bg-slate-800 h-9 text-sm"
+          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-accent h-9 text-sm"
         >
           <Plus className="h-4 w-4" />
           Новая папка
@@ -1235,7 +1371,7 @@ export default function DashboardLayout() {
             navigate({ page: 'profile' });
             setMobileSheetOpen(false);
           }}
-          className="w-full justify-start gap-2 text-slate-300 hover:text-white hover:bg-slate-800 h-9 text-sm"
+          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-accent h-9 text-sm"
         >
           <User className="h-4 w-4 shrink-0" />
           Мой профиль
@@ -1248,7 +1384,7 @@ export default function DashboardLayout() {
               navigate({ page: 'admin' });
               setMobileSheetOpen(false);
             }}
-            className="w-full justify-start gap-2 text-slate-300 hover:text-white hover:bg-slate-800 h-9 text-sm"
+            className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-accent h-9 text-sm"
           >
             <Settings className="h-4 w-4 shrink-0" />
             Настройки
@@ -1268,6 +1404,7 @@ export default function DashboardLayout() {
   // ══════════════════════════════════════════════════════════════════
 
   return (
+    <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
     <div className="flex h-screen w-screen overflow-hidden bg-muted/40 animate-fade-in">
       {/* ════════ SIDEBAR (Desktop) ════════ */}
       <aside
@@ -1816,13 +1953,17 @@ export default function DashboardLayout() {
             </DropdownMenu>
 
             {/* Document count */}
-            <div className="ml-auto text-sm text-muted-foreground shrink-0 hidden sm:block">
-              {filteredDocuments.length}{' '}
-              {filteredDocuments.length === 1
-                ? 'документ'
-                : filteredDocuments.length >= 2 && filteredDocuments.length <= 4
-                ? 'документа'
-                : 'документов'}
+            <div className="ml-auto shrink-0 hidden sm:flex items-center gap-1.5">
+              <Badge variant="secondary" className="font-normal text-xs bg-muted text-muted-foreground hover:bg-muted px-2 py-0.5">
+                {filteredDocuments.length}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                {filteredDocuments.length === 1
+                  ? 'документ'
+                  : filteredDocuments.length >= 2 && filteredDocuments.length <= 4
+                  ? 'документа'
+                  : 'документов'}
+              </span>
             </div>
           </div>
 
@@ -1919,6 +2060,8 @@ export default function DashboardLayout() {
                 onToggleDocSelection={toggleDocSelection}
                 favoriteDocIds={favoriteDocIds}
                 onToggleFavorite={handleToggleFavorite}
+                statusChangingDocId={statusChangingDocId}
+                onStatusChange={handleQuickStatusChange}
               />
             ) : (
               <DocumentGrid
@@ -2476,7 +2619,31 @@ export default function DashboardLayout() {
           </Tabs>
         </DialogContent>
       </Dialog>
+
+      {/* ════════ DRAG OVERLAY ════════ */}
+      <DragOverlay dropAnimation={null}>
+        {activeDragDoc ? (
+          <div className="bg-card rounded-lg border shadow-xl p-3 max-w-xs flex items-center gap-3 animate-in fade-in-0 zoom-in-95 duration-100">
+            <div
+              className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
+              style={{
+                backgroundColor: `${activeDragDoc.type?.color || '#64748b'}15`,
+                color: activeDragDoc.type?.color || '#64748b',
+              }}
+            >
+              {getDocTypeIcon(activeDragDoc.type?.systemName || '')}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">{activeDragDoc.title}</p>
+              {activeDragDoc.type?.name && (
+                <p className="text-xs text-muted-foreground truncate">{activeDragDoc.type.name}</p>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
     </div>
+    </DndContext>
   );
 }
 
@@ -2496,6 +2663,7 @@ interface FolderTreeNodeProps {
   onDelete: (id: string) => void;
   onNewSubfolder: (parentId: string) => void;
   collapsed?: boolean;
+  isDragging?: boolean;
 }
 
 function FolderTreeNode({
@@ -2510,6 +2678,7 @@ function FolderTreeNode({
   onRename,
   onDelete,
   onNewSubfolder,
+  isDragging,
 }: FolderTreeNodeProps) {
   const children = getChildren(folder.id);
   const hasChildren = children.length > 0;
@@ -2520,7 +2689,7 @@ function FolderTreeNode({
   const folderInlineColor = folderColorClass ? undefined : folder.color || '#64748b';
 
   return (
-    <div>
+    <DroppableFolder folderId={folder.id} isDragging={!!isDragging}>
       <div
         className={`
           group flex items-center gap-1.5 pr-2 text-sm transition-colors cursor-pointer
@@ -2625,11 +2794,12 @@ function FolderTreeNode({
               onDelete={onDelete}
               onNewSubfolder={onNewSubfolder}
               collapsed={false}
+              isDragging={isDragging}
             />
           ))}
         </div>
       )}
-    </div>
+    </DroppableFolder>
   );
 }
 
@@ -2653,6 +2823,8 @@ interface DocumentTableProps {
   onToggleDocSelection: (id: string) => void;
   favoriteDocIds: Set<string>;
   onToggleFavorite: (id: string) => void;
+  statusChangingDocId: string | null;
+  onStatusChange: (docId: string, newStatus: string) => void;
 }
 
 function DocumentTable({
@@ -2661,6 +2833,7 @@ function DocumentTable({
   selectMode, selectedIds, allVisibleSelected, someVisibleSelected,
   onToggleSelectAll, onToggleDocSelection,
   favoriteDocIds, onToggleFavorite,
+  statusChangingDocId, onStatusChange,
 }: DocumentTableProps) {
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronRight className="h-3 w-3 ml-1 opacity-30" />;
@@ -2678,6 +2851,7 @@ function DocumentTable({
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/60">
+            <TableHead className="w-8" /> {/* Drag grip */}
             {selectMode && (
               <TableHead className="w-10">
                 <Checkbox
@@ -2706,6 +2880,7 @@ function DocumentTable({
               </div>
             </TableHead>
             <TableHead className="w-32 hidden md:table-cell">Номер</TableHead>
+            <TableHead className="w-28 hidden lg:table-cell">Теги</TableHead>
             <TableHead
               className="w-36 cursor-pointer select-none hover:bg-muted transition-colors"
               onClick={() => onSort('status')}
@@ -2749,9 +2924,12 @@ function DocumentTable({
           {documents.map((doc) => (
             <TableRow
               key={doc.id}
-              className={`cursor-pointer group transition-colors hover:bg-muted/50 even:bg-muted/20 ${selectMode && selectedIds.has(doc.id) ? 'bg-emerald-50 dark:bg-emerald-950/20' : ''}`}
+              className={`cursor-pointer group transition-all duration-150 hover:bg-muted/50 even:bg-muted/20 ${selectMode && selectedIds.has(doc.id) ? 'bg-emerald-50 dark:bg-emerald-950/20' : ''}`}
               onClick={() => onDocClick(doc.id)}
             >
+              <TableCell>
+                <DraggableGrip docId={doc.id} />
+              </TableCell>
               {selectMode && (
                 <TableCell>
                   <div onClick={(e) => e.stopPropagation()}>
@@ -2783,13 +2961,77 @@ function DocumentTable({
                   {doc.number || '—'}
                 </span>
               </TableCell>
+              <TableCell className="hidden lg:table-cell">
+                {doc.tagLinks && doc.tagLinks.length > 0 ? (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {doc.tagLinks.slice(0, 2).map((link) => (
+                      <span
+                        key={link.tagId}
+                        className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full border border-border/50"
+                        style={{
+                          backgroundColor: link.tag.color + '18',
+                          color: link.tag.color,
+                        }}
+                      >
+                        {link.tag.name}
+                      </span>
+                    ))}
+                    {doc.tagLinks.length > 2 && (
+                      <span className="text-[10px] text-muted-foreground">+{doc.tagLinks.length - 2}</span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground/40">—</span>
+                )}
+              </TableCell>
               <TableCell>
-                <Badge
-                  variant="outline"
-                  className={`text-[11px] font-medium ${STATUS_COLORS[doc.status] || ''}`}
-                >
-                  {STATUS_LABELS[doc.status] || doc.status}
-                </Badge>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="inline-flex items-center gap-0.5 focus:outline-none group/status rounded-md hover:opacity-80 transition-all animate-in fade-in-0">
+                        {statusChangingDocId === doc.id ? (
+                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin text-muted-foreground" />
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className={`text-[11px] font-medium cursor-pointer hover:shadow-sm transition-all ${STATUS_COLORS[doc.status] || ''}`}
+                          >
+                            {STATUS_LABELS[doc.status] || doc.status}
+                          </Badge>
+                        )}
+                        <ChevronDown className="h-3 w-3 text-muted-foreground/50 group-hover/status:text-muted-foreground transition-colors" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-44">
+                      {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                        <DropdownMenuItem
+                          key={key}
+                          onClick={() => onStatusChange(doc.id, key)}
+                          disabled={statusChangingDocId === doc.id}
+                          className="gap-2"
+                        >
+                          <span
+                            className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${
+                              key === 'DRAFT'
+                                ? 'bg-slate-400'
+                                : key === 'IN_PROGRESS'
+                                ? 'bg-sky-500'
+                                : key === 'APPROVED'
+                                ? 'bg-emerald-500'
+                                : key === 'REJECTED'
+                                ? 'bg-rose-500'
+                                : 'bg-violet-500'
+                            }`}
+                          />
+                          <span>{label}</span>
+                          {key === doc.status && (
+                            <Check className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </TableCell>
               <TableCell className="hidden lg:table-cell">
                 <div className="flex items-center gap-2">
@@ -2928,7 +3170,7 @@ function DocumentGrid({
           <div
             key={doc.id}
             onClick={() => onDocClick(doc.id)}
-            className={`group card-shine bg-card rounded-xl border shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 cursor-pointer overflow-hidden relative ${selectMode && selectedIds.has(doc.id) ? 'ring-2 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' : ''}`}
+            className={`group card-shine bg-card rounded-xl border border-border/60 shadow-sm hover:shadow-xl hover:shadow-muted/30 hover:-translate-y-0.5 hover:border-border transition-all duration-300 cursor-pointer overflow-hidden relative ${selectMode && selectedIds.has(doc.id) ? 'ring-2 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' : ''}`}
             style={{ borderTopColor: docColor }}
           >
             {/* Selection Checkbox */}
@@ -2944,6 +3186,14 @@ function DocumentGrid({
                 />
               </div>
             )}
+
+            {/* Drag grip */}
+            <div
+              className="absolute bottom-2.5 right-2.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <DraggableGrip docId={doc.id} />
+            </div>
 
             {/* Favorite button */}
             <div
@@ -3078,12 +3328,19 @@ function EmptyState({ isSearch = false }: { isSearch?: boolean }) {
             <Inbox className="h-12 w-12 text-muted-foreground/50" />
           )}
         </div>
-        <div className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center shadow-sm">
-          <Plus className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-        </div>
+        {!isSearch && (
+          <div className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center shadow-sm">
+            <Plus className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+        )}
+        {isSearch && (
+          <div className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shadow-sm">
+            <Search className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          </div>
+        )}
       </div>
       <h3 className="text-lg font-semibold text-foreground mb-1">
-        {isSearch ? 'Ничего не найдено' : 'Документы не найдены'}
+        {isSearch ? 'Ничего не найдено' : 'Папка пуста'}
       </h3>
       <p className="text-sm text-muted-foreground text-center max-w-sm mb-5">
         {isSearch

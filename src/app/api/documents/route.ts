@@ -54,6 +54,11 @@ export async function GET(request: NextRequest) {
         creator: {
           select: { id: true, name: true, email: true },
         },
+        tagLinks: {
+          include: {
+            tag: { select: { id: true, name: true, color: true } },
+          },
+        },
       },
       orderBy: { updatedAt: 'desc' },
     })
