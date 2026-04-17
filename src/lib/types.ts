@@ -26,6 +26,7 @@ export interface Folder {
 export interface FormField {
   id: string;
   label: string;
+  systemName?: string;
   type: 'text' | 'textarea' | 'number' | 'date' | 'select' | 'checkbox' | 'switch' | 'email' | 'phone' | 'money' | 'heading' | 'separator';
   required: boolean;
   column: number;

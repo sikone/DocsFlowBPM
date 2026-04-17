@@ -97,6 +97,7 @@ import {
 } from '@/lib/types';
 import type { User, UserRole, DocumentType, FormField, Document } from '@/lib/types';
 import { apiFetch } from '@/lib/api';
+import { toast } from 'sonner';
 import {
   BarChart,
   Bar,
@@ -923,6 +924,24 @@ interface FormBuilderProps {
   onChange: (fields: FormField[]) => void;
 }
 
+function generateFieldSystemName(label: string): string {
+  const translitMap: Record<string, string> = {
+    а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'yo', ж: 'zh',
+    з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o',
+    п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts',
+    ч: 'ch', ш: 'sh', щ: 'shch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
+  };
+  return label
+    .toLowerCase()
+    .split('')
+    .map((c) => translitMap[c] ?? c)
+    .join('')
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 40) || 'field';
+}
+
 function FormBuilder({ fields, onChange }: FormBuilderProps) {
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -930,9 +949,11 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
   const selectedField = fields.find((f) => f.id === selectedFieldId) || null;
 
   const addField = (type: FormField['type']) => {
+    const label = FIELD_TYPES.find((ft) => ft.value === type)?.label || type;
     const newField: FormField = {
       id: `field_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      label: FIELD_TYPES.find((ft) => ft.value === type)?.label || type,
+      label,
+      systemName: generateFieldSystemName(label),
       type,
       required: false,
       column: 1,
@@ -1089,7 +1110,14 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
                             <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
                           )}
                         </div>
-                        <span className="text-xs text-muted-foreground">{typeLabel}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">{typeLabel}</span>
+                          {field.systemName && field.type !== 'heading' && field.type !== 'separator' && (
+                            <span className="text-[10px] font-mono bg-muted text-muted-foreground px-1 rounded truncate max-w-[100px]">
+                              {field.systemName}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Column selector */}
@@ -1189,10 +1217,38 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
                   <Label className="text-xs">Метка</Label>
                   <Input
                     value={selectedField.label}
-                    onChange={(e) => updateField(selectedField.id, { label: e.target.value })}
+                    onChange={(e) => {
+                      const newLabel = e.target.value;
+                      updateField(selectedField.id, {
+                        label: newLabel,
+                        systemName: generateFieldSystemName(newLabel),
+                      });
+                    }}
                     className="h-8 text-sm"
                   />
                 </div>
+                {selectedField.type !== 'heading' && selectedField.type !== 'separator' && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Системное имя</Label>
+                    <Input
+                      value={selectedField.systemName || ''}
+                      onChange={(e) =>
+                        updateField(selectedField.id, {
+                          systemName: e.target.value
+                            .toLowerCase()
+                            .replace(/[^a-z0-9_]/g, '_')
+                            .replace(/_+/g, '_')
+                            .replace(/^_|_$/g, ''),
+                        })
+                      }
+                      className="h-8 text-sm font-mono"
+                      placeholder="field_name"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Используется в построителе процессов
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label className="text-xs">Тип</Label>
                   <Select
@@ -1318,6 +1374,7 @@ export function AdminDocTypeForm() {
   const [formSchema, setFormSchema] = useState<FormField[]>([]);
   const [saving, setSaving] = useState(false);
   const [loadingLocal, setLoadingLocal] = useState(false);
+  const skipAutoGenerateRef = React.useRef(false);
 
   // Generate system name from Russian name
   const generateSystemName = (text: string) => {
@@ -1341,6 +1398,7 @@ export function AdminDocTypeForm() {
   };
 
   useEffect(() => {
+    if (skipAutoGenerateRef.current) return;
     if (!name) {
       setSystemName('');
       return;
@@ -1352,6 +1410,7 @@ export function AdminDocTypeForm() {
   useEffect(() => {
     if (!typeId || !token) return;
     setLoadingLocal(true);
+    skipAutoGenerateRef.current = true;
     apiFetch<DocumentType>(`/api/document-types/${typeId}`, token)
       .then((data) => {
         setName(data.name);
@@ -1366,9 +1425,13 @@ export function AdminDocTypeForm() {
         }
       })
       .catch(() => {
-        /* silent */
+        toast.error('Ошибка загрузки типа документа');
       })
-      .finally(() => setLoadingLocal(false));
+      .finally(() => {
+        setLoadingLocal(false);
+        // Re-enable auto-generate after a tick so it doesn't fire on the loaded name
+        setTimeout(() => { skipAutoGenerateRef.current = false; }, 0);
+      });
   }, [typeId, token]);
 
   const handleSave = async () => {
@@ -1390,15 +1453,17 @@ export function AdminDocTypeForm() {
           method: 'PUT',
           body: JSON.stringify(body),
         });
+        toast.success('Тип документа обновлён');
       } else {
         await apiFetch('/api/document-types', token, {
           method: 'POST',
           body: JSON.stringify(body),
         });
+        toast.success('Тип документа создан');
       }
       navigate({ page: 'admin-doc-types' });
     } catch {
-      /* silent */
+      toast.error('Ошибка сохранения типа документа');
     } finally {
       setSaving(false);
     }

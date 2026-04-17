@@ -16,6 +16,8 @@ import {
   Eye,
   Bell,
   HelpCircle,
+  GitMerge,
+  ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -72,13 +74,47 @@ import { toast } from 'sonner';
 // ============================================================
 // Types
 // ============================================================
+export type ConditionOperator =
+  | '>'
+  | '<'
+  | '>='
+  | '<='
+  | '=='
+  | '!='
+  | 'contains'
+  | 'not_contains'
+  | 'is_empty'
+  | 'is_not_empty';
+
+export interface StepCondition {
+  fieldSystemName: string;
+  operator: ConditionOperator;
+  value: string;
+  trueStepId: string;
+  falseStepId: string;
+}
+
 interface ProcessStep {
   id: string;
   name: string;
   type: 'START' | 'APPROVAL' | 'NOTIFICATION' | 'CONDITION';
   assigneeRole: 'ADMIN' | 'ADVANCED' | 'USER';
   order: number;
+  condition?: StepCondition;
 }
+
+const CONDITION_OPERATOR_LABELS: Record<ConditionOperator, string> = {
+  '>': 'больше (>)',
+  '<': 'меньше (<)',
+  '>=': 'больше или равно (≥)',
+  '<=': 'меньше или равно (≤)',
+  '==': 'равно (=)',
+  '!=': 'не равно (≠)',
+  'contains': 'содержит',
+  'not_contains': 'не содержит',
+  'is_empty': 'пустое',
+  'is_not_empty': 'не пустое',
+};
 
 interface ProcessDefinition {
   id: string;
@@ -676,6 +712,132 @@ export function AdminProcessesPage() {
                               <X className="w-4 h-4" />
                             </button>
                           </div>
+
+                          {/* Condition editor */}
+                          {step.type === 'CONDITION' && (
+                            <div className="mt-3 pt-3 border-t border-violet-100 dark:border-violet-900/30 space-y-3">
+                              <p className="text-xs font-medium text-violet-700 dark:text-violet-400 flex items-center gap-1.5">
+                                <GitMerge className="w-3.5 h-3.5" />
+                                Настройка условия
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Поле документа</Label>
+                                  <Input
+                                    value={step.condition?.fieldSystemName || ''}
+                                    onChange={(e) =>
+                                      updateStep(step.id, {
+                                        condition: {
+                                          ...(step.condition || { operator: '>', value: '', trueStepId: '', falseStepId: '' }),
+                                          fieldSystemName: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    className="h-7 text-xs font-mono"
+                                    placeholder="contract_amount"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Оператор</Label>
+                                  <Select
+                                    value={step.condition?.operator || '>'}
+                                    onValueChange={(val) =>
+                                      updateStep(step.id, {
+                                        condition: {
+                                          ...(step.condition || { fieldSystemName: '', value: '', trueStepId: '', falseStepId: '' }),
+                                          operator: val as ConditionOperator,
+                                        },
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger className="h-7 text-xs" onClick={(e) => e.stopPropagation()}>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {Object.entries(CONDITION_OPERATOR_LABELS).map(([key, label]) => (
+                                        <SelectItem key={key} value={key} className="text-xs">
+                                          {label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                {step.condition?.operator !== 'is_empty' && step.condition?.operator !== 'is_not_empty' && (
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] text-muted-foreground">Значение</Label>
+                                    <Input
+                                      value={step.condition?.value || ''}
+                                      onChange={(e) =>
+                                        updateStep(step.id, {
+                                          condition: {
+                                            ...(step.condition || { fieldSystemName: '', operator: '>', trueStepId: '', falseStepId: '' }),
+                                            value: e.target.value,
+                                          },
+                                        })
+                                      }
+                                      className="h-7 text-xs"
+                                      placeholder="100000"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                    <ChevronRight className="w-3 h-3" />
+                                    Да → следующий шаг (ID или порядок)
+                                  </Label>
+                                  <Input
+                                    value={step.condition?.trueStepId || ''}
+                                    onChange={(e) =>
+                                      updateStep(step.id, {
+                                        condition: {
+                                          ...(step.condition || { fieldSystemName: '', operator: '>', value: '', falseStepId: '' }),
+                                          trueStepId: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    className="h-7 text-xs border-emerald-200 dark:border-emerald-800 focus:border-emerald-500"
+                                    placeholder="Шаг 3"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                                    <ChevronRight className="w-3 h-3" />
+                                    Нет → следующий шаг (ID или порядок)
+                                  </Label>
+                                  <Input
+                                    value={step.condition?.falseStepId || ''}
+                                    onChange={(e) =>
+                                      updateStep(step.id, {
+                                        condition: {
+                                          ...(step.condition || { fieldSystemName: '', operator: '>', value: '', trueStepId: '' }),
+                                          falseStepId: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    className="h-7 text-xs border-rose-200 dark:border-rose-800 focus:border-rose-500"
+                                    placeholder="Шаг 6"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </div>
+                              </div>
+                              {step.condition?.fieldSystemName && step.condition?.operator && (
+                                <p className="text-[10px] text-muted-foreground bg-muted/50 rounded px-2 py-1">
+                                  Если <span className="font-mono text-violet-600 dark:text-violet-400">{step.condition.fieldSystemName}</span>
+                                  {' '}<span className="font-medium">{CONDITION_OPERATOR_LABELS[step.condition.operator]}</span>
+                                  {step.condition.operator !== 'is_empty' && step.condition.operator !== 'is_not_empty' && step.condition.value && (
+                                    <> <span className="font-mono">{step.condition.value}</span></>
+                                  )}
+                                  {step.condition.trueStepId && <> → Да: шаг <span className="font-mono">{step.condition.trueStepId}</span></>}
+                                  {step.condition.falseStepId && <>, Нет: шаг <span className="font-mono">{step.condition.falseStepId}</span></>}
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     );
@@ -752,14 +914,41 @@ function StepsPreview({ process }: { process: ProcessDefinition }) {
                 </div>
                 <div className="pb-4 min-w-0">
                   <p className="text-sm font-medium text-foreground">{step.name}</p>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <Badge variant="outline" className="text-[10px]">
                       {STEP_TYPE_LABELS[step.type] || step.type}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      → {ASSIGNEE_ROLE_LABELS[step.assigneeRole] || step.assigneeRole}
-                    </span>
+                    {step.type !== 'CONDITION' && (
+                      <span className="text-xs text-muted-foreground">
+                        → {ASSIGNEE_ROLE_LABELS[step.assigneeRole] || step.assigneeRole}
+                      </span>
+                    )}
                   </div>
+                  {step.type === 'CONDITION' && step.condition && (
+                    <div className="mt-2 text-[10px] bg-violet-50 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900/30 rounded px-2 py-1.5 space-y-0.5">
+                      <p className="font-medium text-violet-700 dark:text-violet-400 flex items-center gap-1">
+                        <GitMerge className="w-3 h-3" />
+                        Условие
+                      </p>
+                      <p className="text-muted-foreground">
+                        <span className="font-mono text-violet-600 dark:text-violet-400">{step.condition.fieldSystemName || '—'}</span>
+                        {' '}{CONDITION_OPERATOR_LABELS[step.condition.operator] || step.condition.operator}
+                        {step.condition.operator !== 'is_empty' && step.condition.operator !== 'is_not_empty' && step.condition.value && (
+                          <> <span className="font-mono">{step.condition.value}</span></>
+                        )}
+                      </p>
+                      {(step.condition.trueStepId || step.condition.falseStepId) && (
+                        <div className="flex gap-3 mt-0.5">
+                          {step.condition.trueStepId && (
+                            <span className="text-emerald-600 dark:text-emerald-400">✓ Да → шаг {step.condition.trueStepId}</span>
+                          )}
+                          {step.condition.falseStepId && (
+                            <span className="text-rose-600 dark:text-rose-400">✗ Нет → шаг {step.condition.falseStepId}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );

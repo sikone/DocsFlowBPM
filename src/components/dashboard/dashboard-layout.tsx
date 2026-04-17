@@ -2736,12 +2736,12 @@ export default function DashboardLayout() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Папка</label>
-                  <Select value={newDocFolderId} onValueChange={setNewDocFolderId}>
+                  <Select value={newDocFolderId || '__none__'} onValueChange={(v) => setNewDocFolderId(v === '__none__' ? '' : v)}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Выберите папку" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">
+                      <SelectItem value="__none__">
                         <span className="text-muted-foreground">Без папки</span>
                       </SelectItem>
                       <SelectSeparator />
@@ -2782,12 +2782,12 @@ export default function DashboardLayout() {
               <div className="py-2 space-y-3">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Папка</label>
-                  <Select value={newDocFolderId} onValueChange={setNewDocFolderId}>
+                  <Select value={newDocFolderId || '__none__'} onValueChange={(v) => setNewDocFolderId(v === '__none__' ? '' : v)}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Выберите папку" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">
+                      <SelectItem value="__none__">
                         <span className="text-muted-foreground">Без папки</span>
                       </SelectItem>
                       <SelectSeparator />
