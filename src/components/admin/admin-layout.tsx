@@ -16,6 +16,10 @@ import {
   Moon,
   Activity,
   Menu,
+  SlidersHorizontal,
+  Building2,
+  UserRound,
+  Building,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -48,6 +52,10 @@ import {
 } from '@/components/admin/admin-pages';
 import { ActivityLogPage } from '@/components/admin/activity-log-page';
 import { AdminTagsPage } from '@/components/admin/admin-tags-page';
+import { AdminSettingsPage } from '@/components/admin/admin-settings-page';
+import { AdminCounterpartiesPage } from '@/components/admin/admin-counterparties-page';
+import { AdminContactsPage } from '@/components/admin/admin-contacts-page';
+import { AdminDepartmentsPage } from '@/components/admin/admin-departments-page';
 
 const NAV_ITEMS: {
   label: string;
@@ -61,6 +69,10 @@ const NAV_ITEMS: {
   { label: 'Пользователи', icon: Users, page: { page: 'admin-users' } },
   { label: 'Теги', icon: Tags, page: { page: 'admin-tags' } },
   { label: 'Журнал', icon: Activity, page: { page: 'admin-activity' } },
+  { label: 'Контрагенты', icon: Building2, page: { page: 'admin-counterparties' } },
+  { label: 'Контакты', icon: UserRound, page: { page: 'admin-contacts' } },
+  { label: 'Отделы', icon: Building, page: { page: 'admin-departments' } },
+  { label: 'Настройки', icon: SlidersHorizontal, page: { page: 'admin-settings' } },
 ];
 
 export default function AdminLayout() {
@@ -93,6 +105,10 @@ export default function AdminLayout() {
     switch (role) {
       case 'ADMIN':
         return 'bg-red-100 text-red-700 border-red-200';
+      case 'DIRECTOR':
+        return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'CHIEF_ACCOUNTANT':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'ADVANCED':
         return 'bg-amber-100 text-amber-700 border-amber-200';
       default:
@@ -190,6 +206,14 @@ export default function AdminLayout() {
         return <ActivityLogPage />;
       case 'admin-tags':
         return <AdminTagsPage />;
+      case 'admin-settings':
+        return <AdminSettingsPage />;
+      case 'admin-counterparties':
+        return <AdminCounterpartiesPage />;
+      case 'admin-contacts':
+        return <AdminContactsPage />;
+      case 'admin-departments':
+        return <AdminDepartmentsPage />;
       default:
         return <AdminDashboard />;
     }

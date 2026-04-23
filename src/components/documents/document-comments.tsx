@@ -34,6 +34,10 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  GitMerge,
+  Check,
+  Pencil,
+  X,
 } from 'lucide-react';
 
 // ────────────────────────────────────────────
@@ -55,6 +59,20 @@ export interface Comment {
   updatedAt: string;
   user: CommentUser;
 }
+
+interface ApprovalStepComment {
+  id: string;
+  stepName: string;
+  decision: 'APPROVED' | 'APPROVED_WITH_CHANGES' | 'REJECTED';
+  comment: string;
+  decidedBy: { id: string; name: string };
+  decidedAt: string;
+}
+
+// Unified item for the merged list
+type FeedItem =
+  | { kind: 'user'; data: Comment }
+  | { kind: 'approval'; data: ApprovalStepComment };
 
 interface DocumentCommentsProps {
   documentId: string | undefined;
@@ -165,6 +183,7 @@ export default function DocumentComments({
 }: DocumentCommentsProps) {
   const { token, user } = useStore();
   const [comments, setComments] = useState<Comment[]>([]);
+  const [approvalComments, setApprovalComments] = useState<ApprovalStepComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [newComment, setNewComment] = useState('');
@@ -173,20 +192,42 @@ export default function DocumentComments({
   const [deleting, setDeleting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ── Fetch comments ──
+  // ── Fetch comments + approval step comments ──
   const fetchComments = useCallback(async () => {
     if (!documentId || !token) return;
     try {
       setLoading(true);
-      const data = await apiFetch<{ comments: Comment[] }>(
-        `/api/documents/${documentId}/comments`,
-        token
-      );
-      const commentList = Array.isArray(data)
-        ? data
-        : (data as unknown as { comments: Comment[] }).comments || [];
+      const [commentsData, approvalsData] = await Promise.all([
+        apiFetch<{ comments: Comment[] }>(`/api/documents/${documentId}/comments`, token),
+        apiFetch<{ approvals: any[] }>(`/api/documents/${documentId}/approvals`, token),
+      ]);
+
+      const commentList = Array.isArray(commentsData)
+        ? commentsData
+        : (commentsData as any).comments || [];
       setComments(commentList);
       onCommentCountChange?.(commentList.length);
+
+      // Extract step comments from immutable decision history
+      const stepComments: ApprovalStepComment[] = [];
+      const approvals: any[] = (approvalsData as any).approvals || [];
+      for (const approval of approvals) {
+        for (const step of approval.steps ?? []) {
+          for (const dec of step.decisions ?? []) {
+            if (dec.comment) {
+              stepComments.push({
+                id: dec.id,
+                stepName: step.name,
+                decision: dec.decision,
+                comment: dec.comment,
+                decidedBy: dec.decidedBy,
+                decidedAt: dec.createdAt,
+              });
+            }
+          }
+        }
+      }
+      setApprovalComments(stepComments);
     } catch {
       // Silent fail on load
     } finally {
@@ -213,7 +254,7 @@ export default function DocumentComments({
       );
       const newCommentObj = (result as unknown as { comment: Comment }).comment;
       setComments((prev) => [newCommentObj, ...prev]);
-      onCommentCountChange?.(comments.length + 1);
+      onCommentCountChange?.(comments.length + 1 + approvalComments.length);
       setNewComment('');
       toast.success('Комментарий добавлен');
       if (textareaRef.current) {
@@ -236,7 +277,7 @@ export default function DocumentComments({
         token,
         { method: 'DELETE' }
       );
-      const newCount = comments.length - 1;
+      const newCount = comments.length - 1 + approvalComments.length;
       setComments((prev) => prev.filter((c) => c.id !== deleteTarget.id));
       onCommentCountChange?.(newCount);
       setDeleteTarget(null);
@@ -268,6 +309,18 @@ export default function DocumentComments({
     return comment.userId === user?.id || user?.role === 'ADMIN';
   };
 
+  // Merge and sort user comments + approval step comments by date desc
+  const feedItems: FeedItem[] = [
+    ...comments.map((c): FeedItem => ({ kind: 'user', data: c })),
+    ...approvalComments.map((c): FeedItem => ({ kind: 'approval', data: c })),
+  ].sort((a, b) => {
+    const dateA = a.kind === 'user' ? a.data.createdAt : a.data.decidedAt;
+    const dateB = b.kind === 'user' ? b.data.createdAt : b.data.decidedAt;
+    return new Date(dateB).getTime() - new Date(dateA).getTime();
+  });
+
+  const totalCount = feedItems.length;
+
   if (!documentId) return null;
 
   return (
@@ -281,12 +334,12 @@ export default function DocumentComments({
               <button className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-foreground/80 transition-colors">
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
                 Комментарии
-                {comments.length > 0 && (
+                {totalCount > 0 && (
                   <Badge
                     variant="secondary"
                     className="text-[10px] px-1.5 py-0 font-medium"
                   >
-                    {comments.length}
+                    {totalCount}
                   </Badge>
                 )}
                 {isOpen ? (
@@ -310,7 +363,7 @@ export default function DocumentComments({
               )}
 
               {/* Empty State */}
-              {!loading && comments.length === 0 && (
+              {!loading && feedItems.length === 0 && (
                 <div className="py-10 text-center">
                   <MessageSquare className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
                   <p className="text-sm text-muted-foreground">
@@ -322,57 +375,91 @@ export default function DocumentComments({
                 </div>
               )}
 
-              {/* Comments List */}
-              {!loading && comments.length > 0 && (
+              {/* Unified feed */}
+              {!loading && feedItems.length > 0 && (
                 <div className="divide-y">
-                  {comments.map((comment) => (
-                    <div
-                      key={comment.id}
-                      className="flex gap-3 p-3 group hover:bg-muted/30 transition-colors"
-                    >
-                      {/* Avatar */}
-                      <Avatar className="h-8 w-8 shrink-0">
-                        <AvatarFallback
-                          className={`${getAvatarColor(comment.user.name)} text-white text-[11px] font-medium`}
-                        >
-                          {getInitials(comment.user.name)}
-                        </AvatarFallback>
-                      </Avatar>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-foreground">
-                            {comment.user.name}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] px-1.5 py-0 border ${getRoleBadgeClass(comment.user.role)}`}
-                          >
-                            {ROLE_LABELS[comment.user.role] || comment.user.role}
-                          </Badge>
-                          <span className="text-[11px] text-muted-foreground">
-                            {formatRelativeTime(comment.createdAt)}
-                          </span>
+                  {feedItems.map((item) => {
+                    if (item.kind === 'approval') {
+                      const ac = item.data;
+                      const decisionStyle =
+                        ac.decision === 'APPROVED'
+                          ? { bg: 'bg-emerald-50 dark:bg-emerald-950/20', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400', label: 'Согласован', Icon: Check }
+                          : ac.decision === 'APPROVED_WITH_CHANGES'
+                          ? { bg: 'bg-amber-50 dark:bg-amber-950/20', badge: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400', label: 'С изменениями', Icon: Pencil }
+                          : { bg: 'bg-rose-50 dark:bg-rose-950/20', badge: 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400', label: 'Отклонён', Icon: X };
+                      return (
+                        <div key={`approval-${ac.id}`} className={`flex gap-3 p-3 ${decisionStyle.bg}`}>
+                          <div className="h-8 w-8 shrink-0 rounded-full bg-white dark:bg-slate-800 border flex items-center justify-center">
+                            <GitMerge className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-medium text-foreground">
+                                {ac.decidedBy.name}
+                              </span>
+                              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border flex items-center gap-1 ${decisionStyle.badge}`}>
+                                <decisionStyle.Icon className="h-2.5 w-2.5" />
+                                {decisionStyle.label}
+                              </Badge>
+                              <span className="text-[11px] text-muted-foreground">по шагу «{ac.stepName}»</span>
+                              <span className="text-[11px] text-muted-foreground">·</span>
+                              <span className="text-[11px] text-muted-foreground">
+                                {formatRelativeTime(ac.decidedAt)}
+                              </span>
+                            </div>
+                            <p className="text-sm text-foreground/90 mt-1 whitespace-pre-wrap break-words leading-relaxed">
+                              {ac.comment}
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-sm text-foreground/90 mt-1 whitespace-pre-wrap break-words leading-relaxed">
-                          {comment.content}
-                        </p>
-                      </div>
+                      );
+                    }
 
-                      {/* Delete button */}
-                      {canDelete(comment) && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50"
-                          onClick={() => setDeleteTarget(comment)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
+                    const comment = item.data;
+                    return (
+                      <div
+                        key={comment.id}
+                        className="flex gap-3 p-3 group hover:bg-muted/30 transition-colors"
+                      >
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarFallback
+                            className={`${getAvatarColor(comment.user.name)} text-white text-[11px] font-medium`}
+                          >
+                            {getInitials(comment.user.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-foreground">
+                              {comment.user.name}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] px-1.5 py-0 border ${getRoleBadgeClass(comment.user.role)}`}
+                            >
+                              {ROLE_LABELS[comment.user.role] || comment.user.role}
+                            </Badge>
+                            <span className="text-[11px] text-muted-foreground">
+                              {formatRelativeTime(comment.createdAt)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-foreground/90 mt-1 whitespace-pre-wrap break-words leading-relaxed">
+                            {comment.content}
+                          </p>
+                        </div>
+                        {canDelete(comment) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50"
+                            onClick={() => setDeleteTarget(comment)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

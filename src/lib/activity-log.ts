@@ -27,6 +27,34 @@ export async function logActivity(params: {
 }
 
 /**
+ * Create a user-facing notification (shown in the notification bell).
+ * Fire-and-forget — errors are silently ignored.
+ */
+export async function createNotification(params: {
+  userId: string
+  type: string
+  title: string
+  body?: string
+  entityType?: string
+  entityId?: string
+}): Promise<void> {
+  try {
+    await db.notification.create({
+      data: {
+        userId: params.userId,
+        type: params.type,
+        title: params.title,
+        body: params.body || null,
+        entityType: params.entityType || null,
+        entityId: params.entityId || null,
+      },
+    })
+  } catch {
+    // Silent fail
+  }
+}
+
+/**
  * Request browser notification permission.
  * Best-effort — returns current permission status, wrapped in try/catch.
  */

@@ -8,6 +8,8 @@ export type AuthUser = {
   role: string
   avatar: string | null
   active: boolean
+  isDepartmentHead: boolean
+  departmentId: string | null
 }
 
 /**
@@ -34,6 +36,8 @@ export async function getAuthUser(token: string): Promise<AuthUser | null> {
       role: session.user.role,
       avatar: session.user.avatar,
       active: session.user.active,
+      isDepartmentHead: session.user.isDepartmentHead ?? false,
+      departmentId: session.user.departmentId ?? null,
     }
   } catch {
     return null

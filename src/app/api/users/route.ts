@@ -27,6 +27,9 @@ export async function GET(request: NextRequest) {
         role: true,
         avatar: true,
         active: true,
+        isDepartmentHead: true,
+        departmentId: true,
+        department: { select: { id: true, name: true } },
         createdAt: true,
         updatedAt: true,
       },
@@ -56,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, email, password, role } = body
+    const { name, email, password, role, departmentId, isDepartmentHead } = body
 
     if (!name || !email || !password) {
       return NextResponse.json(
@@ -65,10 +68,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const validRoles = ['ADMIN', 'ADVANCED', 'USER']
+    const validRoles = ['ADMIN', 'DIRECTOR', 'CHIEF_ACCOUNTANT', 'ADVANCED', 'USER']
     if (role && !validRoles.includes(role)) {
       return NextResponse.json(
-        { error: 'Invalid role. Must be ADMIN, ADVANCED, or USER' },
+        { error: 'Invalid role' },
         { status: 400 }
       )
     }
@@ -90,6 +93,8 @@ export async function POST(request: NextRequest) {
         email,
         password: hashedPassword,
         role: role || 'USER',
+        isDepartmentHead: isDepartmentHead ?? false,
+        departmentId: departmentId || null,
       },
       select: {
         id: true,
@@ -98,6 +103,9 @@ export async function POST(request: NextRequest) {
         role: true,
         avatar: true,
         active: true,
+        isDepartmentHead: true,
+        departmentId: true,
+        department: { select: { id: true, name: true } },
         createdAt: true,
         updatedAt: true,
       },

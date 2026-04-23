@@ -4,9 +4,13 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useStore } from '@/lib/store';
 import type { Document, DocumentType, FormField, DocumentTag } from '@/lib/types';
 import { STATUS_LABELS, STATUS_COLORS } from '@/lib/types';
+import { URGENCY_LABELS, URGENCY_COLORS, URGENCY_DOT_COLORS, type UrgencyLevel } from '@/lib/sla';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
 import DocumentComments from '@/components/documents/document-comments';
+import { DocumentAttachments } from '@/components/documents/document-attachments';
+import { DocumentPermissionsDialog } from '@/components/documents/document-permissions-dialog';
+import { DocumentApprovalPanel } from '@/components/documents/document-approval-panel';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,7 +53,20 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { evaluateFormula, formatFormulaResult, type FormulaResult } from '@/lib/formula-evaluator';
 import {
   ArrowLeft,
   Save,
@@ -62,6 +79,7 @@ import {
   FolderOpen,
   Clock,
   ChevronDown,
+  ChevronsUpDown,
   Loader2,
   MoreVertical,
   Check,
@@ -75,6 +93,12 @@ import {
   Printer,
   Download,
   Tag,
+  Calculator,
+  Upload,
+  Image,
+  File,
+  X,
+  Pencil,
 } from 'lucide-react';
 
 // ────────────────────────────────────────────
@@ -97,6 +121,168 @@ interface ActivityLogEntry {
 }
 
 // ────────────────────────────────────────────
+// Directory Select Field
+// ────────────────────────────────────────────
+interface DirectoryOption {
+  value: string;
+  label: string;
+  sub?: string;
+}
+
+const DIRECTORY_APIS: Record<string, string> = {
+  counterparties: '/api/counterparties',
+  contacts: '/api/contacts',
+};
+
+function mapDirectoryData(source: string, data: Record<string, unknown[]>): DirectoryOption[] {
+  if (source === 'counterparties') {
+    const items = (data.counterparties ?? []) as Array<{ id: string; name: string; shortName?: string | null; inn: string }>;
+    return items.map((c) => ({ value: c.id, label: c.shortName || c.name, sub: `ИНН ${c.inn}` }));
+  }
+  if (source === 'contacts') {
+    const items = (data.contacts ?? []) as Array<{ id: string; name: string; phone?: string | null; email?: string | null }>;
+    return items.map((c) => ({ value: c.id, label: c.name, sub: c.phone || c.email || undefined }));
+  }
+  return [];
+}
+
+function DirectorySelectField({
+  field,
+  directorySource,
+  value,
+  onChange,
+  error,
+  touched,
+  showLabel = true,
+}: {
+  field: FormField;
+  directorySource: string;
+  value: string;
+  onChange: (id: string, value: string) => void;
+  error?: string;
+  touched: boolean;
+  showLabel?: boolean;
+}) {
+  const { token } = useStore();
+  const [options, setOptions] = useState<DirectoryOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const hasError = touched && error;
+
+  useEffect(() => {
+    const apiPath = DIRECTORY_APIS[directorySource];
+    if (!token || !apiPath) return;
+    setLoading(true);
+    fetch(`${apiPath}?token=${encodeURIComponent(token)}`)
+      .then((r) => r.json())
+      .then((d) => setOptions(mapDirectoryData(directorySource, d as Record<string, unknown[]>)))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token, directorySource]);
+
+  const selected = options.find((o) => o.value === value);
+
+  const filtered = search.trim()
+    ? options.filter(
+        (o) =>
+          o.label.toLowerCase().includes(search.toLowerCase()) ||
+          (o.sub && o.sub.toLowerCase().includes(search.toLowerCase())),
+      )
+    : options;
+
+  const triggerClass = [
+    'w-full flex items-center justify-between h-9 px-3 rounded-md border text-sm transition-all duration-200',
+    'bg-background hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600/50',
+    hasError
+      ? 'border-rose-400'
+      : !value && field.required
+        ? 'border-dashed border-muted-foreground/30'
+        : 'border-input',
+  ].join(' ');
+
+  return (
+    <div className="space-y-1.5">
+      {showLabel && (
+        <Label className="text-sm">
+          {field.label}
+          {field.required && <span className="text-rose-500 ml-0.5">*</span>}
+        </Label>
+      )}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button type="button" className={triggerClass} aria-expanded={open}>
+            {loading ? (
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Загрузка...
+              </span>
+            ) : selected ? (
+              <span className="flex items-center gap-2 min-w-0">
+                <span className="font-medium truncate">{selected.label}</span>
+                {selected.sub && (
+                  <span className="text-muted-foreground text-xs shrink-0">{selected.sub}</span>
+                )}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">
+                {field.placeholder || 'Выберите значение'}
+              </span>
+            )}
+            <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-2" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[260px]" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Поиск..."
+              value={search}
+              onValueChange={setSearch}
+            />
+            <CommandList>
+              {filtered.length === 0 ? (
+                <CommandEmpty>Ничего не найдено</CommandEmpty>
+              ) : (
+                <CommandGroup>
+                  {filtered.map((opt) => (
+                    <CommandItem
+                      key={opt.value}
+                      value={opt.value}
+                      onSelect={() => {
+                        onChange(field.id, opt.value);
+                        setSearch('');
+                        setOpen(false);
+                      }}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <span className="flex flex-col min-w-0">
+                        <span className="font-medium truncate">{opt.label}</span>
+                        {opt.sub && (
+                          <span className="text-xs text-muted-foreground truncate">{opt.sub}</span>
+                        )}
+                      </span>
+                      {value === opt.value && (
+                        <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                      )}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {hasError && (
+        <p className="text-xs text-rose-500 flex items-center gap-1">
+          <XCircle className="h-3 w-3" />
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────
 // Field Renderer
 // ────────────────────────────────────────────
 function FormFieldRenderer({
@@ -105,12 +291,16 @@ function FormFieldRenderer({
   onChange,
   error,
   touched,
+  formulaError,
+  computedHint,
 }: {
   field: FormField;
   value: string | boolean;
   onChange: (id: string, value: string | boolean) => void;
   error?: string;
   touched: boolean;
+  formulaError?: string | null;
+  computedHint?: string;
 }) {
   const strValue = typeof value === 'string' ? value : '';
   const boolValue = typeof value === 'boolean' ? value : false;
@@ -143,41 +333,141 @@ function FormFieldRenderer({
   // Checkbox & Switch — label on the right
   if (field.type === 'checkbox') {
     return (
-      <div className="flex items-center gap-2.5 py-2 group">
-        <Checkbox
-          id={`field-${field.id}`}
-          checked={boolValue}
-          onCheckedChange={(checked) => onChange(field.id, !!checked)}
-          className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600 transition-all"
-        />
-        <Label
-          htmlFor={`field-${field.id}`}
-          className="text-sm font-normal cursor-pointer select-none group-hover:text-foreground/80 transition-colors"
-        >
-          {field.label}
-          {field.required && <span className="text-rose-500 ml-0.5">*</span>}
-        </Label>
+      <div className="space-y-2">
+        <Label className="text-sm invisible select-none">_</Label>
+        <div className="flex items-center gap-2.5 py-1 group">
+          <Checkbox
+            id={`field-${field.id}`}
+            checked={boolValue}
+            onCheckedChange={(checked) => onChange(field.id, !!checked)}
+            className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600 transition-all"
+          />
+          <Label
+            htmlFor={`field-${field.id}`}
+            className="text-sm font-normal cursor-pointer select-none group-hover:text-foreground/80 transition-colors"
+          >
+            {field.label}
+            {field.required && <span className="text-rose-500 ml-0.5">*</span>}
+          </Label>
+        </div>
       </div>
     );
   }
 
   if (field.type === 'switch') {
     return (
-      <div className="flex items-center gap-2.5 py-2 group">
-        <Switch
-          id={`field-${field.id}`}
-          checked={boolValue}
-          onCheckedChange={(checked) => onChange(field.id, !!checked)}
-          className="data-[state=checked]:bg-emerald-600 transition-all"
-        />
-        <Label
-          htmlFor={`field-${field.id}`}
-          className="text-sm font-normal cursor-pointer select-none group-hover:text-foreground/80 transition-colors"
-        >
-          {field.label}
-          {field.required && <span className="text-rose-500 ml-0.5">*</span>}
-        </Label>
+      <div className="space-y-2">
+        <Label className="text-sm invisible select-none">_</Label>
+        <div className="flex items-center gap-2.5 py-1 group">
+          <Switch
+            id={`field-${field.id}`}
+            checked={boolValue}
+            onCheckedChange={(checked) => onChange(field.id, !!checked)}
+            className="data-[state=checked]:bg-emerald-600 transition-all"
+          />
+          <Label
+            htmlFor={`field-${field.id}`}
+            className="text-sm font-normal cursor-pointer select-none group-hover:text-foreground/80 transition-colors"
+          >
+            {field.label}
+            {field.required && <span className="text-rose-500 ml-0.5">*</span>}
+          </Label>
+        </div>
       </div>
+    );
+  }
+
+  if (field.type === 'computed') {
+    const isEditable = field.readonly === false;
+    const hasFormulaError = !!formulaError;
+    const isEmpty = !strValue;
+
+    if (isEditable) {
+      // Editable: regular input, show computed suggestion below
+      return (
+        <div className="space-y-1.5">
+          <Label htmlFor={`field-${field.id}`} className="text-sm flex items-center gap-1.5">
+            {field.label}
+            {field.required && <span className="text-rose-500 ml-0.5">*</span>}
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+              <Calculator className="w-2.5 h-2.5" />
+              ред.
+            </span>
+          </Label>
+          <div className="relative">
+            {field.prefix && (
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">
+                {field.prefix}
+              </span>
+            )}
+            <Input
+              id={`field-${field.id}`}
+              type="text"
+              value={strValue}
+              onChange={(e) => onChange(field.id, e.target.value)}
+              placeholder={computedHint || ''}
+              className={`transition-all duration-200 focus-visible:ring-emerald-600/20 focus-visible:border-emerald-600/50 ${field.prefix ? 'pl-7' : ''} ${hasError ? inputClassName : ''}`}
+            />
+          </div>
+          {computedHint && (
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <Calculator className="w-3 h-3" />
+              Расчётное: {computedHint}
+            </p>
+          )}
+          {hasError && (
+            <p className="text-xs text-rose-500 flex items-center gap-1">
+              <XCircle className="h-3 w-3" />
+              {error}
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    // Readonly (default): display-only
+    return (
+      <div className="space-y-1.5">
+        <Label className="text-sm flex items-center gap-1.5">
+          {field.label}
+          <span className="inline-flex items-center gap-0.5 text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+            <Calculator className="w-2.5 h-2.5" />
+            авто
+          </span>
+        </Label>
+        <div className={`flex items-center h-9 px-3 rounded-md border text-sm select-none ${
+          hasFormulaError
+            ? 'border-rose-300 bg-rose-50 dark:bg-rose-950/20'
+            : 'bg-muted/40'
+        }`}>
+          {!hasFormulaError && field.prefix && (
+            <span className="text-muted-foreground mr-1.5 shrink-0">{field.prefix}</span>
+          )}
+          {hasFormulaError ? (
+            <span className="text-rose-500 text-xs flex items-center gap-1">
+              <XCircle className="w-3.5 h-3.5 shrink-0" />
+              Ошибка: {formulaError}
+            </span>
+          ) : (
+            <span className={`tabular-nums font-medium ${isEmpty ? 'text-muted-foreground' : 'text-foreground/80'}`}>
+              {strValue || '—'}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (field.type === 'counterparty' || (field.type === 'select' && field.source === 'directory')) {
+    return (
+      <DirectorySelectField
+        field={field}
+        directorySource={field.directorySource || 'counterparties'}
+        value={strValue}
+        onChange={onChange}
+        error={error}
+        touched={touched}
+      />
     );
   }
 
@@ -364,49 +654,38 @@ function FormRowGroup({
   onChange,
   validationErrors,
   touchedFields,
+  formulaErrors,
+  computedValues,
 }: {
   fields: FormField[];
   formData: Record<string, string | boolean>;
   onChange: (id: string, value: string | boolean) => void;
   validationErrors: ValidationErrors;
   touchedFields: Set<string>;
+  formulaErrors?: Record<string, string>;
+  computedValues?: Record<string, string>;
 }) {
-  const maxCol = Math.max(...fields.map((f) => f.column), 1);
-  const colClass =
-    maxCol >= 3 ? 'grid-cols-1 sm:grid-cols-3' : maxCol === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1';
-
-  const isFullWidth = (f: FormField) => f.type === 'heading' || f.type === 'separator';
-  const hasColumns = fields.some((f) => f.column > 0);
-
-  if (!hasColumns) {
-    return (
-      <div className={`grid ${colClass} gap-x-4 gap-y-1`}>
-        {fields.map((field) => (
-          <FormFieldRenderer
-            key={field.id}
-            field={field}
-            value={formData[field.id] ?? (field.defaultValue || '')}
-            onChange={onChange}
-            error={validationErrors[field.id]}
-            touched={touchedFields.has(field.id)}
-          />
-        ))}
-      </div>
-    );
-  }
+  const getColSpan = (f: FormField): string => {
+    if (f.type === 'heading' || f.type === 'separator') return 'col-span-6';
+    if (f.width === 'third') return 'col-span-6 sm:col-span-2';
+    if (f.width === 'half') return 'col-span-6 sm:col-span-3';
+    return 'col-span-6';
+  };
 
   return (
-    <div className={`grid ${colClass} gap-x-4 gap-y-1`}>
-      {fields
-        .sort((a, b) => a.column - b.column)
+    <div className="grid grid-cols-6 gap-x-4 gap-y-1">
+      {[...fields]
+        .sort((a, b) => a.row - b.row || a.column - b.column)
         .map((field) => (
-          <div key={field.id} className={isFullWidth(field) ? `col-span-full` : ''}>
+          <div key={field.id} className={getColSpan(field)}>
             <FormFieldRenderer
               field={field}
               value={formData[field.id] ?? (field.defaultValue || '')}
               onChange={onChange}
               error={validationErrors[field.id]}
               touched={touchedFields.has(field.id)}
+              formulaError={formulaErrors?.[field.id]}
+              computedHint={computedValues?.[field.id]}
             />
           </div>
         ))}
@@ -483,6 +762,11 @@ function getActionIcon(action: string) {
     EDIT_DOCUMENT: 'bg-sky-500',
     CHANGE_STATUS: 'bg-amber-500',
     DELETE_DOCUMENT: 'bg-rose-500',
+    APPROVAL_STARTED: 'bg-violet-500',
+    APPROVAL_STEP_APPROVED: 'bg-emerald-500',
+    APPROVAL_STEP_APPROVED_WITH_CHANGES: 'bg-amber-500',
+    APPROVAL_STEP_REJECTED: 'bg-rose-500',
+    APPROVAL_COMPLETED: 'bg-emerald-600',
   };
   return map[action] || 'bg-slate-400';
 }
@@ -493,6 +777,11 @@ function getActionLabel(action: string): string {
     EDIT_DOCUMENT: 'Документ изменён',
     CHANGE_STATUS: 'Статус изменён',
     DELETE_DOCUMENT: 'Документ удалён',
+    APPROVAL_STARTED: 'Отправлен на согласование',
+    APPROVAL_STEP_APPROVED: 'Шаг согласован',
+    APPROVAL_STEP_APPROVED_WITH_CHANGES: 'Шаг согласован с изменениями',
+    APPROVAL_STEP_REJECTED: 'Шаг отклонён',
+    APPROVAL_COMPLETED: 'Согласование завершено',
   };
   return map[action] || action;
 }
@@ -529,6 +818,96 @@ function AutoSaveIndicator({ status }: { status: AutoSaveStatus }) {
 }
 
 // ────────────────────────────────────────────
+// Pending Attachments (before document is saved)
+// ────────────────────────────────────────────
+function PendingAttachments({
+  files,
+  onChange,
+}: {
+  files: File[];
+  onChange: (files: File[]) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  const addFiles = (incoming: FileList | null) => {
+    if (!incoming) return;
+    const next = [...files];
+    Array.from(incoming).forEach((f) => {
+      if (!next.some((e) => e.name === f.name && e.size === f.size)) next.push(f);
+    });
+    onChange(next);
+  };
+
+  const remove = (index: number) => onChange(files.filter((_, i) => i !== index));
+
+  const getFileIcon = (f: File) => {
+    if (f.type.startsWith('image/')) return <Image className="w-4 h-4 text-sky-500" />;
+    if (f.type.includes('pdf')) return <FileText className="w-4 h-4 text-rose-500" />;
+    return <File className="w-4 h-4 text-slate-400" />;
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} Б`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+  };
+
+  return (
+    <div className="space-y-3">
+      <div
+        className={`relative border-2 border-dashed rounded-lg p-4 transition-colors cursor-pointer ${
+          dragOver
+            ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20'
+            : 'border-muted-foreground/20 hover:border-muted-foreground/40 hover:bg-muted/30'
+        }`}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files); }}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }}
+        />
+        <div className="flex flex-col items-center gap-1 text-center">
+          <Upload className="w-5 h-5 text-muted-foreground/50" />
+          <p className="text-xs text-muted-foreground">Перетащите файл или нажмите</p>
+          <p className="text-[10px] text-muted-foreground/60">Файлы загрузятся после сохранения</p>
+        </div>
+      </div>
+
+      {files.length > 0 && (
+        <div className="space-y-1.5">
+          {files.map((f, i) => (
+            <div
+              key={`${f.name}-${f.size}`}
+              className="flex items-center gap-2 p-2 rounded-md border bg-muted/20 group"
+            >
+              {getFileIcon(f)}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate">{f.name}</p>
+                <p className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/30 text-muted-foreground hover:text-rose-500 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────
 // Main Component
 // ────────────────────────────────────────────
 export default function DocumentFormView() {
@@ -542,11 +921,30 @@ export default function DocumentFormView() {
   const [formData, setFormData] = useState<Record<string, string | boolean>>({});
   const [title, setTitle] = useState('');
   const [status, setStatus] = useState<string>('DRAFT');
+  const [urgency, setUrgency] = useState<string>('');
+  const isLocked = status === 'COMPLETED';
   const [saving, setSaving] = useState(false);
   const [loadingLocal, setLoadingLocal] = useState(true);
 
+  // ── Pending attachments (before document is saved) ──
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
   // ── Comment count ──
   const [commentCount, setCommentCount] = useState(0);
+
+  // ── Right panel dialogs ──
+  const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
+
+  // ── Pending approval step for current user ──
+  const [userPendingStep, setUserPendingStep] = useState<{ approvalId: string; stepId: string; stepName: string } | null>(null);
+  const [sendApproval, setSendApproval] = useState<(() => void) | null>(null);
+  const handleSendReady = useCallback((fn: (() => void) | null) => {
+    setSendApproval(fn ? () => fn : null);
+  }, []);
+  const [headerDecideOpen, setHeaderDecideOpen] = useState(false);
+  const [headerDecideDecision, setHeaderDecideDecision] = useState<'APPROVED' | 'APPROVED_WITH_CHANGES' | 'REJECTED'>('APPROVED');
+  const [headerDecideComment, setHeaderDecideComment] = useState('');
+  const [headerDeciding, setHeaderDeciding] = useState(false);
 
   // ── Validation state ──
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
@@ -555,10 +953,11 @@ export default function DocumentFormView() {
   // ── Auto-save state ──
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle');
+  const [savedVersion, setSavedVersion] = useState(0);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Dirty tracking ──
-  const initialDataRef = useRef<{ title: string; formData: Record<string, string | boolean>; status: string } | null>(null);
+  const initialDataRef = useRef<{ title: string; formData: Record<string, string | boolean>; status: string; urgency: string } | null>(null);
 
   // ── Unsaved changes dialog ──
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
@@ -721,7 +1120,7 @@ export default function DocumentFormView() {
         setFormData(defaults);
         const initialTitle = preTitle || `${type.name} — новый`;
         setTitle(initialTitle);
-        initialDataRef.current = { title: initialTitle, formData: { ...defaults }, status: 'DRAFT' };
+        initialDataRef.current = { title: initialTitle, formData: { ...defaults }, status: 'DRAFT', urgency: '' };
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Ошибка загрузки');
       } finally {
@@ -737,6 +1136,7 @@ export default function DocumentFormView() {
         setDocument(doc);
         setTitle(doc.title);
         setStatus(doc.status);
+        setUrgency(doc.urgency ?? 'MEDIUM');
 
         if (doc.type) {
           setDocType(doc.type);
@@ -765,7 +1165,7 @@ export default function DocumentFormView() {
           setFormData(dataObj);
           // Enable auto-save for existing docs
           setAutoSaveEnabled(true);
-          initialDataRef.current = { title: doc.title, formData: { ...dataObj }, status: doc.status };
+          initialDataRef.current = { title: doc.title, formData: { ...dataObj }, status: doc.status, urgency: doc.urgency ?? 'MEDIUM' };
 
           // Fetch activity logs
           loadActivityLogs(docId, token);
@@ -807,6 +1207,7 @@ export default function DocumentFormView() {
     const init = initialDataRef.current;
     if (init.title !== title) return true;
     if (init.status !== status) return true;
+    if (init.urgency !== urgency) return true;
     // Compare form data
     const allKeys = new Set([...Object.keys(init.formData), ...Object.keys(formData)]);
     for (const key of allKeys) {
@@ -815,7 +1216,7 @@ export default function DocumentFormView() {
       }
     }
     return false;
-  }, [title, status, formData]);
+  }, [title, status, formData, savedVersion]);
 
   // ── Auto-save with debounce ──
   useEffect(() => {
@@ -835,14 +1236,16 @@ export default function DocumentFormView() {
           method: 'PUT',
           body: JSON.stringify({
             title,
-            data: JSON.stringify(formData),
+            urgency,
+            data: JSON.stringify(allFormData),
           }),
         });
         setAutoSaveStatus('saved');
         // Update initial data to new state
-        initialDataRef.current = { title, formData: { ...formData }, status };
+        initialDataRef.current = { title, formData: { ...formData }, status, urgency };
+        setSavedVersion((v) => v + 1);
         // Update document object for the sidebar
-        setDocument((prev) => prev ? { ...prev, title, data: JSON.stringify(formData) } : prev);
+        setDocument((prev) => prev ? { ...prev, title, data: JSON.stringify(allFormData) } : prev);
 
         // Reload activity logs
         loadActivityLogs(document.id, token);
@@ -879,6 +1282,51 @@ export default function DocumentFormView() {
     return () => el.removeEventListener('scroll', handleScroll);
   }, [loadingLocal]);
 
+  // ── Computed field values (derived from formData) ──
+  const { computedValues, formulaErrors } = useMemo(() => {
+    // Build lookup table with BOTH field IDs and systemNames as keys
+    // so {summa} and {field_123_abc} both work in formulas
+    const enriched: Record<string, unknown> = {};
+    formFields.forEach((f) => {
+      const raw = formData[f.id];
+      // Normalize string numbers: remove spaces, replace comma → dot
+      const norm =
+        typeof raw === 'string' && raw.trim() !== ''
+          ? raw.replace(/\s/g, '').replace(',', '.')
+          : raw;
+      // Register by field ID
+      enriched[f.id] = norm ?? raw;
+      // Also register by systemName (e.g. "summa")
+      if (f.systemName) enriched[f.systemName] = norm ?? raw;
+    });
+
+    const values: Record<string, string> = {};
+    const errors: Record<string, string> = {};
+
+    formFields.forEach((field) => {
+      if (field.type !== 'computed' || !field.formula) return;
+      const result: FormulaResult = evaluateFormula(field.formula, enriched);
+      if (result.error) {
+        errors[field.id] = result.error;
+      } else {
+        values[field.id] = formatFormulaResult(result.value, field.prefix);
+      }
+    });
+
+    return { computedValues: values, formulaErrors: errors };
+  }, [formFields, formData]);
+
+  // Only override readonly computed fields; editable computed fields keep user-typed value
+  const allFormData = useMemo(() => {
+    const result = { ...formData };
+    formFields.forEach((f) => {
+      if (f.type === 'computed' && f.readonly !== false && computedValues[f.id] !== undefined) {
+        result[f.id] = computedValues[f.id];
+      }
+    });
+    return result;
+  }, [formData, computedValues, formFields]);
+
   // ── Group fields by row ──
   const fieldsByRow = useMemo(() => {
     const rows = new Map<number, FormField[]>();
@@ -904,7 +1352,7 @@ export default function DocumentFormView() {
     }
 
     formFields.forEach((field) => {
-      if (field.required && (field.type === 'heading' || field.type === 'separator')) return;
+      if (field.required && (field.type === 'heading' || field.type === 'separator' || field.type === 'computed')) return;
       if (field.required) {
         const val = formData[field.id];
         if (val === undefined || val === '' || val === null) {
@@ -954,12 +1402,14 @@ export default function DocumentFormView() {
             method: 'PUT',
             body: JSON.stringify({
               title,
-              data: JSON.stringify(formData),
+              urgency,
+              data: JSON.stringify(allFormData),
               status: newStatus,
             }),
           });
           toast.success(`Статус изменён на "${STATUS_LABELS[newStatus]}"`);
-          initialDataRef.current = { title, formData: { ...formData }, status: newStatus };
+          initialDataRef.current = { title, formData: { ...formData }, status: newStatus, urgency };
+          setSavedVersion((v) => v + 1);
           loadActivityLogs(document.id, token);
         } catch (err) {
           toast.error(err instanceof Error ? err.message : 'Ошибка смены статуса');
@@ -974,6 +1424,10 @@ export default function DocumentFormView() {
 
   const handleSave = useCallback(async () => {
     if (!token) return;
+    if (!urgency) {
+      toast.error('Выберите срочность документа');
+      return;
+    }
     if (!validateForm()) {
       toast.error('Заполните обязательные поля');
       return;
@@ -986,26 +1440,46 @@ export default function DocumentFormView() {
           method: 'POST',
           body: JSON.stringify({
             title,
+            urgency,
             typeId: viewData.typeId,
             folderId: viewData.folderId || null,
-            data: JSON.stringify(formData),
+            data: JSON.stringify(allFormData),
           }),
         });
+
+        // Upload pending attachments
+        if (pendingFiles.length > 0) {
+          await Promise.allSettled(
+            pendingFiles.map((file) => {
+              const fd = new FormData();
+              fd.append('file', file);
+              return fetch(
+                `/api/documents/${result.id}/attachments?token=${encodeURIComponent(token)}`,
+                { method: 'POST', body: fd },
+              );
+            }),
+          );
+          setPendingFiles([]);
+        }
+
         toast.success('Документ создан');
         setAutoSaveEnabled(true);
-        initialDataRef.current = { title, formData: { ...formData }, status: 'DRAFT' };
+        initialDataRef.current = { title, formData: { ...formData }, status: 'DRAFT', urgency };
+        setSavedVersion((v) => v + 1);
         navigate({ page: 'edit-document', documentId: result.id });
       } else if (document) {
         await apiFetch(`/api/documents/${document.id}`, token, {
           method: 'PUT',
           body: JSON.stringify({
             title,
-            data: JSON.stringify(formData),
+            urgency,
+            data: JSON.stringify(allFormData),
           }),
         });
         toast.success('Документ сохранён');
         setAutoSaveStatus('saved');
-        initialDataRef.current = { title, formData: { ...formData }, status };
+        initialDataRef.current = { title, formData: { ...formData }, status, urgency };
+        setSavedVersion((v) => v + 1);
         loadActivityLogs(document.id, token);
         setTimeout(() => setAutoSaveStatus('idle'), 3000);
       }
@@ -1014,10 +1488,14 @@ export default function DocumentFormView() {
     } finally {
       setSaving(false);
     }
-  }, [token, isNewDoc, view, title, formData, document, navigate, validateForm, status, loadActivityLogs]);
+  }, [token, isNewDoc, view, title, urgency, formData, document, navigate, validateForm, status, loadActivityLogs, pendingFiles]);
 
   const handleSaveAndSend = useCallback(async () => {
     if (!token) return;
+    if (!urgency) {
+      toast.error('Выберите срочность документа');
+      return;
+    }
     if (!validateForm()) {
       toast.error('Заполните обязательные поля');
       return;
@@ -1031,9 +1509,10 @@ export default function DocumentFormView() {
           method: 'POST',
           body: JSON.stringify({
             title,
+            urgency,
             typeId: viewData.typeId,
             folderId: viewData.folderId || null,
-            data: JSON.stringify(formData),
+            data: JSON.stringify(allFormData),
             status: targetStatus,
           }),
         });
@@ -1044,12 +1523,14 @@ export default function DocumentFormView() {
           method: 'PUT',
           body: JSON.stringify({
             title,
-            data: JSON.stringify(formData),
+            urgency,
+            data: JSON.stringify(allFormData),
             status: targetStatus,
           }),
         });
         setStatus(targetStatus);
-        initialDataRef.current = { title, formData: { ...formData }, status: targetStatus };
+        initialDataRef.current = { title, formData: { ...formData }, status: targetStatus, urgency };
+        setSavedVersion((v) => v + 1);
         toast.success('Документ отправлен');
         loadActivityLogs(document.id, token);
       }
@@ -1058,11 +1539,15 @@ export default function DocumentFormView() {
     } finally {
       setSaving(false);
     }
-  }, [token, isNewDoc, view, title, formData, document, navigate, validateForm, status, loadActivityLogs]);
+  }, [token, isNewDoc, view, title, urgency, formData, document, navigate, validateForm, status, loadActivityLogs]);
 
   const handleStatusAction = useCallback(
     async (targetStatus: string) => {
       if (!token) return;
+      if (!urgency) {
+        toast.error('Выберите срочность документа');
+        return;
+      }
       if (!validateForm()) {
         toast.error('Заполните обязательные поля');
         return;
@@ -1075,9 +1560,10 @@ export default function DocumentFormView() {
             method: 'POST',
             body: JSON.stringify({
               title,
+              urgency,
               typeId: viewData.typeId,
               folderId: viewData.folderId || null,
-              data: JSON.stringify(formData),
+              data: JSON.stringify(allFormData),
               status: targetStatus,
             }),
           });
@@ -1088,12 +1574,14 @@ export default function DocumentFormView() {
             method: 'PUT',
             body: JSON.stringify({
               title,
-              data: JSON.stringify(formData),
+              urgency,
+              data: JSON.stringify(allFormData),
               status: targetStatus,
             }),
           });
           setStatus(targetStatus);
-          initialDataRef.current = { title, formData: { ...formData }, status: targetStatus };
+          initialDataRef.current = { title, formData: { ...formData }, status: targetStatus, urgency };
+          setSavedVersion((v) => v + 1);
           toast.success(
             targetStatus === 'IN_PROGRESS'
               ? 'Документ отправлен'
@@ -1111,8 +1599,30 @@ export default function DocumentFormView() {
         setSaving(false);
       }
     },
-    [token, isNewDoc, view, title, formData, document, navigate, validateForm, loadActivityLogs]
+    [token, isNewDoc, view, title, urgency, formData, document, navigate, validateForm, loadActivityLogs]
   );
+
+  // ── Header decide (Согласовать) ──
+  const handleHeaderDecide = useCallback(async () => {
+    if (!token || !userPendingStep) return;
+    setHeaderDeciding(true);
+    try {
+      await apiFetch(
+        `/api/approvals/${userPendingStep.approvalId}/steps/${userPendingStep.stepId}/decide`,
+        token,
+        { method: 'POST', body: JSON.stringify({ decision: headerDecideDecision, comment: headerDecideComment }) },
+      );
+      toast.success(headerDecideDecision === 'APPROVED' ? 'Шаг согласован' : headerDecideDecision === 'APPROVED_WITH_CHANGES' ? 'Согласовано с изменениями' : 'Шаг отклонён');
+      setHeaderDecideOpen(false);
+      setHeaderDecideComment('');
+      setUserPendingStep(null);
+      if (document) loadActivityLogs(document.id, token);
+    } catch (e: any) {
+      toast.error(e?.message || 'Ошибка');
+    } finally {
+      setHeaderDeciding(false);
+    }
+  }, [token, userPendingStep, headerDecideDecision, headerDecideComment, document, loadActivityLogs]);
 
   // ── Back with dirty check ──
   const handleBackWithCheck = useCallback(() => {
@@ -1209,7 +1719,7 @@ export default function DocumentFormView() {
   if (!docType) return null;
 
   // ── Count required fields ──
-  const requiredFields = formFields.filter(f => f.required && f.type !== 'heading' && f.type !== 'separator');
+  const requiredFields = formFields.filter(f => f.required && f.type !== 'heading' && f.type !== 'separator' && f.type !== 'computed');
   const filledRequired = requiredFields.filter(f => {
     const val = formData[f.id];
     return val !== undefined && val !== '' && val !== null;
@@ -1278,6 +1788,40 @@ export default function DocumentFormView() {
             </span>
           </div>
 
+          {/* Urgency */}
+          <Separator />
+          <div className="space-y-1.5">
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <span className="h-3.5 w-3.5 flex items-center justify-center">
+                <span className={`inline-block w-2.5 h-2.5 rounded-full ${URGENCY_DOT_COLORS[urgency as UrgencyLevel] ?? 'bg-slate-300'}`} />
+              </span>
+              Срочность
+              {!urgency && !isLocked && (
+                <span className="text-[10px] text-rose-500 font-medium ml-auto">обязательно</span>
+              )}
+            </span>
+            <div className={`grid grid-cols-2 gap-1 rounded-md transition-colors ${!urgency && !isLocked ? 'ring-1 ring-rose-300 dark:ring-rose-700 p-0.5' : ''}`}>
+              {(Object.keys(URGENCY_LABELS) as UrgencyLevel[]).map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  disabled={isLocked}
+                  onClick={() => setUrgency(level)}
+                  className={`text-[11px] px-2 py-1 rounded border font-medium transition-colors truncate ${
+                    urgency === level
+                      ? URGENCY_COLORS[level]
+                      : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/50'
+                  }`}
+                >
+                  {URGENCY_LABELS[level]}
+                </button>
+              ))}
+            </div>
+            {!urgency && !isLocked && (
+              <p className="text-[10px] text-rose-500">Выберите уровень срочности</p>
+            )}
+          </div>
+
           {/* Folder */}
           <Separator />
           <div className="flex items-center justify-between">
@@ -1338,28 +1882,48 @@ export default function DocumentFormView() {
         </CardContent>
       </Card>
 
-      {/* Document Links Card (placeholder) */}
+      {/* Attachments Card */}
       <Card className="py-4 transition-shadow hover:shadow-md">
         <CardHeader className="pb-3 px-4">
-          <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Связанные документы
+          <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            Вложения
+            {isNewDoc && pendingFiles.length > 0 && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                {pendingFiles.length}
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4">
-          <div className="flex flex-col items-center py-3 text-center">
-            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center mb-2">
-              <Link2 className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <p className="text-xs text-muted-foreground">Связанные документы появятся здесь</p>
-            <Button variant="ghost" size="sm" className="mt-2 text-xs h-7 gap-1 text-muted-foreground">
-              <Link2 className="h-3 w-3" />
-              Привязать документ
-            </Button>
-          </div>
+          {document?.id && token ? (
+            <DocumentAttachments documentId={document.id} token={token} locked={isLocked} documentStatus={status} />
+          ) : (
+            <PendingAttachments files={pendingFiles} onChange={setPendingFiles} />
+          )}
         </CardContent>
       </Card>
 
-      {/* Sharing Card (placeholder) */}
+      {/* Approval Card */}
+      {!isNewDoc && document?.id && token && user && (
+        <Card className="py-4 transition-shadow hover:shadow-md">
+          <CardContent className="px-4">
+            <DocumentApprovalPanel
+              documentId={document.id}
+              documentTypeId={document.typeId}
+              documentStatus={status}
+              token={token}
+              currentUserId={user.id}
+              currentUserRole={user.role}
+              currentUserDepartmentId={user.departmentId ?? null}
+              onApprovalChange={() => {}}
+              onUserPendingStep={setUserPendingStep}
+              onSendReady={handleSendReady}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sharing Card */}
       <Card className="py-4 transition-shadow hover:shadow-md">
         <CardHeader className="pb-3 px-4">
           <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1367,20 +1931,49 @@ export default function DocumentFormView() {
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 space-y-2">
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2 text-xs h-9">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-2 text-xs h-9"
+            onClick={() => {
+              const url = `${window.location.origin}${window.location.pathname}?doc=${document?.id ?? ''}`;
+              navigator.clipboard.writeText(url).then(() => toast.success('Ссылка скопирована'));
+            }}
+          >
             <Share2 className="h-3.5 w-3.5" />
             Поделиться ссылкой
           </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2 text-xs h-9">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-2 text-xs h-9"
+            disabled={isNewDoc}
+            onClick={() => setPermissionsDialogOpen(true)}
+          >
             <User className="h-3.5 w-3.5" />
             Управление доступом
           </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2 text-xs h-9">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-2 text-xs h-9 no-print"
+            onClick={() => window.print()}
+          >
             <FileText className="h-3.5 w-3.5" />
             Экспорт в PDF
           </Button>
         </CardContent>
       </Card>
+
+      {/* Permissions dialog */}
+      {!isNewDoc && document?.id && token && (
+        <DocumentPermissionsDialog
+          documentId={document.id}
+          token={token}
+          open={permissionsDialogOpen}
+          onOpenChange={setPermissionsDialogOpen}
+        />
+      )}
 
       {/* Action History Card */}
       <Card className="py-4 transition-shadow hover:shadow-md">
@@ -1415,7 +2008,7 @@ export default function DocumentFormView() {
                   <div className="pb-3 min-w-0">
                     <p className="text-xs font-medium truncate">{getActionLabel(log.action)}</p>
                     {log.details && (
-                      <p className="text-[11px] text-muted-foreground truncate mt-0.5">{log.details}</p>
+                      <p className="text-[11px] text-muted-foreground break-words mt-0.5">{log.details}</p>
                     )}
                     <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1.5">
                       {log.user?.name}
@@ -1488,7 +2081,64 @@ export default function DocumentFormView() {
   );
 
   return (
-    <div className="flex flex-col h-full animate-fade-in">
+    <div className="flex flex-col h-screen animate-fade-in">
+      {/* ═══ Header Decide Dialog ═══ */}
+      {headerDecideOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setHeaderDecideOpen(false)} />
+          <div className="relative bg-background rounded-lg shadow-lg w-full max-w-2xl mx-4 p-6 space-y-4">
+            <h2 className="text-base font-semibold">Согласование: {userPendingStep?.stepName}</h2>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={headerDecideDecision === 'APPROVED' ? 'default' : 'outline'}
+                className={headerDecideDecision === 'APPROVED' ? 'bg-emerald-600 hover:bg-emerald-700 flex-1' : 'flex-1'}
+                onClick={() => setHeaderDecideDecision('APPROVED')}
+              >
+                <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                Согласовать
+              </Button>
+              <Button
+                size="sm"
+                variant={headerDecideDecision === 'APPROVED_WITH_CHANGES' ? 'default' : 'outline'}
+                className={headerDecideDecision === 'APPROVED_WITH_CHANGES' ? 'bg-amber-600 hover:bg-amber-700 flex-1' : 'flex-1 text-amber-600 border-amber-300'}
+                onClick={() => setHeaderDecideDecision('APPROVED_WITH_CHANGES')}
+              >
+                <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                С изменениями
+              </Button>
+              <Button
+                size="sm"
+                variant={headerDecideDecision === 'REJECTED' ? 'default' : 'outline'}
+                className={headerDecideDecision === 'REJECTED' ? 'bg-rose-600 hover:bg-rose-700 flex-1' : 'flex-1 text-rose-600 border-rose-200'}
+                onClick={() => setHeaderDecideDecision('REJECTED')}
+              >
+                <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                Отклонить
+              </Button>
+            </div>
+            <Textarea
+              value={headerDecideComment}
+              onChange={(e) => setHeaderDecideComment(e.target.value)}
+              placeholder="Комментарий (необязательно)..."
+              rows={7}
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={() => setHeaderDecideOpen(false)}>Отмена</Button>
+              <Button
+                size="sm"
+                disabled={headerDeciding}
+                className={headerDecideDecision === 'REJECTED' ? 'bg-rose-600 hover:bg-rose-700 gap-1.5' : headerDecideDecision === 'APPROVED_WITH_CHANGES' ? 'bg-amber-600 hover:bg-amber-700 gap-1.5' : 'bg-emerald-600 hover:bg-emerald-700 gap-1.5'}
+                onClick={handleHeaderDecide}
+              >
+                {headerDeciding && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {headerDecideDecision === 'APPROVED' ? 'Согласовать' : headerDecideDecision === 'APPROVED_WITH_CHANGES' ? 'С изменениями' : 'Отклонить'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ═══ Unsaved Changes Dialog ═══ */}
       <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
         <AlertDialogContent>
@@ -1535,6 +2185,7 @@ export default function DocumentFormView() {
             <Input
               value={title}
               onChange={(e) => handleTitleChange(e.target.value)}
+              disabled={isLocked}
               className={`h-8 text-sm font-medium border-transparent hover:border-input focus:border-input bg-transparent font-semibold transition-all duration-200 focus-visible:ring-emerald-600/20 focus-visible:border-emerald-600/50 ${touchedFields.has('__title') && validationErrors['__title'] ? 'border-rose-400' : ''}`}
             />
             {touchedFields.has('__title') && validationErrors['__title'] && (
@@ -1561,7 +2212,7 @@ export default function DocumentFormView() {
           <StatusDropdown
             currentStatus={status}
             onStatusChange={handleStatusChange}
-            disabled={isNewDoc}
+            disabled={isNewDoc || isLocked}
           />
 
           {/* Auto-save indicator */}
@@ -1574,52 +2225,37 @@ export default function DocumentFormView() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-1.5 lg:gap-2">
-            {status === 'DRAFT' && (
+            {status === 'DRAFT' && sendApproval && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleStatusAction('IN_PROGRESS')}
+                onClick={sendApproval}
                 disabled={saving}
                 className="gap-1.5 text-xs"
               >
-                {saving ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Send className="h-3.5 w-3.5" />
-                )}
+                <Send className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Отправить</span>
               </Button>
             )}
 
-            {status === 'IN_PROGRESS' && (
+            {userPendingStep && (
               <>
                 <Button
-                  variant="outline"
                   size="sm"
-                  onClick={() => handleStatusAction('APPROVED')}
-                  disabled={saving}
-                  className="gap-1.5 text-xs border-emerald-300 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hidden sm:flex"
+                  onClick={() => { setHeaderDecideDecision('APPROVED'); setHeaderDecideComment(''); setHeaderDecideOpen(true); }}
+                  className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 hidden sm:flex"
                 >
-                  {saving ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <CheckCircle className="h-3.5 w-3.5" />
-                  )}
-                  Утвердить
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Согласовать
                 </Button>
                 <Button
-                  variant="outline"
                   size="sm"
-                  onClick={() => handleStatusAction('REJECTED')}
-                  disabled={saving}
-                  className="gap-1.5 text-xs border-rose-300 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 hidden sm:flex"
+                  variant="outline"
+                  onClick={() => { setHeaderDecideDecision('APPROVED_WITH_CHANGES'); setHeaderDecideComment(''); setHeaderDecideOpen(true); }}
+                  className="gap-1.5 text-xs text-amber-600 border-amber-300 hover:bg-amber-50 hidden sm:flex"
                 >
-                  {saving ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <XCircle className="h-3.5 w-3.5" />
-                  )}
-                  Отклонить
+                  <Pencil className="h-3.5 w-3.5" />
+                  С изменениями
                 </Button>
               </>
             )}
@@ -1693,7 +2329,7 @@ export default function DocumentFormView() {
                 <Button
                   size="sm"
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || isLocked}
                   className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform no-print"
                 >
                   {saving ? (
@@ -1801,17 +2437,16 @@ export default function DocumentFormView() {
 
                 {/* Dynamic form fields */}
                 {formFields.length > 0 ? (
-                  <div className="space-y-5">
-                    {fieldsByRow.map((rowFields, rowIndex) => (
-                      <FormRowGroup
-                        key={rowIndex}
-                        fields={rowFields}
-                        formData={formData}
-                        onChange={handleFieldChange}
-                        validationErrors={validationErrors}
-                        touchedFields={touchedFields}
-                      />
-                    ))}
+                  <div className={isLocked ? 'pointer-events-none opacity-60 select-none' : undefined}>
+                    <FormRowGroup
+                      fields={formFields}
+                      formData={allFormData}
+                      onChange={handleFieldChange}
+                      validationErrors={validationErrors}
+                      touchedFields={touchedFields}
+                      formulaErrors={formulaErrors}
+                      computedValues={computedValues}
+                    />
                   </div>
                 ) : (
                   <Card>
@@ -1942,11 +2577,11 @@ export default function DocumentFormView() {
               <div className="flex-1">
                 <AutoSaveIndicator status={autoSaveStatus} />
               </div>
-              {status === 'DRAFT' && (
+              {status === 'DRAFT' && sendApproval && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleStatusAction('IN_PROGRESS')}
+                  onClick={sendApproval}
                   disabled={saving}
                   className="gap-1.5 text-xs h-10"
                 >
@@ -1957,7 +2592,7 @@ export default function DocumentFormView() {
               <Button
                 size="sm"
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || isLocked}
                 className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform h-10 px-5"
               >
                 {saving ? (

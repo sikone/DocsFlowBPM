@@ -3,31 +3,55 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-model User {
+model Department {
   id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
   name      String
-  role      String   @default("USER") // ADMIN, ADVANCED, USER
-  avatar    String?
-  active    Boolean  @default(true)
+  order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  documents          Document[]
-  createdFolders     Folder[]      @relation("FolderCreator")
-  sessions           Session[]
-  activityLogs       ActivityLog[]
-  comments           Comment[]
-  assignedTasks      Task[]        @relation("AssignedTasks")
-  createdTasks       Task[]        @relation("CreatedTasks")
-  templates          DocumentTemplate[]
-  favoriteDocuments  FavoriteDocument[]  @relation("UserFavorites")
-  createdTags         DocumentTag[]       @relation("TagCreator")
+  users                User[]
+  approvalRouteSteps   ApprovalRouteStep[]
+  documentApprovalSteps DocumentApprovalStep[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String
+  name         String
+  role         String   @default("USER") // ADMIN, ADVANCED, USER
+  avatar       String?
+  active            Boolean  @default(true)
+  isDepartmentHead  Boolean  @default(false)
+  departmentId      String?
+  createdAt         DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  department          Department?          @relation(fields: [departmentId], references: [id])
+  documents           Document[]
+  createdFolders      Folder[]             @relation("FolderCreator")
+  sessions            Session[]
+  activityLogs        ActivityLog[]
+  comments            Comment[]
+  assignedTasks       Task[]               @relation("AssignedTasks")
+  createdTasks        Task[]               @relation("CreatedTasks")
+  templates           DocumentTemplate[]
+  favoriteDocuments   FavoriteDocument[]   @relation("UserFavorites")
+  createdTags         DocumentTag[]        @relation("TagCreator")
+  attachments         DocumentAttachment[] @relation("AttachmentUploader")
+  documentPermissions DocumentPermission[] @relation("PermissionUser")
+  grantedPermissions  DocumentPermission[] @relation("PermissionGrantor")
+  approvalRouteSteps   ApprovalRouteStep[]  @relation("RouteStepUser")
+  createdApprovals     DocumentApproval[]   @relation("ApprovalCreator")
+  approvalSteps        DocumentApprovalStep[] @relation("ApprovalStepAssignee")
+  decidedApprovalSteps DocumentApprovalStep[] @relation("ApprovalStepDecider")
+  stepDecisions        ApprovalStepDecision[] @relation("StepDecisionDecider")
+  notifications        Notification[]         @relation("NotificationRecipient")
 }
 
 model Folder {
@@ -37,6 +61,7 @@ model Folder {
   color       String   @default("#6b7280")
   icon        String   @default("folder")
   order       Int      @default(0)
+  isSystem    Boolean  @default(false)
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -61,6 +86,7 @@ model DocumentType {
 
   documents Document[]
   templates DocumentTemplate[]
+  processes ProcessDocumentType[]
 }
 
 model DocumentTemplate {
@@ -89,41 +115,45 @@ model Document {
   typeId      String
   folderId    String?
   status      String   @default("DRAFT") // DRAFT, IN_PROGRESS, APPROVED, REJECTED, COMPLETED
+  urgency     String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
   data        String   @default("{}")
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  type     DocumentType @relation(fields: [typeId], references: [id])
-  folder   Folder?      @relation(fields: [folderId], references: [id])
+  type        DocumentType       @relation(fields: [typeId], references: [id])
+  folder      Folder?            @relation(fields: [folderId], references: [id])
   creator     User               @relation(fields: [createdById], references: [id])
   comments    Comment[]
   tasks       Task[]
   favoritedBy FavoriteDocument[]
-  tagLinks   DocumentTagLink[]
+  tagLinks    DocumentTagLink[]
+  attachments DocumentAttachment[]
+  permissions DocumentPermission[]
+  approvals   DocumentApproval[]
 }
 
 model DocumentTag {
-  id         String   @id @default(cuid())
-  name       String
-  color      String   @default("#6b7280")
+  id          String   @id @default(cuid())
+  name        String
+  color       String   @default("#6b7280")
   createdById String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  creator     User              @relation("TagCreator", fields: [createdById], references: [id])
-  documents   DocumentTagLink[]
+  creator   User              @relation("TagCreator", fields: [createdById], references: [id])
+  documents DocumentTagLink[]
 
   @@index([createdById])
 }
 
 model DocumentTagLink {
-  id         String      @id @default(cuid())
+  id         String   @id @default(cuid())
   documentId String
-  tagId       String
-  createdAt  DateTime    @default(now())
+  tagId      String
+  createdAt  DateTime @default(now())
 
-  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
   tag      DocumentTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@unique([documentId, tagId])
@@ -152,23 +182,40 @@ model Session {
   createdAt DateTime @default(now())
   expiresAt DateTime
 
-  user     User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 }
 
 model ActivityLog {
-  id        String   @id @default(cuid())
-  userId    String
-  action    String   // LOGIN, LOGOUT, CREATE_DOCUMENT, EDIT_DOCUMENT, DELETE_DOCUMENT, CHANGE_STATUS, CREATE_FOLDER, DELETE_FOLDER, CREATE_USER, EDIT_USER, DELETE_USER
-  entityType String? // Document, Folder, User, DocumentType
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  entityType String?
   entityId   String?
-  details   String?
-  createdAt DateTime @default(now())
+  details    String?
+  createdAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String
+  type       String   // APPROVAL_REQUEST, APPROVAL_DECISION, DOCUMENT_SHARED, etc.
+  title      String
+  body       String?
+  isRead     Boolean  @default(false)
+  entityType String?  // DOCUMENT, APPROVAL, etc.
+  entityId   String?
+  createdAt  DateTime @default(now())
+
+  user User @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
 }
 
 model Comment {
@@ -197,6 +244,19 @@ model ProcessDefinition {
   steps       String   @default("[]") // JSON: array of step definitions
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  approvals     DocumentApproval[]
+  documentTypes ProcessDocumentType[]
+}
+
+model ProcessDocumentType {
+  processId      String
+  documentTypeId String
+  process        ProcessDefinition @relation(fields: [processId], references: [id], onDelete: Cascade)
+  documentType   DocumentType      @relation(fields: [documentTypeId], references: [id], onDelete: Cascade)
+
+  @@id([processId, documentTypeId])
+  @@index([documentTypeId])
 }
 
 model Task {
@@ -215,8 +275,8 @@ model Task {
   updatedAt    DateTime  @updatedAt
 
   document   Document? @relation(fields: [documentId], references: [id])
-  assignedTo User     @relation("AssignedTasks", fields: [assignedToId], references: [id])
-  creator    User     @relation("CreatedTasks", fields: [createdById], references: [id])
+  assignedTo User      @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  creator    User      @relation("CreatedTasks", fields: [createdById], references: [id])
 
   @@index([assignedToId])
   @@index([createdById])
@@ -224,4 +284,184 @@ model Task {
   @@index([priority])
   @@index([documentId])
   @@index([createdAt])
+}
+
+model SystemSettings {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model DocumentAttachment {
+  id           String   @id @default(cuid())
+  documentId   String
+  originalName String
+  fileName     String
+  fileSize     Int
+  mimeType     String
+  uploadedById String
+  groupId      String   @default(cuid())
+  version      Int      @default(1)
+  isLatest     Boolean   @default(true)
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy User     @relation("AttachmentUploader", fields: [uploadedById], references: [id])
+
+  @@index([documentId])
+  @@index([groupId])
+}
+
+model Counterparty {
+  id            String   @id @default(cuid())
+  name          String
+  shortName     String?
+  inn           String
+  kpp           String?
+  ogrn          String?
+  legalAddress  String?
+  actualAddress String?
+  postalAddress String?
+  postalCode    String?
+  bankAccount   String?
+  bank          String?
+  bik           String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  contacts CounterpartyContact[]
+
+  @@index([inn])
+}
+
+model Contact {
+  id         String   @id @default(cuid())
+  name       String
+  email      String?
+  phone      String?
+  telegramId String?
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  counterparties CounterpartyContact[]
+}
+
+model CounterpartyContact {
+  counterpartyId String
+  contactId      String
+
+  counterparty Counterparty @relation(fields: [counterpartyId], references: [id], onDelete: Cascade)
+  contact      Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([counterpartyId, contactId])
+  @@index([counterpartyId])
+  @@index([contactId])
+}
+
+model ApprovalRoute {
+  id          String              @id @default(cuid())
+  name        String
+  description String?
+  steps       ApprovalRouteStep[]
+  approvals   DocumentApproval[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model ApprovalRouteStep {
+  id           String        @id @default(cuid())
+  routeId      String
+  route        ApprovalRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  order        Int
+  name         String
+  userId       String?
+  user         User?         @relation("RouteStepUser", fields: [userId], references: [id])
+  departmentId String?
+  department   Department?   @relation(fields: [departmentId], references: [id])
+  slaConfig    String?       // JSON: {"LOW":48,"MEDIUM":24,"HIGH":8,"CRITICAL":4}
+
+  @@index([routeId])
+}
+
+model DocumentApproval {
+  id          String                 @id @default(cuid())
+  documentId  String
+  document    Document               @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  routeId     String?
+  route       ApprovalRoute?         @relation(fields: [routeId], references: [id])
+  processId   String?
+  process     ProcessDefinition?     @relation(fields: [processId], references: [id])
+  status      String                 @default("IN_PROGRESS") // IN_PROGRESS, APPROVED, REJECTED
+  createdById String
+  createdBy   User                   @relation("ApprovalCreator", fields: [createdById], references: [id])
+  steps       DocumentApprovalStep[]
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@index([documentId])
+  @@index([status])
+}
+
+model DocumentApprovalStep {
+  id              String           @id @default(cuid())
+  approvalId      String
+  approval        DocumentApproval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  order           Int
+  name            String
+  stepType        String           @default("APPROVAL") // APPROVAL | CONDITION
+  conditionConfig String?          // JSON for CONDITION steps
+  userId          String?
+  user            User?            @relation("ApprovalStepAssignee", fields: [userId], references: [id])
+  departmentId    String?
+  department      Department?      @relation(fields: [departmentId], references: [id])
+  status          String           @default("PENDING") // PENDING, APPROVED, APPROVED_WITH_CHANGES, REJECTED, SKIPPED
+  slaConfig       String?          // JSON: {"LOW":48,"MEDIUM":24,"HIGH":8,"CRITICAL":4}
+  dueAt           DateTime?        // computed from document urgency + slaConfig + working hours
+  decidedById     String?
+  decidedBy       User?            @relation("ApprovalStepDecider", fields: [decidedById], references: [id])
+  comment         String?
+  decidedAt       DateTime?
+  createdAt       DateTime         @default(now())
+
+  decisions       ApprovalStepDecision[]
+
+  @@index([approvalId])
+  @@index([userId])
+  @@index([departmentId])
+  @@index([status])
+}
+
+model ApprovalStepDecision {
+  id          String               @id @default(cuid())
+  stepId      String
+  step        DocumentApprovalStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  decision    String               // APPROVED | APPROVED_WITH_CHANGES | REJECTED
+  comment     String?
+  decidedById String
+  decidedBy   User                 @relation("StepDecisionDecider", fields: [decidedById], references: [id])
+  createdAt   DateTime             @default(now())
+
+  @@index([stepId])
+  @@index([decidedById])
+}
+
+model DocumentPermission {
+  id          String   @id @default(cuid())
+  documentId  String
+  userId      String
+  permission  String   // VIEW | EDIT
+  grantedById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user      User     @relation("PermissionUser", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User     @relation("PermissionGrantor", fields: [grantedById], references: [id])
+
+  @@unique([documentId, userId])
+  @@index([documentId])
+  @@index([userId])
 }

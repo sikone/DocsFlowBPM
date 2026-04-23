@@ -67,6 +67,8 @@ export async function POST(request: NextRequest) {
         name: user.name,
         role: user.role,
         avatar: user.avatar,
+        isDepartmentHead: user.isDepartmentHead ?? false,
+        departmentId: user.departmentId ?? null,
       },
       token,
     })

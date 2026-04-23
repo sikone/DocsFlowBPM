@@ -152,6 +152,8 @@ import {
   Filter,
   Calendar,
   Tag,
+  Archive,
+  BarChart3,
 } from 'lucide-react';
 
 // ─── Theme Toggle Component ─────────────────────────────────────────
@@ -449,6 +451,11 @@ export default function DashboardLayout() {
   const [filterCreatorId, setFilterCreatorId] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [availableTags, setAvailableTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
+
+  // ── Pagination ─────────────────────────────────────────────────────
+  const [docsPage, setDocsPage] = useState(1);
+  const [docsTotal, setDocsTotal] = useState(0);
+  const PAGE_SIZE = 50;
   const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; name: string }>>([]);
 
   // ── Server Search ──────────────────────────────────────────────────
@@ -469,28 +476,101 @@ export default function DashboardLayout() {
     type?: { id: string; name: string; systemName: string };
   }>>([]);
 
+  // ── Flatten nested folder tree into a flat array ──────────────────
+  const flattenFolders = useCallback((nodes: Folder[]): Folder[] => {
+    const result: Folder[] = [];
+    const traverse = (list: Folder[]) => {
+      for (const node of list) {
+        result.push(node);
+        if (node.children?.length) traverse(node.children);
+      }
+    };
+    traverse(nodes);
+    return result;
+  }, []);
+
+  // ── Build API params for document list ─────────────────────────────
+  const buildDocsParams = useCallback((page: number, overrideFolderId?: string | null) => {
+    const params = new URLSearchParams({ token: token || '', page: String(page), limit: String(PAGE_SIZE), sortField, sortDir });
+    const fid = overrideFolderId !== undefined ? overrideFolderId : selectedFolderId;
+    // Inbox folder (isSystem, order=0) means "all documents" — don't pass folderId
+    const inboxFolder = folders.find((f) => f.isSystem && f.order === 0);
+    if (fid && fid !== inboxFolder?.id) params.set('folderId', fid);
+    const effectiveStatus = filterStatus !== 'ALL' ? filterStatus : statusFilter !== 'ALL' ? statusFilter : null;
+    if (effectiveStatus) params.set('status', effectiveStatus);
+    if (filterCreatorId !== 'all') params.set('creatorId', filterCreatorId);
+    if (filterTags.size > 0) params.set('tagIds', Array.from(filterTags).join(','));
+    if (filterDateRange !== 'all') {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      let startDate: Date;
+      switch (filterDateRange) {
+        case 'today': startDate = today; break;
+        case 'week': { const dow = today.getDay() || 7; startDate = new Date(today); startDate.setDate(today.getDate() - dow + 1); break; }
+        case 'month': startDate = new Date(today.getFullYear(), today.getMonth(), 1); break;
+        case 'year': startDate = new Date(today.getFullYear(), 0, 1); break;
+        default: startDate = new Date(0);
+      }
+      params.set('dateFrom', startDate.toISOString());
+    }
+    return params;
+  }, [token, folders, selectedFolderId, filterStatus, statusFilter, filterCreatorId, filterTags, filterDateRange, sortField, sortDir, PAGE_SIZE]);
+
+  // ── Fetch only documents (paginated) ──────────────────────────────
+  const fetchDocs = useCallback(async (page: number, overrideFolderId?: string | null) => {
+    if (!token) return;
+    setRefreshing(true);
+    try {
+      const params = buildDocsParams(page, overrideFolderId);
+      const res = await fetch(`/api/documents?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDocuments(data.documents || []);
+        setDocsTotal(data.total ?? 0);
+        setDocsPage(page);
+      }
+    } catch (err) {
+      console.error('Failed to fetch documents:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [token, buildDocsParams, setDocuments]);
+
   // ── Fetch data on mount ────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     if (!token) return;
     setRefreshing(true);
     try {
-      const [foldersRes, docsRes, typesRes] = await Promise.all([
+      const [foldersRes, typesRes] = await Promise.all([
         fetch(`/api/folders?token=${token}`),
-        fetch(`/api/documents?token=${token}`),
         fetch(`/api/document-types?token=${token}`),
       ]);
 
+      let inboxId: string | null = null;
       if (foldersRes.ok) {
         const foldersData = await foldersRes.json();
-        setFolders(Array.isArray(foldersData) ? foldersData : foldersData.folders || []);
-      }
-      if (docsRes.ok) {
-        const docsData = await docsRes.json();
-        setDocuments(Array.isArray(docsData) ? docsData : docsData.documents || []);
+        const tree: Folder[] = Array.isArray(foldersData) ? foldersData : foldersData.folders || [];
+        const flat = flattenFolders(tree);
+        setFolders(flat);
+        // Auto-select inbox on first load
+        if (!selectedFolderId) {
+          const inbox = flat.find((f) => f.isSystem && f.order === 0);
+          if (inbox) { setSelectedFolder(inbox.id); inboxId = inbox.id; }
+        }
       }
       if (typesRes.ok) {
         const typesData = await typesRes.json();
         setDocumentTypes(Array.isArray(typesData) ? typesData : typesData.types || []);
+      }
+
+      // Fetch first page of documents with current (or newly set inbox) folder
+      const params = buildDocsParams(1, inboxId ?? selectedFolderId);
+      const docsRes = await fetch(`/api/documents?${params}`);
+      if (docsRes.ok) {
+        const data = await docsRes.json();
+        setDocuments(data.documents || []);
+        setDocsTotal(data.total ?? 0);
+        setDocsPage(1);
       }
     } catch (err) {
       console.error('Failed to fetch data:', err);
@@ -498,7 +578,22 @@ export default function DashboardLayout() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token, setFolders, setDocuments, setDocumentTypes, setLoading]);
+  }, [token, setFolders, setDocuments, setDocumentTypes, setLoading, flattenFolders, selectedFolderId, setSelectedFolder, buildDocsParams]);
+
+  // ── Re-fetch page 1 when filters or folder change ─────────────────
+  const filtersKey = [
+    selectedFolderId, filterStatus, statusFilter, filterCreatorId,
+    [...filterTags].sort().join(','), filterDateRange, sortField, sortDir,
+  ].join('|');
+  const prevFiltersKeyRef = useRef('');
+  useEffect(() => {
+    if (!token) return;
+    if (prevFiltersKeyRef.current === '') { prevFiltersKeyRef.current = filtersKey; return; }
+    if (prevFiltersKeyRef.current === filtersKey) return;
+    prevFiltersKeyRef.current = filtersKey;
+    fetchDocs(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersKey, token]);
 
   // ── Drag & Drop State ───────────────────────────────────────────────
   const [activeDragDoc, setActiveDragDoc] = useState<Document | null>(null);
@@ -584,71 +679,15 @@ export default function DashboardLayout() {
   );
 
   // ── Filtered & sorted documents ────────────────────────────────────
+  // Filters/sorting are applied server-side. Here we only handle local text search
+  // on the current page and the server-search mode.
   const filteredDocuments = useMemo(() => {
-    // In server search mode, use server results directly
-    if (searchMode === 'server' && serverSearchResults.length > 0) {
-      return serverSearchResults;
-    }
-    if (searchMode === 'server' && serverSearching) {
-      return [];
-    }
+    if (searchMode === 'server' && serverSearchResults.length > 0) return serverSearchResults;
+    if (searchMode === 'server' && serverSearching) return [];
 
-    let docs = [...documents];
-
-    // Filter by folder
-    if (selectedFolderId) {
-      docs = docs.filter((d) => d.folderId === selectedFolderId);
-    }
-
-    // Filter by status (use unified filterStatus)
-    const effectiveStatus = filterStatus !== 'ALL' ? filterStatus : statusFilter !== 'ALL' ? statusFilter : null;
-    if (effectiveStatus) {
-      docs = docs.filter((d) => d.status === effectiveStatus);
-    }
-
-    // Filter by tags
-    if (filterTags.size > 0) {
-      docs = docs.filter((d) =>
-        d.tagLinks?.some((tl) => filterTags.has(tl.tagId))
-      );
-    }
-
-    // Filter by date range
-    if (filterDateRange !== 'all') {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      let startDate: Date;
-      switch (filterDateRange) {
-        case 'today':
-          startDate = today;
-          break;
-        case 'week': {
-          const dayOfWeek = today.getDay() || 7;
-          startDate = new Date(today);
-          startDate.setDate(today.getDate() - dayOfWeek + 1);
-          break;
-        }
-        case 'month':
-          startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-          break;
-        case 'year':
-          startDate = new Date(today.getFullYear(), 0, 1);
-          break;
-        default:
-          startDate = new Date(0);
-      }
-      docs = docs.filter((d) => new Date(d.createdAt) >= startDate);
-    }
-
-    // Filter by creator
-    if (filterCreatorId !== 'all') {
-      docs = docs.filter((d) => d.createdById === filterCreatorId);
-    }
-
-    // Filter by search (only in local mode)
     if (searchMode === 'local' && docSearch.trim()) {
       const q = docSearch.toLowerCase();
-      docs = docs.filter(
+      return documents.filter(
         (d) =>
           d.title.toLowerCase().includes(q) ||
           d.number?.toLowerCase().includes(q) ||
@@ -657,29 +696,8 @@ export default function DashboardLayout() {
       );
     }
 
-    // Sort
-    docs.sort((a, b) => {
-      let cmp = 0;
-      switch (sortField) {
-        case 'title':
-          cmp = a.title.localeCompare(b.title, 'ru');
-          break;
-        case 'status':
-          cmp = a.status.localeCompare(b.status);
-          break;
-        case 'createdAt':
-          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          break;
-        case 'updatedAt':
-        default:
-          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
-          break;
-      }
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-
-    return docs;
-  }, [documents, selectedFolderId, statusFilter, filterStatus, filterTags, filterDateRange, filterCreatorId, docSearch, sortField, sortDir, searchMode, serverSearchResults, serverSearching]);
+    return documents;
+  }, [documents, docSearch, searchMode, serverSearchResults, serverSearching]);
 
   // ── Count docs in folder (recursive) ───────────────────────────────
   const countDocsInFolder = useCallback(
@@ -1388,13 +1406,18 @@ export default function DashboardLayout() {
             </Badge>
           </button>
 
-          {rootFolders.length > 0 && (
-            <div className="px-3 py-1.5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-                Папки
-              </span>
-            </div>
-          )}
+          <div className="px-3 py-1.5 flex items-center justify-between">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+              Папки
+            </span>
+            <button
+              onClick={() => { setNewFolderParentId(null); setNewFolderOpen(true); }}
+              className="text-slate-500 hover:text-white transition-colors"
+              title="Новая папка"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
 
           {/* ── Recursive Folder Rendering ── */}
           {rootFolders.map((folder) => (
@@ -1455,18 +1478,6 @@ export default function DashboardLayout() {
 
       {/* ── Sidebar Footer ── */}
       <div className="p-3 space-y-1">
-        <Button
-          variant="ghost"
-          onClick={() => {
-            setNewFolderParentId(null);
-            setNewFolderOpen(true);
-          }}
-          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-accent h-9 text-sm"
-        >
-          <Plus className="h-4 w-4" />
-          Новая папка
-        </Button>
-
         <Button
           variant="ghost"
           onClick={() => {
@@ -1799,7 +1810,7 @@ export default function DashboardLayout() {
         </header>
 
         {/* ════════ CONTENT AREA ════════ */}
-        <main className="flex-1 overflow-auto animate-fade-in dashboard-dot-pattern">
+        <main className="flex-1 overflow-auto animate-fade-in dashboard-dot-pattern flex flex-col">
           {/* ── Welcome Banner ── */}
           {!isLoading && (
             <div className="px-4 pt-4 pb-0">
@@ -2198,18 +2209,55 @@ export default function DashboardLayout() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Document count */}
-            <div className="ml-auto shrink-0 hidden sm:flex items-center gap-1.5">
-              <Badge variant="secondary" className="font-normal text-xs bg-muted text-muted-foreground hover:bg-muted px-2 py-0.5">
-                {filteredDocuments.length}
-              </Badge>
-              <span className="text-sm text-muted-foreground">
-                {filteredDocuments.length === 1
-                  ? 'документ'
-                  : filteredDocuments.length >= 2 && filteredDocuments.length <= 4
-                  ? 'документа'
-                  : 'документов'}
-              </span>
+            {/* Reports */}
+            <Button
+              variant="outline"
+              className="h-9 gap-2 text-sm hidden md:flex"
+              onClick={() => navigate({ page: 'reports' })}
+            >
+              <BarChart3 className="h-4 w-4" />
+              Отчёты
+            </Button>
+
+            {/* Document count + Pagination */}
+            <div className="ml-auto shrink-0 flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-1.5">
+                <Badge variant="secondary" className="font-normal text-xs bg-muted text-muted-foreground hover:bg-muted px-2 py-0.5">
+                  {docsTotal}
+                </Badge>
+                <span className="text-sm text-muted-foreground">
+                  {docsTotal === 1
+                    ? 'документ'
+                    : docsTotal >= 2 && docsTotal <= 4
+                    ? 'документа'
+                    : 'документов'}
+                </span>
+              </div>
+              {docsTotal > PAGE_SIZE && searchMode !== 'server' && (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs px-2.5"
+                    disabled={docsPage <= 1 || refreshing}
+                    onClick={() => fetchDocs(docsPage - 1)}
+                  >
+                    ←
+                  </Button>
+                  <span className="text-xs text-muted-foreground tabular-nums px-1">
+                    {docsPage} / {Math.ceil(docsTotal / PAGE_SIZE)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs px-2.5"
+                    disabled={docsPage >= Math.ceil(docsTotal / PAGE_SIZE) || refreshing}
+                    onClick={() => fetchDocs(docsPage + 1)}
+                  >
+                    →
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2273,16 +2321,18 @@ export default function DashboardLayout() {
             </div>
           )}
 
-          {/* ── Stats Summary Bar ── */}
-          <div className="px-4 pt-3">
-            <StatsSummaryBar token={token} />
-          </div>
-
-          {/* ── Analytics Panel ── */}
-          <DashboardAnalytics token={token} />
+          {/* ── Stats Summary Bar & Analytics — only for ADMIN and DIRECTOR ── */}
+          {(user?.role === 'ADMIN' || user?.role === 'DIRECTOR') && (
+            <>
+              <div className="px-4 pt-3">
+                <StatsSummaryBar token={token} />
+              </div>
+              <DashboardAnalytics token={token} />
+            </>
+          )}
 
           {/* ── Document Content ── */}
-          <div className="p-4">
+          <div className="p-4 flex-1">
             {isLoading ? (
               <LoadingSkeleton />
             ) : viewMode === 'table' ? (
@@ -2433,7 +2483,7 @@ export default function DashboardLayout() {
             </span>
             <Separator orientation="vertical" className="h-3 hidden sm:block" />
             <span>
-              {filteredDocuments.length} из {documents.length}
+              {documents.length} из {docsTotal.toLocaleString('ru')}
             </span>
           </div>
           <div className="flex items-center gap-4">
@@ -2970,7 +3020,11 @@ function FolderTreeNode({
           onClick={() => onSelectFolder(folder.id)}
           className="flex items-center gap-1.5 flex-1 min-w-0 py-1.5"
         >
-          {isExpanded || isSelected ? (
+          {folder.icon === 'inbox' ? (
+            <Inbox className={`h-4 w-4 shrink-0 ${folderColorClass}`} style={folderInlineColor ? { color: folderInlineColor } : undefined} />
+          ) : folder.icon === 'archive' ? (
+            <Archive className={`h-4 w-4 shrink-0 ${folderColorClass}`} style={folderInlineColor ? { color: folderInlineColor } : undefined} />
+          ) : isExpanded || isSelected ? (
             <FolderOpen className={`h-4 w-4 shrink-0 ${folderColorClass}`} style={folderInlineColor ? { color: folderInlineColor } : undefined} />
           ) : (
             <Folder className={`h-4 w-4 shrink-0 ${folderColorClass}`} style={folderInlineColor ? { color: folderInlineColor } : undefined} />
@@ -3008,15 +3062,19 @@ function FolderTreeNode({
                 <Plus className="mr-2 h-3.5 w-3.5" />
                 Подпапка
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onRename(folder)}>
-                <Pencil className="mr-2 h-3.5 w-3.5" />
-                Переименовать
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => onDelete(folder.id)} variant="destructive">
-                <Trash2 className="mr-2 h-3.5 w-3.5" />
-                Удалить
-              </DropdownMenuItem>
+              {!folder.isSystem && (
+                <>
+                  <DropdownMenuItem onClick={() => onRename(folder)}>
+                    <Pencil className="mr-2 h-3.5 w-3.5" />
+                    Переименовать
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => onDelete(folder.id)} variant="destructive">
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    Удалить
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

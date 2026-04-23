@@ -92,10 +92,11 @@ export const useStore = create<StoreState>((set, get) => ({
         return false;
       }
       localStorage.setItem('auth_token', data.token);
+      const docId = new URLSearchParams(window.location.search).get('doc');
       set({
         user: data.user,
         token: data.token,
-        view: { page: 'dashboard' },
+        view: docId ? { page: 'edit-document', documentId: docId } : { page: 'dashboard' },
         isLoading: false,
       });
       return true;
@@ -144,10 +145,11 @@ export const useStore = create<StoreState>((set, get) => ({
         return;
       }
       const data = await res.json();
+      const docId = new URLSearchParams(window.location.search).get('doc');
       set({
         user: data.user,
         token,
-        view: { page: 'dashboard' },
+        view: docId ? { page: 'edit-document', documentId: docId } : { page: 'dashboard' },
         isLoading: false,
       });
     } catch {

@@ -30,6 +30,8 @@ import {
   Loader2,
   ArrowLeft,
   GitBranch,
+  Building2,
+  Calculator,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +40,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -95,7 +98,7 @@ import {
   FIELD_TYPES,
   STATUS_LABELS,
 } from '@/lib/types';
-import type { User, UserRole, DocumentType, FormField, Document } from '@/lib/types';
+import type { User, UserRole, DocumentType, FormField, Document, Department } from '@/lib/types';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
 import {
@@ -342,6 +345,8 @@ interface UserFormData {
   password: string;
   role: UserRole;
   active: boolean;
+  isDepartmentHead: boolean;
+  departmentId: string;
 }
 
 const DEFAULT_USER_FORM: UserFormData = {
@@ -350,11 +355,14 @@ const DEFAULT_USER_FORM: UserFormData = {
   password: '',
   role: 'USER',
   active: true,
+  isDepartmentHead: false,
+  departmentId: '',
 };
 
 export function AdminUsers() {
   const { token } = useStore();
   const [users, setUsers] = useState<User[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -366,8 +374,18 @@ export function AdminUsers() {
     if (!token) return;
     setLoading(true);
     try {
-      const data = await apiFetch<User[]>('/api/users', token);
-      setUsers(data);
+      const [usersData, deptsData] = await Promise.allSettled([
+        apiFetch<{ users: User[] }>('/api/users', token),
+        apiFetch<{ departments: Department[] }>('/api/departments', token),
+      ]);
+      if (usersData.status === 'fulfilled') {
+        const d = usersData.value as any;
+        setUsers(d.users ?? d);
+      }
+      if (deptsData.status === 'fulfilled') {
+        const d = deptsData.value as any;
+        setDepartments(d.departments ?? d);
+      }
     } catch {
       /* silent */
     } finally {
@@ -393,6 +411,8 @@ export function AdminUsers() {
       password: '',
       role: user.role,
       active: user.active,
+      isDepartmentHead: user.isDepartmentHead ?? false,
+      departmentId: user.departmentId ?? '',
     });
     setDialogOpen(true);
   };
@@ -402,11 +422,13 @@ export function AdminUsers() {
     setSaving(true);
     try {
       if (editingUser) {
-        const body: Record<string, string | boolean> = {
+        const body: Record<string, string | boolean | null> = {
           name: form.name,
           email: form.email,
           role: form.role,
           active: form.active,
+          isDepartmentHead: form.isDepartmentHead,
+          departmentId: form.departmentId || null,
         };
         if (form.password) body.password = form.password;
         await apiFetch(`/api/users/${editingUser.id}`, token, {
@@ -417,7 +439,7 @@ export function AdminUsers() {
         if (!form.password) return;
         await apiFetch('/api/users', token, {
           method: 'POST',
-          body: JSON.stringify(form),
+          body: JSON.stringify({ ...form, departmentId: form.departmentId || null, isDepartmentHead: form.isDepartmentHead }),
         });
       }
       setDialogOpen(false);
@@ -449,6 +471,10 @@ export function AdminUsers() {
     switch (role) {
       case 'ADMIN':
         return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800';
+      case 'DIRECTOR':
+        return 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800';
+      case 'CHIEF_ACCOUNTANT':
+        return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800';
       case 'ADVANCED':
         return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800';
       default:
@@ -497,6 +523,7 @@ export function AdminUsers() {
               <TableRow>
                 <TableHead>Имя</TableHead>
                 <TableHead className="hidden sm:table-cell">Email</TableHead>
+                <TableHead className="hidden md:table-cell">Отдел</TableHead>
                 <TableHead>Роль</TableHead>
                 <TableHead>Статус</TableHead>
                 <TableHead className="text-right">Действия</TableHead>
@@ -505,7 +532,7 @@ export function AdminUsers() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12">
+                  <TableCell colSpan={6} className="text-center py-12">
                     <div className="flex flex-col items-center">
                       <Users className="w-10 h-10 text-muted-foreground/30 mb-2" />
                       <p className="text-muted-foreground text-sm">Пользователи не найдены</p>
@@ -517,6 +544,9 @@ export function AdminUsers() {
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell className="text-muted-foreground hidden sm:table-cell">{user.email}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm hidden md:table-cell">
+                      {user.department?.name ?? '—'}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={`text-xs ${getRoleBadgeClass(user.role)}`}>
                         {ROLE_LABELS[user.role] || user.role}
@@ -634,6 +664,45 @@ export function AdminUsers() {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="user-dept">Отдел</Label>
+              <Select
+                value={form.departmentId || '__none__'}
+                onValueChange={(val) =>
+                  setForm((f) => ({
+                    ...f,
+                    departmentId: val === '__none__' ? '' : val,
+                    isDepartmentHead: val === '__none__' ? false : f.isDepartmentHead,
+                  }))
+                }
+              >
+                <SelectTrigger id="user-dept">
+                  <SelectValue placeholder="Не указан" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Не указан</SelectItem>
+                  {departments.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.departmentId && (
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="user-dept-head"
+                    checked={form.isDepartmentHead}
+                    onCheckedChange={(checked) =>
+                      setForm((f) => ({ ...f, isDepartmentHead: checked === true }))
+                    }
+                  />
+                  <Label htmlFor="user-dept-head" className="cursor-pointer font-normal text-sm">
+                    Руководитель отдела
+                  </Label>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="user-role">Роль</Label>
               <Select
                 value={form.role}
@@ -644,6 +713,8 @@ export function AdminUsers() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ADMIN">Администратор</SelectItem>
+                  <SelectItem value="DIRECTOR">Директор</SelectItem>
+                  <SelectItem value="CHIEF_ACCOUNTANT">Главный бухгалтер</SelectItem>
                   <SelectItem value="ADVANCED">Расширенный</SelectItem>
                   <SelectItem value="USER">Обычный</SelectItem>
                 </SelectContent>
@@ -678,17 +749,32 @@ export function AdminUsers() {
 // ============================================================
 // 3. AdminDocTypes
 // ============================================================
+interface ProcessSummary { id: string; name: string; documentTypes: { id: string }[] }
+
 export function AdminDocTypes() {
   const { token, navigate } = useStore();
   const [docTypes, setDocTypes] = useState<DocumentType[]>([]);
+  const [processMap, setProcessMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   const loadTypes = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
-      const data = await apiFetch<DocumentType[]>('/api/document-types', token);
-      setDocTypes(data);
+      const [typesRes, procsRes] = await Promise.allSettled([
+        apiFetch<DocumentType[]>('/api/document-types', token),
+        apiFetch<ProcessSummary[]>('/api/processes', token),
+      ]);
+      if (typesRes.status === 'fulfilled') setDocTypes(typesRes.value);
+      if (procsRes.status === 'fulfilled') {
+        const map: Record<string, string> = {};
+        for (const proc of procsRes.value) {
+          for (const dt of proc.documentTypes ?? []) {
+            map[dt.id] = proc.name;
+          }
+        }
+        setProcessMap(map);
+      }
     } catch {
       /* silent */
     } finally {
@@ -890,6 +976,14 @@ export function AdminDocTypes() {
                       {type.active ? 'Активен' : 'Неактивен'}
                     </Badge>
                   </div>
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <GitBranch className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    {processMap[type.id] ? (
+                      <span className="text-xs text-muted-foreground truncate">{processMap[type.id]}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground/50 italic">Процесс не привязан</span>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -917,7 +1011,122 @@ const FIELD_TYPE_ICONS: Record<string, React.ElementType> = {
   switch: ToggleLeft,
   heading: Heading,
   separator: Minus,
+  counterparty: Building2,
+  computed: Calculator,
 };
+
+function OptionsTextarea({ options, onChange }: { options: string[]; onChange: (opts: string[]) => void }) {
+  const [raw, setRaw] = React.useState(() => options.join(', '));
+
+  React.useEffect(() => {
+    setRaw(options.join(', '));
+  }, [options.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <Textarea
+      value={raw}
+      onChange={(e) => setRaw(e.target.value)}
+      onBlur={() => onChange(raw.split(',').map((s) => s.trim()).filter(Boolean))}
+      className="text-sm min-h-[60px]"
+      placeholder="Вариант 1, Вариант 2"
+    />
+  );
+}
+
+const FORMULA_FUNCTIONS = [
+  { name: 'IF(условие, если_да, если_нет)', hint: 'Условие' },
+  { name: 'ROUND(значение, знаки)', hint: 'Округление' },
+  { name: 'ABS(значение)', hint: 'Модуль' },
+  { name: 'MIN(a, b)', hint: 'Минимум' },
+  { name: 'MAX(a, b)', hint: 'Максимум' },
+];
+
+function FormulaEditor({
+  formula,
+  fields,
+  onChange,
+}: {
+  formula: string;
+  fields: FormField[];
+  onChange: (f: string) => void;
+}) {
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const insertAtCursor = (text: string) => {
+    const el = textareaRef.current;
+    if (!el) {
+      onChange(formula + text);
+      return;
+    }
+    const start = el.selectionStart ?? formula.length;
+    const end = el.selectionEnd ?? formula.length;
+    const next = formula.slice(0, start) + text + formula.slice(end);
+    onChange(next);
+    setTimeout(() => {
+      el.focus();
+      el.setSelectionRange(start + text.length, start + text.length);
+    }, 0);
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs font-medium">Формула</Label>
+      <Textarea
+        ref={textareaRef}
+        value={formula}
+        onChange={(e) => onChange(e.target.value)}
+        className="text-xs font-mono min-h-[80px] resize-none"
+        placeholder={'IF({поле1}, {поле2} * 0.2, {поле2} / 1.2 * 0.2)'}
+        spellCheck={false}
+      />
+      {fields.filter((f) => f.type !== 'heading' && f.type !== 'separator' && f.type !== 'computed').length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Поля формы</p>
+          <div className="flex flex-wrap gap-1">
+            {fields
+              .filter((f) => f.type !== 'heading' && f.type !== 'separator' && f.type !== 'computed')
+              .map((f) => {
+                const ref = f.systemName || f.id;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => insertAtCursor(`{${ref}}`)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted hover:bg-muted/80 border text-[10px] font-mono cursor-pointer transition-colors"
+                    title={`Вставить: {${ref}}\nМетка: ${f.label}`}
+                  >
+                    <span className="text-emerald-600 dark:text-emerald-400">{`{`}</span>
+                    <span>{ref}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400">{`}`}</span>
+                    <span className="text-muted-foreground ml-0.5 not-italic">({f.label})</span>
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
+      <div className="space-y-1.5">
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Функции</p>
+        <div className="flex flex-wrap gap-1">
+          {FORMULA_FUNCTIONS.map((fn) => (
+            <button
+              key={fn.name}
+              type="button"
+              onClick={() => insertAtCursor(fn.name.split('(')[0] + '(')}
+              className="inline-flex items-center px-2 py-0.5 rounded bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 text-[10px] font-mono text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-950/60 cursor-pointer transition-colors"
+              title={fn.hint}
+            >
+              {fn.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Операторы: + − * / == != &gt; &lt; &amp;&amp; ||
+      </p>
+    </div>
+  );
+}
 
 interface FormBuilderProps {
   fields: FormField[];
@@ -1167,31 +1376,49 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
             </Label>
             <Card className="bg-slate-50">
               <CardContent className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {fields.map((field) => {
+                <div className="grid grid-cols-6 gap-4">
+                  {[...fields].sort((a, b) => a.row - b.row).map((field) => {
+                    const colSpan =
+                      field.type === 'heading' || field.type === 'separator'
+                        ? 'col-span-6'
+                        : field.width === 'third'
+                        ? 'col-span-6 sm:col-span-2'
+                        : field.width === 'half'
+                        ? 'col-span-6 sm:col-span-3'
+                        : 'col-span-6';
                     if (field.type === 'heading') {
                       return (
-                        <div key={field.id} className="md:col-span-full">
+                        <div key={field.id} className={colSpan}>
                           <h3 className="text-sm font-semibold text-slate-700">{field.label}</h3>
                         </div>
                       );
                     }
                     if (field.type === 'separator') {
                       return (
-                        <div key={field.id} className="md:col-span-full">
+                        <div key={field.id} className={colSpan}>
                           <Separator />
                         </div>
                       );
                     }
                     return (
-                      <div key={field.id} className="space-y-1.5">
+                      <div key={field.id} className={`${colSpan} space-y-1.5`}>
                         <Label className="text-xs text-slate-500">
                           {field.label}
                           {field.required && <span className="text-rose-400 ml-0.5">*</span>}
                         </Label>
-                        <div className="h-8 rounded-md border border-slate-200 bg-white px-3 flex items-center">
+                        <div className={`h-8 rounded-md border px-3 flex items-center gap-1.5 ${field.type === 'computed' ? 'border-dashed border-slate-300 bg-slate-50' : 'border-slate-200 bg-white'}`}>
+                          {field.type === 'computed' && (
+                            <Calculator className="w-3.5 h-3.5 text-slate-300" />
+                          )}
+                          {(field.type === 'counterparty' || (field.type === 'select' && field.source === 'directory')) && (
+                            <Building2 className="w-3.5 h-3.5 text-slate-300" />
+                          )}
                           <span className="text-xs text-slate-300">
-                            {field.placeholder || field.type}
+                            {field.type === 'computed'
+                              ? (field.formula ? '= ' + field.formula.slice(0, 30) + (field.formula.length > 30 ? '…' : '') : 'формула не задана')
+                              : field.type === 'counterparty' || (field.type === 'select' && field.source === 'directory')
+                              ? `Из справочника: ${field.directorySource || 'контрагенты'}`
+                              : (field.placeholder || field.type)}
                           </span>
                         </div>
                       </div>
@@ -1285,19 +1512,85 @@ function FormBuilder({ fields, onChange }: FormBuilderProps) {
                 </div>
 
                 {selectedField.type === 'select' && (
-                  <div className="space-y-2">
-                    <Label className="text-xs">Варианты (через запятую)</Label>
-                    <Textarea
-                      value={selectedField.options?.join(', ') || ''}
-                      onChange={(e) =>
-                        updateField(selectedField.id, {
-                          options: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-                        })
-                      }
-                      className="text-sm min-h-[60px]"
-                      placeholder="Вариант 1, Вариант 2"
-                    />
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Источник данных</Label>
+                      <div className="flex rounded-md border overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => updateField(selectedField.id, { source: 'options' })}
+                          className={`flex-1 text-xs py-1.5 transition-colors ${
+                            (selectedField.source ?? 'options') === 'options'
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-background text-muted-foreground hover:bg-muted'
+                          }`}
+                        >
+                          Варианты
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateField(selectedField.id, { source: 'directory' })}
+                          className={`flex-1 text-xs py-1.5 transition-colors ${
+                            selectedField.source === 'directory'
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-background text-muted-foreground hover:bg-muted'
+                          }`}
+                        >
+                          Из справочника
+                        </button>
+                      </div>
+                    </div>
+
+                    {(selectedField.source ?? 'options') === 'options' ? (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Варианты (через запятую)</Label>
+                        <OptionsTextarea
+                          options={selectedField.options ?? []}
+                          onChange={(opts) => updateField(selectedField.id, { options: opts })}
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Справочник</Label>
+                        <Select
+                          value={selectedField.directorySource || 'counterparties'}
+                          onValueChange={(v) => updateField(selectedField.id, { directorySource: v })}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="counterparties">Контрагенты</SelectItem>
+                            <SelectItem value="contacts">Контакты</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
+                )}
+
+                {selectedField.type === 'computed' && (
+                  <>
+                    <FormulaEditor
+                      formula={selectedField.formula || ''}
+                      fields={fields.filter((f) => f.id !== selectedField.id)}
+                      onChange={(formula) => updateField(selectedField.id, { formula })}
+                    />
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <Label className="text-xs cursor-pointer">Неизменяемое</Label>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Запрещает ручное редактирование
+                        </p>
+                      </div>
+                      <Switch
+                        checked={selectedField.readonly !== false}
+                        onCheckedChange={(checked) =>
+                          updateField(selectedField.id, { readonly: checked })
+                        }
+                      />
+                    </div>
+                  </>
                 )}
 
                 <div className="space-y-2">

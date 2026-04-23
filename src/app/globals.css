@@ -123,6 +123,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    overflow-x: hidden;
   }
 }
 
@@ -270,11 +271,15 @@
 /* Print styles */
 @media print {
   .no-print { display: none !important; }
+  aside { display: none !important; }
+  nav { display: none !important; }
   body { background: white !important; }
   * {
     box-shadow: none !important;
     text-shadow: none !important;
   }
+  /* Make main content fill the page */
+  main { width: 100% !important; max-width: 100% !important; padding: 0 !important; }
 }
 
 /* ===== Enhanced Animations ===== */

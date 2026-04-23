@@ -24,7 +24,7 @@ export async function PUT(
 
     const { id } = await params
     const body = await request.json()
-    const { name, email, password, role, active } = body
+    const { name, email, password, role, active, departmentId, isDepartmentHead } = body
 
     // Check user exists
     const existingUser = await db.user.findUnique({ where: { id } })
@@ -38,16 +38,18 @@ export async function PUT(
     if (email !== undefined) updateData.email = email
     if (password !== undefined) updateData.password = await hashPassword(password)
     if (role !== undefined) {
-      const validRoles = ['ADMIN', 'ADVANCED', 'USER']
+      const validRoles = ['ADMIN', 'DIRECTOR', 'CHIEF_ACCOUNTANT', 'ADVANCED', 'USER']
       if (!validRoles.includes(role)) {
         return NextResponse.json(
-          { error: 'Invalid role. Must be ADMIN, ADVANCED, or USER' },
+          { error: 'Invalid role' },
           { status: 400 }
         )
       }
       updateData.role = role
     }
     if (active !== undefined) updateData.active = active
+    if (isDepartmentHead !== undefined) updateData.isDepartmentHead = isDepartmentHead
+    if (departmentId !== undefined) updateData.departmentId = departmentId || null
 
     const updatedUser = await db.user.update({
       where: { id },
@@ -59,6 +61,9 @@ export async function PUT(
         role: true,
         avatar: true,
         active: true,
+        isDepartmentHead: true,
+        departmentId: true,
+        department: { select: { id: true, name: true } },
         createdAt: true,
         updatedAt: true,
       },

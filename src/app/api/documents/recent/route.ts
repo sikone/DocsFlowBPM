@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { extractToken, getAuthUser } from '@/lib/auth'
+import { isPrivilegedRole } from '@/lib/doc-permissions'
 
 /**
  * POST /api/documents/recent — Record a document view
@@ -97,10 +98,19 @@ export async function GET(request: Request) {
       return NextResponse.json([])
     }
 
-    // Fetch the actual documents with type info
+    // Fetch the actual documents with type info (filter by permission for non-admins)
+    const permissionFilter = !isPrivilegedRole(user.role)
+      ? {
+          OR: [
+            { createdById: user.id },
+            { permissions: { some: { userId: user.id } } },
+          ],
+        }
+      : {}
     const documents = await db.document.findMany({
       where: {
         id: { in: uniqueLogs.map((log) => log.entityId!) },
+        ...permissionFilter,
       },
       include: {
         type: {

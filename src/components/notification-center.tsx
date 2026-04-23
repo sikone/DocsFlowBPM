@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import type { AppView } from '@/lib/types';
 
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Sheet,
   SheetContent,
@@ -16,7 +15,6 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Tooltip,
   TooltipContent,
@@ -25,51 +23,38 @@ import {
 
 import {
   Bell,
-  LogIn,
-  FilePlus,
-  Pencil,
-  Trash2,
-  RefreshCw,
-  FolderPlus,
-  FolderMinus,
-  FolderOpen,
-  BellOff,
   CheckCheck,
   Inbox,
+  FileCheck2,
+  FileX2,
+  FileClock,
+  Share2,
 } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface NotificationCenterProps {
   token: string | null;
+  userId?: string | null;
   onNavigate?: (view: AppView) => void;
 }
 
-interface ActivityLogUser {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-}
-
-interface ActivityLog {
+interface Notification {
   id: string;
   userId: string;
-  action: string;
+  type: string;
+  title: string;
+  body: string | null;
+  isRead: boolean;
   entityType: string | null;
   entityId: string | null;
-  details: string | null;
   createdAt: string;
-  user: ActivityLogUser;
 }
-
-type FilterTab = 'all' | 'documents' | 'system';
 
 // ─── Helper: Relative time in Russian ───────────────────────────────
 function getRelativeTime(dateStr: string): string {
   try {
     const now = Date.now();
-    const then = new Date(dateStr).getTime();
-    const diffMs = now - then;
+    const diffMs = now - new Date(dateStr).getTime();
     const diffSec = Math.floor(diffMs / 1000);
     const diffMin = Math.floor(diffSec / 60);
     const diffHour = Math.floor(diffMin / 60);
@@ -77,185 +62,59 @@ function getRelativeTime(dateStr: string): string {
 
     if (diffSec < 5) return 'только что';
     if (diffSec < 60) {
-      const remainder = diffSec % 10;
-      const word =
-        diffSec >= 11 && diffSec <= 19
-          ? 'секунд'
-          : remainder === 1
-            ? 'секунду'
-            : remainder >= 2 && remainder <= 4
-              ? 'секунды'
-              : 'секунд';
-      return `${diffSec} ${word} назад`;
+      const r = diffSec % 10;
+      const w = diffSec >= 11 && diffSec <= 19 ? 'секунд' : r === 1 ? 'секунду' : r >= 2 && r <= 4 ? 'секунды' : 'секунд';
+      return `${diffSec} ${w} назад`;
     }
     if (diffMin < 60) {
-      const remainder = diffMin % 10;
-      const word =
-        diffMin >= 11 && diffMin <= 19
-          ? 'минут'
-          : remainder === 1
-            ? 'минуту'
-            : remainder >= 2 && remainder <= 4
-              ? 'минуты'
-              : 'минут';
-      return `${diffMin} ${word} назад`;
+      const r = diffMin % 10;
+      const w = diffMin >= 11 && diffMin <= 19 ? 'минут' : r === 1 ? 'минуту' : r >= 2 && r <= 4 ? 'минуты' : 'минут';
+      return `${diffMin} ${w} назад`;
     }
     if (diffHour < 24) {
-      const remainder = diffHour % 10;
-      const word =
-        diffHour >= 11 && diffHour <= 19
-          ? 'часов'
-          : remainder === 1
-            ? 'час'
-            : remainder >= 2 && remainder <= 4
-              ? 'часа'
-              : 'часов';
-      return `${diffHour} ${word} назад`;
+      const r = diffHour % 10;
+      const w = diffHour >= 11 && diffHour <= 19 ? 'часов' : r === 1 ? 'час' : r >= 2 && r <= 4 ? 'часа' : 'часов';
+      return `${diffHour} ${w} назад`;
     }
     if (diffDay === 1) return 'вчера';
     if (diffDay < 7) {
-      const remainder = diffDay % 10;
-      const word =
-        diffDay >= 11 && diffDay <= 19
-          ? 'дней'
-          : remainder === 1
-            ? 'день'
-            : remainder >= 2 && remainder <= 4
-              ? 'дня'
-              : 'дней';
-      return `${diffDay} ${word} назад`;
+      const r = diffDay % 10;
+      const w = diffDay >= 11 && diffDay <= 19 ? 'дней' : r === 1 ? 'день' : r >= 2 && r <= 4 ? 'дня' : 'дней';
+      return `${diffDay} ${w} назад`;
     }
-    return new Date(dateStr).toLocaleDateString('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+    return new Date(dateStr).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   } catch {
     return '—';
   }
 }
 
-// ─── Helper: Action color dot ──────────────────────────────────────
-function getActionColor(action: string): string {
-  const colorMap: Record<string, string> = {
-    CREATE_DOCUMENT: 'bg-emerald-500',
-    DELETE_DOCUMENT: 'bg-rose-500',
-    CHANGE_STATUS: 'bg-amber-500',
-    LOGIN: 'bg-blue-500',
-    CREATE_FOLDER: 'bg-violet-500',
-    DELETE_FOLDER: 'bg-rose-500',
-    EDIT_DOCUMENT: 'bg-slate-400',
+// ─── Helper: Notification icon ─────────────────────────────────────
+function getNotificationIcon(type: string, className = 'h-4 w-4') {
+  const map: Record<string, React.ReactNode> = {
+    APPROVAL_REQUEST:  <FileClock className={className} />,
+    APPROVAL_APPROVED: <FileCheck2 className={className} />,
+    APPROVAL_REJECTED: <FileX2 className={className} />,
+    DOCUMENT_SHARED:   <Share2 className={className} />,
   };
-  return colorMap[action] || 'bg-slate-400';
+  return map[type] || <Bell className={className} />;
 }
 
-// ─── Helper: Action icon ───────────────────────────────────────────
-function getActionIcon(action: string, className = 'h-4 w-4') {
-  const iconMap: Record<string, React.ReactNode> = {
-    LOGIN: <LogIn className={className} />,
-    CREATE_DOCUMENT: <FilePlus className={className} />,
-    EDIT_DOCUMENT: <Pencil className={className} />,
-    DELETE_DOCUMENT: <Trash2 className={className} />,
-    CHANGE_STATUS: <RefreshCw className={className} />,
-    CREATE_FOLDER: <FolderPlus className={className} />,
-    DELETE_FOLDER: <FolderMinus className={className} />,
+// ─── Helper: Notification icon bg ─────────────────────────────────
+function getNotificationIconBg(type: string): string {
+  const map: Record<string, string> = {
+    APPROVAL_REQUEST:  'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400',
+    APPROVAL_APPROVED: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400',
+    APPROVAL_REJECTED: 'bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400',
+    DOCUMENT_SHARED:   'bg-sky-100 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400',
   };
-  return iconMap[action] || <Bell className={className} />;
-}
-
-// ─── Helper: User initials ─────────────────────────────────────────
-function getUserInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-// ─── Avatar color from user name (deterministic) ───────────────────
-function getAvatarColor(name: string): string {
-  const colors = [
-    'bg-emerald-600',
-    'bg-sky-600',
-    'bg-amber-600',
-    'bg-rose-600',
-    'bg-violet-600',
-    'bg-teal-600',
-    'bg-orange-600',
-    'bg-pink-600',
-    'bg-cyan-600',
-    'bg-blue-600',
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
-}
-
-// ─── Helper: Status badge for CHANGE_STATUS actions ────────────────
-function getStatusBadgeClass(action: string, details: string | null): string | null {
-  if (action !== 'CHANGE_STATUS' || !details) return null;
-
-  const statusMap: Record<string, string> = {
-    'Черновик': 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600',
-    'В работе': 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-700',
-    'Утверждён': 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-700',
-    'Отклонён': 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-700',
-    'Завершён': 'bg-violet-50 text-violet-700 border-violet-300 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-700',
-    'DRAFT': 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600',
-    'IN_PROGRESS': 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-700',
-    'APPROVED': 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-700',
-    'REJECTED': 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-700',
-    'COMPLETED': 'bg-violet-50 text-violet-700 border-violet-300 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-700',
-  };
-
-  for (const [key, cls] of Object.entries(statusMap)) {
-    if (details.includes(key)) return cls;
-  }
-  return 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600';
-}
-
-// ─── Helper: Extract status label from details ─────────────────────
-function extractStatusLabel(action: string, details: string | null): string | null {
-  if (action !== 'CHANGE_STATUS' || !details) return null;
-
-  const labels = ['Черновик', 'В работе', 'Утверждён', 'Отклонён', 'Завершён'];
-  for (const label of labels) {
-    if (details.includes(label)) return label;
-  }
-  return null;
-}
-
-// ─── Helper: Filter logs by tab ────────────────────────────────────
-function filterLogs(logs: ActivityLog[], tab: FilterTab): ActivityLog[] {
-  if (tab === 'all') return logs;
-  if (tab === 'documents') {
-    return logs.filter(
-      (log) =>
-        log.action === 'CREATE_DOCUMENT' ||
-        log.action === 'EDIT_DOCUMENT' ||
-        log.action === 'DELETE_DOCUMENT' ||
-        log.action === 'CHANGE_STATUS'
-    );
-  }
-  if (tab === 'system') {
-    return logs.filter(
-      (log) =>
-        log.action === 'LOGIN' ||
-        log.action === 'CREATE_FOLDER' ||
-        log.action === 'DELETE_FOLDER'
-    );
-  }
-  return logs;
+  return map[type] || 'bg-muted text-muted-foreground';
 }
 
 // ─── Loading Skeleton ──────────────────────────────────────────────
-function ActivitySkeleton() {
+function NotificationSkeleton() {
   return (
     <div className="space-y-4 px-1 py-2">
-      {[1, 2, 3, 4, 5].map((i) => (
+      {[1, 2, 3].map((i) => (
         <div key={i} className="flex items-start gap-3">
           <Skeleton className="h-9 w-9 rounded-full shrink-0" />
           <div className="flex-1 min-w-0 space-y-2">
@@ -277,60 +136,50 @@ function EmptyState() {
       </div>
       <p className="text-sm font-medium">Нет уведомлений</p>
       <p className="text-xs mt-1.5 text-muted-foreground/70">
-        Новые события будут отображаться здесь
+        Уведомления из бизнес-процессов появятся здесь
       </p>
     </div>
   );
 }
 
-// ─── Single Activity Item ──────────────────────────────────────────
-function ActivityItem({ log }: { log: ActivityLog }) {
-  const statusBadgeClass = getStatusBadgeClass(log.action, log.details);
-  const statusLabel = extractStatusLabel(log.action, log.details);
-
+// ─── Single Notification Item ──────────────────────────────────────
+function NotificationItem({
+  notification,
+  onRead,
+}: {
+  notification: Notification;
+  onRead: (id: string) => void;
+}) {
   return (
-    <div className="flex items-start gap-3 px-1 py-3 hover:bg-muted/50 rounded-lg transition-colors group">
-      {/* Avatar */}
-      <Avatar className="h-9 w-9 shrink-0 mt-0.5">
-        <AvatarFallback
-          className={`${getAvatarColor(log.user.name)} text-white text-xs font-semibold`}
-        >
-          {getUserInitials(log.user.name)}
-        </AvatarFallback>
-      </Avatar>
+    <div
+      className={`flex items-start gap-3 px-1 py-3 rounded-lg transition-colors group cursor-pointer ${
+        notification.isRead ? 'hover:bg-muted/50' : 'bg-blue-50/50 dark:bg-blue-950/10 hover:bg-blue-50 dark:hover:bg-blue-950/20'
+      }`}
+      onClick={() => !notification.isRead && onRead(notification.id)}
+    >
+      {/* Icon */}
+      <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${getNotificationIconBg(notification.type)}`}>
+        {getNotificationIcon(notification.type, 'h-4 w-4')}
+      </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2">
-          {/* Colored action dot */}
-          <span
-            className={`inline-block w-2 h-2 rounded-full shrink-0 mt-1.5 ${getActionColor(log.action)}`}
-          />
-
-          {/* Details text */}
-          <p className="text-sm leading-snug">
-            {log.details || log.action}
+          {!notification.isRead && (
+            <span className="inline-block w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />
+          )}
+          <p className={`text-sm leading-snug ${!notification.isRead ? 'font-medium' : ''}`}>
+            {notification.title}
           </p>
         </div>
-
-        <div className="flex items-center gap-2 mt-1.5 ml-4 flex-wrap">
-          {/* Action icon */}
-          <span className="text-muted-foreground/50">
-            {getActionIcon(log.action, 'h-3 w-3')}
-          </span>
-          {/* Relative time */}
-          <span className="text-xs text-muted-foreground">
-            {getRelativeTime(log.createdAt)}
-          </span>
-          {/* Status badge */}
-          {statusLabel && statusBadgeClass && (
-            <span
-              className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none ${statusBadgeClass}`}
-            >
-              {statusLabel}
-            </span>
-          )}
-        </div>
+        {notification.body && (
+          <p className="text-xs text-muted-foreground mt-0.5 ml-4 leading-snug">
+            {notification.body}
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground mt-1 ml-4">
+          {getRelativeTime(notification.createdAt)}
+        </p>
       </div>
     </div>
   );
@@ -339,118 +188,81 @@ function ActivityItem({ log }: { log: ActivityLog }) {
 // ─── Main Component ────────────────────────────────────────────────
 export default function NotificationCenter({
   token,
+  userId,
   onNavigate,
 }: NotificationCenterProps) {
   const [open, setOpen] = useState(false);
-  const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [hasUnread, setHasUnread] = useState(false);
-  const [activeTab, setActiveTab] = useState<FilterTab>('all');
 
-  // ── Fetch activity logs ──
-  const fetchLogs = useCallback(async () => {
+  // ── Fetch notifications ──
+  const fetchNotifications = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/activity-log?token=${encodeURIComponent(token)}`
-      );
+      const res = await fetch(`/api/notifications?token=${encodeURIComponent(token)}`);
       if (!res.ok) return;
       const data = await res.json();
-
-      // Handle both array and { logs, total } response formats
-      if (Array.isArray(data)) {
-        setLogs(data);
-        setUnreadCount(data.length);
-      } else if (data.logs) {
-        setLogs(Array.isArray(data.logs) ? data.logs : []);
-        setUnreadCount(typeof data.total === 'number' ? data.total : (Array.isArray(data.logs) ? data.logs.length : 0));
-      } else {
-        setLogs([]);
-        setUnreadCount(0);
-      }
-    } catch (err) {
-      console.error('Failed to fetch activity logs:', err);
-      setLogs([]);
+      setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+      setUnreadCount(typeof data.unreadCount === 'number' ? data.unreadCount : 0);
+    } catch {
+      setNotifications([]);
       setUnreadCount(0);
     } finally {
       setLoading(false);
     }
   }, [token]);
 
-  // Fetch on mount
-  useEffect(() => {
-    fetchLogs();
-  }, []);
+  // Fetch on mount and when sheet opens
+  useEffect(() => { fetchNotifications(); }, []);
+  useEffect(() => { if (open) fetchNotifications(); }, [open]);
 
-  // Fetch when sheet opens
-  useEffect(() => {
-    if (open) {
-      fetchLogs();
-    }
-  }, [open]);
-
-  // Check for unread activities periodically
+  // Poll for unread count every 30s
   useEffect(() => {
     if (!token) return;
-
-    const checkUnread = async () => {
+    const poll = async () => {
       try {
-        const res = await fetch(
-          `/api/activity-log?limit=1&token=${encodeURIComponent(token)}`
-        );
+        const res = await fetch(`/api/notifications?limit=1&token=${encodeURIComponent(token)}`);
         if (!res.ok) return;
         const data = await res.json();
-        const latestLog = Array.isArray(data)
-          ? data[0]
-          : data.logs?.[0] || null;
-
-        if (latestLog) {
-          const lastViewed = localStorage.getItem('nc_last_viewed');
-          if (!lastViewed) {
-            setHasUnread(false);
-            localStorage.setItem('nc_last_viewed', new Date().toISOString());
-          } else {
-            const viewedTime = new Date(lastViewed).getTime();
-            const logTime = new Date(latestLog.createdAt).getTime();
-            setHasUnread(logTime > viewedTime);
-          }
-        }
-      } catch {
-        // silent
-      }
+        setUnreadCount(typeof data.unreadCount === 'number' ? data.unreadCount : 0);
+      } catch { /* silent */ }
     };
-
-    checkUnread();
-    const interval = setInterval(checkUnread, 30000);
+    const interval = setInterval(poll, 30000);
     return () => clearInterval(interval);
   }, [token]);
 
-  // ── Mark all as read ──
-  const handleMarkAllRead = useCallback(() => {
+  // ── Mark as read ──
+  const handleMarkRead = useCallback(async (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+    );
+    setUnreadCount((prev) => Math.max(0, prev - 1));
     try {
-      localStorage.setItem('nc_last_viewed', new Date().toISOString());
-    } catch {
-      // silent
-    }
-    setHasUnread(false);
+      await fetch(`/api/notifications?token=${encodeURIComponent(token ?? '')}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [id] }),
+      });
+    } catch { /* silent */ }
+  }, [token]);
+
+  const handleMarkAllRead = useCallback(async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     setUnreadCount(0);
-  }, []);
-
-  // ── Filtered logs ──
-  const filteredLogs = useMemo(
-    () => filterLogs(logs, activeTab),
-    [logs, activeTab]
-  );
-
-  // ── Badge display ──
-  const showBadge = hasUnread || unreadCount > 0;
-  const displayCount = Math.min(unreadCount, 99);
+    try {
+      await fetch(`/api/notifications?token=${encodeURIComponent(token ?? '')}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+    } catch { /* silent */ }
+  }, [token]);
 
   return (
     <>
-      {/* ── Bell trigger button ── */}
+      {/* ── Bell trigger ── */}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
@@ -459,17 +271,13 @@ export default function NotificationCenter({
             className="h-9 w-9 relative"
             onClick={() => setOpen(true)}
           >
-            <Bell
-              className={`h-4 w-4 ${hasUnread ? 'animate-bell-shake' : ''}`}
-            />
-            {showBadge && (
+            <Bell className={`h-4 w-4 ${unreadCount > 0 ? 'animate-bell-shake' : ''}`} />
+            {unreadCount > 0 && (
               <Badge
                 variant="destructive"
-                className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-bold leading-none px-1 ${
-                  hasUnread ? 'animate-pulse-badge' : ''
-                }`}
+                className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-bold leading-none px-1 animate-pulse-badge"
               >
-                {displayCount > 99 ? '99+' : displayCount}
+                {unreadCount > 99 ? '99+' : unreadCount}
               </Badge>
             )}
             <span className="sr-only">Уведомления</span>
@@ -480,10 +288,7 @@ export default function NotificationCenter({
 
       {/* ── Sheet panel ── */}
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent
-          side="right"
-          className="w-full sm:max-w-md p-0 flex flex-col"
-        >
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
           {/* ── Header ── */}
           <SheetHeader className="px-5 pt-5 pb-0 gap-0">
             <div className="flex items-center justify-between">
@@ -492,146 +297,51 @@ export default function NotificationCenter({
                   <Bell className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div>
-                  <SheetTitle className="text-base">
-                    Уведомления
-                  </SheetTitle>
+                  <SheetTitle className="text-base">Уведомления</SheetTitle>
                   <SheetDescription className="text-xs mt-0.5">
                     {unreadCount > 0
-                      ? `${unreadCount} непрочитан${unreadCount === 1 ? 'ое' : unreadCount >= 2 && unreadCount <= 4 ? 'ых' : 'ых'}`
+                      ? `${unreadCount} непрочитан${unreadCount === 1 ? 'ое' : 'ых'}`
                       : 'Все прочитано'}
                   </SheetDescription>
                 </div>
               </div>
+              {unreadCount > 0 && !loading && (
+                <button
+                  onClick={handleMarkAllRead}
+                  className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium transition-colors"
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  Прочитать все
+                </button>
+              )}
             </div>
           </SheetHeader>
 
-          {/* ── Filter tabs ── */}
-          <div className="px-5 pt-4 pb-0">
-            <Tabs
-              value={activeTab}
-              onValueChange={(v) => setActiveTab(v as FilterTab)}
-            >
-              <TabsList className="w-full h-9">
-                <TabsTrigger value="all" className="flex-1 text-xs">
-                  Все
-                  {logs.length > 0 && (
-                    <span className="ml-1 text-[10px] text-muted-foreground">
-                      {logs.length}
-                    </span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="documents" className="flex-1 text-xs">
-                  Документы
-                </TabsTrigger>
-                <TabsTrigger value="system" className="flex-1 text-xs">
-                  Система
-                </TabsTrigger>
-              </TabsList>
+          <Separator className="mt-4" />
 
-              {/* ── All tab content ── */}
-              <TabsContent value="all" className="mt-0">
-                <ActivityList
-                  logs={filteredLogs}
-                  loading={loading}
-                  hasUnread={hasUnread}
-                  onMarkAllRead={handleMarkAllRead}
-                />
-              </TabsContent>
-
-              {/* ── Documents tab content ── */}
-              <TabsContent value="documents" className="mt-0">
-                <ActivityList
-                  logs={filteredLogs}
-                  loading={loading}
-                  hasUnread={hasUnread}
-                  onMarkAllRead={handleMarkAllRead}
-                />
-              </TabsContent>
-
-              {/* ── System tab content ── */}
-              <TabsContent value="system" className="mt-0">
-                <ActivityList
-                  logs={filteredLogs}
-                  loading={loading}
-                  hasUnread={hasUnread}
-                  onMarkAllRead={handleMarkAllRead}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
+          {/* ── Content ── */}
+          <ScrollArea className="flex-1">
+            <div className="px-4">
+              {loading ? (
+                <NotificationSkeleton />
+              ) : notifications.length === 0 ? (
+                <EmptyState />
+              ) : (
+                <div className="py-1">
+                  {notifications.map((n, index) => (
+                    <React.Fragment key={n.id}>
+                      <NotificationItem notification={n} onRead={handleMarkRead} />
+                      {index < notifications.length - 1 && (
+                        <Separator className="ml-12 mr-1 opacity-40" />
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
         </SheetContent>
       </Sheet>
     </>
-  );
-}
-
-// ─── Activity List (reusable for each tab) ─────────────────────────
-function ActivityList({
-  logs,
-  loading,
-  hasUnread,
-  onMarkAllRead,
-}: {
-  logs: ActivityLog[];
-  loading: boolean;
-  hasUnread: boolean;
-  onMarkAllRead: () => void;
-}) {
-  return (
-    <div className="flex flex-col flex-1 min-h-0">
-      {/* ── Mark all as read bar ── */}
-      {hasUnread && !loading && (
-        <div className="px-5 pt-3 pb-1">
-          <button
-            onClick={onMarkAllRead}
-            className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium transition-colors"
-          >
-            <CheckCheck className="h-3.5 w-3.5" />
-            Отметить все как прочитанные
-          </button>
-        </div>
-      )}
-
-      {/* ── Separator ── */}
-      <Separator className="mt-2" />
-
-      {/* ── Scrollable list ── */}
-      <ScrollArea className="flex-1 h-[calc(100vh-16rem)]">
-        <div className="px-4">
-          {loading ? (
-            <ActivitySkeleton />
-          ) : logs.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="py-1">
-              {logs.map((log, index) => (
-                <React.Fragment key={log.id}>
-                  <ActivityItem log={log} />
-                  {index < logs.length - 1 && (
-                    <Separator className="ml-12 mr-1 opacity-40" />
-                  )}
-                </React.Fragment>
-              ))}
-            </div>
-          )}
-        </div>
-      </ScrollArea>
-
-      {/* ── Footer ── */}
-      {logs.length > 0 && !loading && (
-        <>
-          <Separator />
-          <div className="px-5 py-3 flex items-center justify-center border-t">
-            <button
-              className="text-xs text-muted-foreground hover:text-foreground font-medium transition-colors flex items-center gap-1.5"
-              onClick={() => {}}
-            >
-              <FolderOpen className="h-3.5 w-3.5" />
-              Показать все уведомления
-            </button>
-          </div>
-        </>
-      )}
-    </div>
   );
 }

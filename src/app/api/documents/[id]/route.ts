@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
 import { logActivity } from '@/lib/activity-log'
+import { isPrivilegedRole } from '@/lib/doc-permissions'
 
 export async function GET(
   request: NextRequest,
@@ -42,6 +43,11 @@ export async function GET(
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
 
+    if (!isPrivilegedRole(user.role) && document.creator.id !== user.id) {
+      const perm = await db.documentPermission.findFirst({ where: { documentId: id, userId: user.id } })
+      if (!perm) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
     return NextResponse.json({ document })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -65,7 +71,7 @@ export async function PUT(
 
     const { id } = await params
     const body = await request.json()
-    const { title, status, data, folderId } = body
+    const { title, status, urgency, data, folderId } = body
 
     // Check document exists
     const existingDoc = await db.document.findUnique({ where: { id } })
@@ -96,6 +102,7 @@ export async function PUT(
     const updateData: Record<string, unknown> = {}
     if (title !== undefined) updateData.title = title
     if (status !== undefined) updateData.status = status
+    if (urgency !== undefined) updateData.urgency = urgency
     if (folderId !== undefined) updateData.folderId = folderId
 
     // Validate and stringify data

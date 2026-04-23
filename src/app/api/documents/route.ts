@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
 import { logActivity } from '@/lib/activity-log'
+import { grantDocumentPermission, isPrivilegedRole } from '@/lib/doc-permissions'
 import { Prisma } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
@@ -21,9 +22,26 @@ export async function GET(request: NextRequest) {
     const typeId = url.searchParams.get('typeId')
     const status = url.searchParams.get('status')
     const search = url.searchParams.get('search')
+    const creatorId = url.searchParams.get('creatorId')
+    const dateFrom = url.searchParams.get('dateFrom')
+    const tagIds = url.searchParams.get('tagIds')
+    const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10))
+    const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10)))
+    const sortFieldRaw = url.searchParams.get('sortField') || 'updatedAt'
+    const sortDir = (url.searchParams.get('sortDir') || 'desc') as 'asc' | 'desc'
+    const validSortFields = ['title', 'status', 'createdAt', 'updatedAt']
+    const sortField = validSortFields.includes(sortFieldRaw) ? sortFieldRaw : 'updatedAt'
 
     // Build where clause
     const where: Prisma.DocumentWhereInput = {}
+
+    // Privileged roles (ADMIN, DIRECTOR, CHIEF_ACCOUNTANT) see all documents
+    if (!isPrivilegedRole(user.role)) {
+      where.OR = [
+        { createdById: user.id },
+        { permissions: { some: { userId: user.id } } },
+      ]
+    }
 
     if (folderId) {
       where.folderId = folderId
@@ -41,29 +59,52 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      where.title = { contains: search }
+      where.title = { contains: search, mode: 'insensitive' }
     }
 
-    const documents = await db.document.findMany({
-      where,
-      include: {
-        type: true,
-        folder: {
-          select: { id: true, name: true, color: true, icon: true },
-        },
-        creator: {
-          select: { id: true, name: true, email: true },
-        },
-        tagLinks: {
-          include: {
-            tag: { select: { id: true, name: true, color: true } },
+    if (creatorId) {
+      where.createdById = creatorId
+    }
+
+    if (dateFrom) {
+      where.createdAt = { gte: new Date(dateFrom) }
+    }
+
+    if (tagIds) {
+      const ids = tagIds.split(',').filter(Boolean)
+      if (ids.length > 0) {
+        where.tagLinks = { some: { tagId: { in: ids } } }
+      }
+    }
+
+    const orderBy: Prisma.DocumentOrderByWithRelationInput = { [sortField]: sortDir }
+    const skip = (page - 1) * limit
+
+    const [total, documents] = await db.$transaction([
+      db.document.count({ where }),
+      db.document.findMany({
+        where,
+        include: {
+          type: true,
+          folder: {
+            select: { id: true, name: true, color: true, icon: true },
+          },
+          creator: {
+            select: { id: true, name: true, email: true },
+          },
+          tagLinks: {
+            include: {
+              tag: { select: { id: true, name: true, color: true } },
+            },
           },
         },
-      },
-      orderBy: { updatedAt: 'desc' },
-    })
+        orderBy,
+        skip,
+        take: limit,
+      }),
+    ])
 
-    return NextResponse.json({ documents })
+    return NextResponse.json({ documents, total, page, limit })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -82,7 +123,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { title, typeId, folderId, data } = body
+    const { title, typeId, folderId, urgency, data } = body
 
     if (!title || !typeId) {
       return NextResponse.json(
@@ -156,6 +197,7 @@ export async function POST(request: NextRequest) {
         typeId,
         folderId: folderId || null,
         status: 'DRAFT',
+        urgency: urgency || 'MEDIUM',
         data: dataString,
         createdById: user.id,
       },
@@ -169,6 +211,16 @@ export async function POST(request: NextRequest) {
         },
       },
     })
+
+    // Grant EDIT to creator and all privileged-role users (ADMIN, DIRECTOR, CHIEF_ACCOUNTANT)
+    await grantDocumentPermission(document.id, user.id, 'EDIT', user.id)
+    const privilegedUsers = await db.user.findMany({
+      where: { role: { in: ['ADMIN', 'DIRECTOR', 'CHIEF_ACCOUNTANT'] }, active: true, id: { not: user.id } },
+      select: { id: true },
+    })
+    await Promise.all(
+      privilegedUsers.map((u) => grantDocumentPermission(document.id, u.id, 'EDIT', user.id)),
+    )
 
     // Log document creation
     logActivity({

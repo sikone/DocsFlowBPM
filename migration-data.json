@@ -1,0 +1,2146 @@
+{
+  "departments": [
+    {
+      "id": "cmo61agdc0013n14wymhobt4e",
+      "name": "Sales",
+      "order": 0,
+      "createdAt": "2026-04-19T17:22:30.625Z",
+      "updatedAt": "2026-04-19T17:22:30.625Z"
+    },
+    {
+      "id": "cmo61agdd0014n14wyqy4rly8",
+      "name": "Бухгалтерия",
+      "order": 1,
+      "createdAt": "2026-04-19T17:22:30.625Z",
+      "updatedAt": "2026-04-19T17:22:30.625Z"
+    },
+    {
+      "id": "cmo61agdd0015n14wzpe4ta6w",
+      "name": "Юридический",
+      "order": 2,
+      "createdAt": "2026-04-19T17:22:30.625Z",
+      "updatedAt": "2026-04-19T17:22:30.625Z"
+    },
+    {
+      "id": "cmo61agdd0016n14wc9qu0y89",
+      "name": "Backoffice",
+      "order": 3,
+      "createdAt": "2026-04-19T17:22:30.625Z",
+      "updatedAt": "2026-04-19T17:22:30.625Z"
+    },
+    {
+      "id": "cmo61agdd0017n14w4oam9krq",
+      "name": "ИТ",
+      "order": 4,
+      "createdAt": "2026-04-19T17:22:30.625Z",
+      "updatedAt": "2026-04-19T17:22:30.625Z"
+    },
+    {
+      "id": "cmo61agdd0018n14w1d4022s9",
+      "name": "HR",
+      "order": 5,
+      "createdAt": "2026-04-19T17:22:30.625Z",
+      "updatedAt": "2026-04-19T17:22:30.625Z"
+    },
+    {
+      "id": "cmo6vv456001hn14w6zf8kg5j",
+      "name": "Топ менджмент",
+      "order": 6,
+      "createdAt": "2026-04-20T07:38:23.034Z",
+      "updatedAt": "2026-04-20T07:38:23.034Z"
+    }
+  ],
+  "users": [
+    {
+      "id": "cmo61928r0000n14wija6xe47",
+      "email": "admin@bpmn.local",
+      "password": "$2b$12$kAzloSwodiU3YXYaPwcN/ORDNzxaCLe5/HP.EHUp5vYoUmi4Fku5S",
+      "name": "Administrator",
+      "role": "ADMIN",
+      "avatar": null,
+      "active": true,
+      "isDepartmentHead": false,
+      "departmentId": null,
+      "createdAt": "2026-04-19T17:21:25.659Z",
+      "updatedAt": "2026-04-19T17:21:25.659Z"
+    },
+    {
+      "id": "cmo6192g10001n14wlyl4qnsj",
+      "email": "accountant@bpmn.local",
+      "password": "$2b$12$vN3JLqxKzPgM0HWmrrWXIOHdRM4P1ewwgqDmd1xdIWUf7OCm/qAIy",
+      "name": "Бухгалтер",
+      "role": "ADVANCED",
+      "avatar": null,
+      "active": true,
+      "isDepartmentHead": false,
+      "departmentId": null,
+      "createdAt": "2026-04-19T17:21:25.921Z",
+      "updatedAt": "2026-04-19T17:21:25.921Z"
+    },
+    {
+      "id": "cmo6192mu0002n14wwftp6n2f",
+      "email": "director@bpmn.local",
+      "password": "$2b$12$l9rMLAyX9HHw1otgf0BH1O/YloVW6uhHZIbBFMKTHrFtHxU7yOUJO",
+      "name": "Директор",
+      "role": "ADVANCED",
+      "avatar": null,
+      "active": true,
+      "isDepartmentHead": false,
+      "departmentId": null,
+      "createdAt": "2026-04-19T17:21:26.166Z",
+      "updatedAt": "2026-04-19T17:21:26.166Z"
+    },
+    {
+      "id": "cmo6192ti0003n14wb9velngx",
+      "email": "employee@bpmn.local",
+      "password": "$2b$12$pltkiryC9au7ODhEPmKBu.sfWy.G/ykR5I7iPgVLyHXCmvMaMBr/e",
+      "name": "Сотрудник",
+      "role": "USER",
+      "avatar": null,
+      "active": true,
+      "isDepartmentHead": false,
+      "departmentId": null,
+      "createdAt": "2026-04-19T17:21:26.406Z",
+      "updatedAt": "2026-04-19T17:21:26.406Z"
+    },
+    {
+      "id": "cmo6vt0wv001an14ws080gb7e",
+      "email": "anna@mail.ru",
+      "password": "$2b$12$Zx5LvUSPUmQxXsXkJkNup.iQjv7ROdcl4ydRl7bb7Z6ynYYOYm5/G",
+      "name": "anna litkovskaya",
+      "role": "USER",
+      "avatar": null,
+      "active": true,
+      "isDepartmentHead": false,
+      "departmentId": "cmo61agdd0016n14wc9qu0y89",
+      "createdAt": "2026-04-20T07:36:45.535Z",
+      "updatedAt": "2026-04-20T09:01:49.105Z"
+    },
+    {
+      "id": "cmo6vti2m001cn14wwmfsj64o",
+      "email": "anton@mail.ru",
+      "password": "$2b$12$Uqe/5golfvAh1A1gpklAUOxRxZfoOtO3e9uY72tGPX.RsirPlmdai",
+      "name": "Антон Кузнецов",
+      "role": "USER",
+      "avatar": null,
+      "active": true,
+      "isDepartmentHead": false,
+      "departmentId": "cmo61agdc0013n14wymhobt4e",
+      "createdAt": "2026-04-20T07:37:07.774Z",
+      "updatedAt": "2026-04-20T09:01:25.841Z"
+    },
+    {
+      "id": "cmo6vtwdd001en14wtd65pwti",
+      "email": "elena@mail.ru",
+      "password": "$2b$12$.tsJ6kirqtTeaMmKqELPzuWIWvsS1XZ7VE0H23KLkoKpvR2SUidme",
+      "name": "elena burzina",
+      "role": "CHIEF_ACCOUNTANT",
+      "avatar": null,
+      "active": true,
+      "isDepartmentHead": true,
+      "departmentId": "cmo61agdd0014n14wyqy4rly8",
+      "createdAt": "2026-04-20T07:37:26.306Z",
+      "updatedAt": "2026-04-20T19:19:55.741Z"
+    },
+    {
+      "id": "cmo6vupu2001gn14wnjtc8l1d",
+      "email": "viktor@mail.ru",
+      "password": "$2b$12$c92vDscb8m1guUw.5Mro4.6j2wOMSY09AGNru.rh3czG1BkVI/Shq",
+      "name": "viktor semenduev",
+      "role": "DIRECTOR",
+      "avatar": null,
+      "active": true,
+      "isDepartmentHead": false,
+      "departmentId": null,
+      "createdAt": "2026-04-20T07:38:04.490Z",
+      "updatedAt": "2026-04-20T09:01:57.313Z"
+    },
+    {
+      "id": "cmo6w3nc6001nn14wxptt28ah",
+      "email": "david@mail.ru",
+      "password": "$2b$12$dYOifLcJac2mMaFg1yfTKehTEA968c7lWs/90w.eokCshPFChFtfq",
+      "name": "david korelov",
+      "role": "USER",
+      "avatar": null,
+      "active": true,
+      "isDepartmentHead": false,
+      "departmentId": "cmo61agdd0015n14wzpe4ta6w",
+      "createdAt": "2026-04-20T07:45:01.158Z",
+      "updatedAt": "2026-04-20T09:02:06.578Z"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "cmo619kse000xn14weaz9ebnn",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "token": "e25e1fc6-8971-48c5-bb8e-2c7792731593",
+      "createdAt": "2026-04-19T17:21:49.695Z",
+      "expiresAt": "2026-04-26T17:21:49.693Z"
+    },
+    {
+      "id": "cmo6z9mfp000vn1pghbzg6q99",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "token": "d3ed66ba-cb27-4c8a-bab7-e4a403369c4a",
+      "createdAt": "2026-04-20T09:13:38.774Z",
+      "expiresAt": "2026-04-27T09:13:38.773Z"
+    },
+    {
+      "id": "cmo7616zn002bn1igpmqdbooj",
+      "userId": "cmo6w3nc6001nn14wxptt28ah",
+      "token": "6cbf54fa-0603-45c6-9b8d-2336e2012a7f",
+      "createdAt": "2026-04-20T12:23:02.819Z",
+      "expiresAt": "2026-04-27T12:23:02.818Z"
+    },
+    {
+      "id": "cmo7jejpf0003n1box7ub40g9",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "token": "54cdd515-e0fd-4f6d-9938-2c886127a282",
+      "createdAt": "2026-04-20T18:37:20.835Z",
+      "expiresAt": "2026-04-27T18:37:20.834Z"
+    }
+  ],
+  "folders": [
+    {
+      "id": "cmo619l9b0010n14wvuo7qzxh",
+      "name": "Входящие документы",
+      "parentId": null,
+      "color": "#3b82f6",
+      "icon": "inbox",
+      "order": 0,
+      "isSystem": true,
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-19T17:21:50.304Z",
+      "updatedAt": "2026-04-19T17:21:50.304Z"
+    },
+    {
+      "id": "cmo619l9b0011n14w2on6da18",
+      "name": "Мои документы",
+      "parentId": null,
+      "color": "#10b981",
+      "icon": "folder",
+      "order": 1,
+      "isSystem": true,
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-19T17:21:50.304Z",
+      "updatedAt": "2026-04-19T17:21:50.304Z"
+    },
+    {
+      "id": "cmo619l9b0012n14wv22c3yj2",
+      "name": "Архив",
+      "parentId": null,
+      "color": "#6b7280",
+      "icon": "archive",
+      "order": 2,
+      "isSystem": true,
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-19T17:21:50.304Z",
+      "updatedAt": "2026-04-19T17:21:50.304Z"
+    },
+    {
+      "id": "cmo6yuxx4001tn14w1dhd0smg",
+      "name": "Входящие документы",
+      "parentId": null,
+      "color": "#3b82f6",
+      "icon": "inbox",
+      "order": 0,
+      "isSystem": true,
+      "createdById": "cmo6vti2m001cn14wwmfsj64o",
+      "createdAt": "2026-04-20T09:02:13.816Z",
+      "updatedAt": "2026-04-20T09:02:13.816Z"
+    },
+    {
+      "id": "cmo6yuxx4001un14wiun62v4i",
+      "name": "Мои документы",
+      "parentId": null,
+      "color": "#10b981",
+      "icon": "folder",
+      "order": 1,
+      "isSystem": true,
+      "createdById": "cmo6vti2m001cn14wwmfsj64o",
+      "createdAt": "2026-04-20T09:02:13.816Z",
+      "updatedAt": "2026-04-20T09:02:13.816Z"
+    },
+    {
+      "id": "cmo6yuxx4001vn14wrl6vz09b",
+      "name": "Архив",
+      "parentId": null,
+      "color": "#6b7280",
+      "icon": "archive",
+      "order": 2,
+      "isSystem": true,
+      "createdById": "cmo6vti2m001cn14wwmfsj64o",
+      "createdAt": "2026-04-20T09:02:13.816Z",
+      "updatedAt": "2026-04-20T09:02:13.816Z"
+    },
+    {
+      "id": "cmo6z9ml9000yn1pgnzjkldcy",
+      "name": "Входящие документы",
+      "parentId": null,
+      "color": "#3b82f6",
+      "icon": "inbox",
+      "order": 0,
+      "isSystem": true,
+      "createdById": "cmo6vt0wv001an14ws080gb7e",
+      "createdAt": "2026-04-20T09:13:38.973Z",
+      "updatedAt": "2026-04-20T09:13:38.973Z"
+    },
+    {
+      "id": "cmo6z9ml9000zn1pg44wve3zr",
+      "name": "Мои документы",
+      "parentId": null,
+      "color": "#10b981",
+      "icon": "folder",
+      "order": 1,
+      "isSystem": true,
+      "createdById": "cmo6vt0wv001an14ws080gb7e",
+      "createdAt": "2026-04-20T09:13:38.973Z",
+      "updatedAt": "2026-04-20T09:13:38.973Z"
+    },
+    {
+      "id": "cmo6z9ml90010n1pgkiciodp7",
+      "name": "Архив",
+      "parentId": null,
+      "color": "#6b7280",
+      "icon": "archive",
+      "order": 2,
+      "isSystem": true,
+      "createdById": "cmo6vt0wv001an14ws080gb7e",
+      "createdAt": "2026-04-20T09:13:38.973Z",
+      "updatedAt": "2026-04-20T09:13:38.973Z"
+    },
+    {
+      "id": "cmo76176d002en1igmvf392ij",
+      "name": "Входящие документы",
+      "parentId": null,
+      "color": "#3b82f6",
+      "icon": "inbox",
+      "order": 0,
+      "isSystem": true,
+      "createdById": "cmo6w3nc6001nn14wxptt28ah",
+      "createdAt": "2026-04-20T12:23:03.061Z",
+      "updatedAt": "2026-04-20T12:23:03.061Z"
+    },
+    {
+      "id": "cmo76176d002fn1ig27my7zs1",
+      "name": "Мои документы",
+      "parentId": null,
+      "color": "#10b981",
+      "icon": "folder",
+      "order": 1,
+      "isSystem": true,
+      "createdById": "cmo6w3nc6001nn14wxptt28ah",
+      "createdAt": "2026-04-20T12:23:03.061Z",
+      "updatedAt": "2026-04-20T12:23:03.061Z"
+    },
+    {
+      "id": "cmo76176d002gn1igzj6x1hja",
+      "name": "Архив",
+      "parentId": null,
+      "color": "#6b7280",
+      "icon": "archive",
+      "order": 2,
+      "isSystem": true,
+      "createdById": "cmo6w3nc6001nn14wxptt28ah",
+      "createdAt": "2026-04-20T12:23:03.061Z",
+      "updatedAt": "2026-04-20T12:23:03.061Z"
+    }
+  ],
+  "documentTypes": [
+    {
+      "id": "cmo6192w5000an14wwcjm5r3u",
+      "name": "Счёт",
+      "systemName": "invoice",
+      "description": "Счёт на оплату",
+      "icon": "receipt",
+      "color": "#f59e0b",
+      "active": true,
+      "formSchema": "[{\"id\":\"number\",\"label\":\"Номер\",\"type\":\"text\",\"required\":true,\"column\":1,\"row\":1,\"placeholder\":\"Введите номер\"},{\"id\":\"date\",\"label\":\"Дата\",\"type\":\"date\",\"required\":true,\"column\":1,\"row\":2},{\"id\":\"supplier\",\"label\":\"Поставщик\",\"type\":\"text\",\"required\":true,\"column\":1,\"row\":3,\"placeholder\":\"Наименование поставщика\"},{\"id\":\"buyer\",\"label\":\"Покупатель\",\"type\":\"text\",\"required\":true,\"column\":2,\"row\":3,\"placeholder\":\"Наименование покупателя\"},{\"id\":\"amount\",\"label\":\"Сумма\",\"type\":\"number\",\"required\":true,\"column\":1,\"row\":4,\"prefix\":\"₽\"},{\"id\":\"description\",\"label\":\"Описание\",\"type\":\"textarea\",\"required\":false,\"column\":1,\"row\":5,\"placeholder\":\"Описание счёта\"}]",
+      "createdAt": "2026-04-19T17:21:26.501Z",
+      "updatedAt": "2026-04-19T17:21:26.501Z"
+    },
+    {
+      "id": "cmo6192wq000bn14w9711f26c",
+      "name": "Договор (портфель)",
+      "systemName": "DOGOVOR_PORTFEL",
+      "description": "Договор",
+      "icon": "💼",
+      "color": "#3b82f6",
+      "active": true,
+      "formSchema": "[{\"id\":\"number\",\"label\":\"Номер\",\"type\":\"text\",\"required\":true,\"column\":1,\"row\":1,\"placeholder\":\"Введите номер\",\"width\":\"third\"},{\"id\":\"date\",\"label\":\"Дата\",\"type\":\"date\",\"required\":true,\"column\":2,\"row\":2,\"width\":\"third\"},{\"id\":\"field_1776672978082_87qq0\",\"label\":\"Описание (предмет договора)\",\"systemName\":\"opisanie_predmet_dogovora\",\"type\":\"textarea\",\"required\":true,\"column\":1,\"row\":3,\"placeholder\":\"\",\"width\":\"full\"},{\"id\":\"field_1776673089874_r1ygt\",\"label\":\"Сумма\",\"systemName\":\"summa\",\"type\":\"money\",\"required\":true,\"column\":1,\"row\":4,\"placeholder\":\"\",\"width\":\"third\"},{\"id\":\"field_1776673115578_da6up\",\"label\":\"Включая НДС\",\"systemName\":\"vklyuchaya_nds\",\"type\":\"switch\",\"required\":false,\"column\":2,\"row\":5,\"placeholder\":\"\",\"width\":\"third\"},{\"id\":\"field_1776673136441_g0k86\",\"label\":\"НДС\",\"systemName\":\"nds\",\"type\":\"computed\",\"required\":false,\"column\":1,\"row\":6,\"placeholder\":\"\",\"width\":\"third\",\"formula\":\"IF({vklyuchaya_nds}, ROUND({summa} / 122 * 22, 2), ROUND({summa} * 22 / 100, 2))\"},{\"id\":\"field_1776673256353_r04rm\",\"label\":\"Разделитель\",\"systemName\":\"razdelitel\",\"type\":\"separator\",\"required\":false,\"column\":1,\"row\":7,\"placeholder\":\"\",\"width\":\"full\"},{\"id\":\"field_1776673231897_gt4wo\",\"label\":\"Контрагент\",\"systemName\":\"kontragent\",\"type\":\"heading\",\"required\":false,\"column\":1,\"row\":8,\"placeholder\":\"\",\"width\":\"full\"},{\"id\":\"field_1776673268913_6eruy\",\"label\":\"Контрагент\",\"systemName\":\"kontragent\",\"type\":\"select\",\"required\":false,\"column\":1,\"row\":9,\"placeholder\":\"\",\"options\":[\"Вариант 1\",\"Вариант 2\"],\"width\":\"third\",\"source\":\"directory\"},{\"id\":\"field_1776673629416_n8ayo\",\"label\":\"Контакт контрагента\",\"systemName\":\"kontakt_kontragenta\",\"type\":\"select\",\"required\":true,\"column\":1,\"row\":10,\"placeholder\":\"\",\"options\":[\"Вариант 1\",\"Вариант 2\"],\"width\":\"third\",\"source\":\"directory\",\"directorySource\":\"contacts\"},{\"id\":\"field_1776673796799_csf0c\",\"label\":\"Отправить емейл\",\"systemName\":\"otpravit_emeyl\",\"type\":\"switch\",\"required\":false,\"column\":1,\"row\":11,\"placeholder\":\"\",\"width\":\"third\"},{\"id\":\"field_1776675153717_xhhjl\",\"label\":\"Разделитель\",\"systemName\":\"razdelitel\",\"type\":\"separator\",\"required\":false,\"column\":1,\"row\":12,\"placeholder\":\"\",\"width\":\"full\"},{\"id\":\"field_1776675156003_fdiln\",\"label\":\"Наша организация\",\"systemName\":\"nasha_organizatsiya\",\"type\":\"heading\",\"required\":false,\"column\":1,\"row\":13,\"placeholder\":\"\",\"width\":\"full\"},{\"id\":\"field_1776675181579_iqpyn\",\"label\":\"Наша организация\",\"systemName\":\"nasha_organizatsiya\",\"type\":\"counterparty\",\"required\":true,\"column\":1,\"row\":14,\"placeholder\":\"\",\"width\":\"third\"},{\"id\":\"field_1776675455547_bt3d4\",\"label\":\"Ответственный за договор\",\"systemName\":\"otvetstvennyy_za_dogovor\",\"type\":\"select\",\"required\":false,\"column\":1,\"row\":15,\"placeholder\":\"\",\"options\":[\"Вариант 1\",\"Вариант 2\"],\"width\":\"half\",\"source\":\"directory\",\"directorySource\":\"contacts\"},{\"id\":\"field_1776675504507_0oqve\",\"label\":\"Примечания\",\"systemName\":\"primechaniya\",\"type\":\"textarea\",\"required\":false,\"column\":1,\"row\":16,\"placeholder\":\"\",\"width\":\"full\"}]",
+      "createdAt": "2026-04-19T17:21:26.523Z",
+      "updatedAt": "2026-04-20T12:16:36.055Z"
+    },
+    {
+      "id": "cmo6192xb000cn14wzaj6qv6e",
+      "name": "Служебная записка",
+      "systemName": "memo",
+      "description": "Служебная записка",
+      "icon": "file-text",
+      "color": "#10b981",
+      "active": true,
+      "formSchema": "[{\"id\":\"from\",\"label\":\"От кого\",\"type\":\"text\",\"required\":true,\"column\":1,\"row\":1,\"placeholder\":\"ФИО отправителя\"},{\"id\":\"to\",\"label\":\"Кому\",\"type\":\"text\",\"required\":true,\"column\":2,\"row\":1,\"placeholder\":\"ФИО получателя\"},{\"id\":\"date\",\"label\":\"Дата\",\"type\":\"date\",\"required\":true,\"column\":1,\"row\":2},{\"id\":\"subject\",\"label\":\"Тема\",\"type\":\"text\",\"required\":true,\"column\":1,\"row\":3,\"placeholder\":\"Тема записки\"},{\"id\":\"text\",\"label\":\"Текст\",\"type\":\"textarea\",\"required\":true,\"column\":1,\"row\":4,\"placeholder\":\"Содержание служебной записки\"},{\"id\":\"priority\",\"label\":\"Приоритет\",\"type\":\"select\",\"required\":true,\"column\":2,\"row\":4,\"options\":[\"Низкий\",\"Средний\",\"Высокий\",\"Критичный\"]}]",
+      "createdAt": "2026-04-19T17:21:26.543Z",
+      "updatedAt": "2026-04-19T17:21:26.543Z"
+    }
+  ],
+  "documentTemplates": [
+    {
+      "id": "cmo6192zr000hn14wnry4blx1",
+      "name": "Быстрый счёт",
+      "description": "Шаблон счёта с предзаполненными полями поставщика",
+      "typeId": "cmo6192w5000an14wwcjm5r3u",
+      "data": "{\"supplier\":\"ООО \\\"Компания\\\"\"}",
+      "icon": "receipt",
+      "color": "#f59e0b",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-19T17:21:26.632Z",
+      "updatedAt": "2026-04-19T17:21:26.632Z"
+    },
+    {
+      "id": "cmo61930e000jn14w5i0r39vj",
+      "name": "Стандартный договор",
+      "description": "Шаблон договора с предзаполненными сторонами",
+      "typeId": "cmo6192wq000bn14w9711f26c",
+      "data": "{\"parties\":\"ООО \\\"Компания\\\" — Заказчик\"}",
+      "icon": "file-signature",
+      "color": "#3b82f6",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-19T17:21:26.655Z",
+      "updatedAt": "2026-04-19T17:21:26.655Z"
+    },
+    {
+      "id": "cmo619312000ln14w4cawk4nt",
+      "name": "Заявка на отпуск",
+      "description": "Шаблон служебной записки для заявления на отпуск",
+      "typeId": "cmo6192xb000cn14wzaj6qv6e",
+      "data": "{\"priority\":\"Средний\"}",
+      "icon": "calendar",
+      "color": "#10b981",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-19T17:21:26.678Z",
+      "updatedAt": "2026-04-19T17:21:26.678Z"
+    }
+  ],
+  "documents": [
+    {
+      "id": "cmo6z0q390001n1pga5mnm0t9",
+      "title": "Стандартный договор",
+      "number": "DOGOVOR_PORTFEL-2026-001",
+      "typeId": "cmo6192wq000bn14w9711f26c",
+      "folderId": "cmo6yuxx4001tn14w1dhd0smg",
+      "status": "IN_PROGRESS",
+      "urgency": "HIGH",
+      "data": "{\"number\":\"234423432\",\"date\":\"2026-04-21\",\"field_1776672993753_7oxgd\":\"Обычная\",\"field_1776672978082_87qq0\":\"паыупаывпывапаывпва\",\"field_1776673089874_r1ygt\":\"100000\",\"field_1776673115578_da6up\":true,\"field_1776673136441_g0k86\":\"18 032,79\",\"field_1776673256353_r04rm\":\"\",\"field_1776673231897_gt4wo\":\"\",\"field_1776673268913_6eruy\":\"cmo6vzj1l001jn14wng4y8wvm\",\"field_1776673629416_n8ayo\":\"cmo6xnve7001on14wbnhx3vrn\",\"field_1776673796799_csf0c\":true,\"field_1776675153717_xhhjl\":\"\",\"field_1776675156003_fdiln\":\"\",\"field_1776675181579_iqpyn\":\"cmo6vyw9s001in14wfgcqbvrm\",\"field_1776675455547_bt3d4\":\"cmo6w1bcx001ln14w0880ldvm\",\"field_1776675504507_0oqve\":\"ну тут примечание типа\"}",
+      "createdById": "cmo6vti2m001cn14wwmfsj64o",
+      "createdAt": "2026-04-20T09:06:43.605Z",
+      "updatedAt": "2026-04-20T11:38:33.451Z"
+    },
+    {
+      "id": "cmo71vlxs0007n1z82vlc0e2w",
+      "title": "Стандартный договор",
+      "number": "DOGOVOR_PORTFEL-2026-002",
+      "typeId": "cmo6192wq000bn14w9711f26c",
+      "folderId": "cmo619l9b0010n14wvuo7qzxh",
+      "status": "IN_PROGRESS",
+      "urgency": "CRITICAL",
+      "data": "{\"number\":\"efsddf2332\",\"date\":\"2026-04-22\",\"field_1776672993753_7oxgd\":\"Высокая\",\"field_1776672978082_87qq0\":\"werrgfgfd\",\"field_1776673089874_r1ygt\":\"11111\",\"field_1776673115578_da6up\":true,\"field_1776673136441_g0k86\":\"2 003,62\",\"field_1776673256353_r04rm\":\"\",\"field_1776673231897_gt4wo\":\"\",\"field_1776673268913_6eruy\":\"cmo6w04tm001kn14wqdtp8yws\",\"field_1776673629416_n8ayo\":\"cmo6xnve7001on14wbnhx3vrn\",\"field_1776673796799_csf0c\":false,\"field_1776675153717_xhhjl\":\"\",\"field_1776675156003_fdiln\":\"\",\"field_1776675181579_iqpyn\":\"cmo6vyw9s001in14wfgcqbvrm\",\"field_1776675455547_bt3d4\":\"\",\"field_1776675504507_0oqve\":\"dfgfdgdfgfd\"}",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T10:26:43.792Z",
+      "updatedAt": "2026-04-20T12:09:12.857Z"
+    },
+    {
+      "id": "cmo75z4ms001jn1igmxaa9lbm",
+      "title": "Договор академическая",
+      "number": "DOGOVOR_PORTFEL-2026-003",
+      "typeId": "cmo6192wq000bn14w9711f26c",
+      "folderId": "cmo619l9b0011n14w2on6da18",
+      "status": "IN_PROGRESS",
+      "urgency": "HIGH",
+      "data": "{\"number\":\"43АРФ2234\",\"date\":\"2026-04-29\",\"field_1776672978082_87qq0\":\"ой бледь\",\"field_1776673089874_r1ygt\":\"333333\",\"field_1776673115578_da6up\":true,\"field_1776673136441_g0k86\":\"60 109,23\",\"field_1776673256353_r04rm\":\"\",\"field_1776673231897_gt4wo\":\"\",\"field_1776673268913_6eruy\":\"cmo6w04tm001kn14wqdtp8yws\",\"field_1776673629416_n8ayo\":\"cmo6xnve7001on14wbnhx3vrn\",\"field_1776673796799_csf0c\":true,\"field_1776675153717_xhhjl\":\"\",\"field_1776675156003_fdiln\":\"\",\"field_1776675181579_iqpyn\":\"cmo6vyw9s001in14wfgcqbvrm\",\"field_1776675455547_bt3d4\":\"cmo6w1bcx001ln14w0880ldvm\",\"field_1776675504507_0oqve\":\"\"}",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T12:21:26.452Z",
+      "updatedAt": "2026-04-20T16:56:36.350Z"
+    },
+    {
+      "id": "cmo7g8yrb0001n1goonnk0ogj",
+      "title": "Договор с маником",
+      "number": "DOGOVOR_PORTFEL-2026-004",
+      "typeId": "cmo6192wq000bn14w9711f26c",
+      "folderId": "cmo619l9b0010n14wvuo7qzxh",
+      "status": "IN_PROGRESS",
+      "urgency": "CRITICAL",
+      "data": "{\"number\":\"543543\",\"date\":\"2026-04-23\",\"field_1776672978082_87qq0\":\"рнкеурпаврпа\",\"field_1776673089874_r1ygt\":\"2232\",\"field_1776673115578_da6up\":true,\"field_1776673136441_g0k86\":\"402,49\",\"field_1776673256353_r04rm\":\"\",\"field_1776673231897_gt4wo\":\"\",\"field_1776673268913_6eruy\":\"cmo6vzj1l001jn14wng4y8wvm\",\"field_1776673629416_n8ayo\":\"cmo6w1bcx001ln14w0880ldvm\",\"field_1776673796799_csf0c\":true,\"field_1776675153717_xhhjl\":\"\",\"field_1776675156003_fdiln\":\"\",\"field_1776675181579_iqpyn\":\"cmo6vyw9s001in14wfgcqbvrm\",\"field_1776675455547_bt3d4\":\"cmo6xnve7001on14wbnhx3vrn\",\"field_1776675504507_0oqve\":\"\"}",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T17:09:01.559Z",
+      "updatedAt": "2026-04-20T17:10:26.805Z"
+    }
+  ],
+  "documentTags": [
+    {
+      "id": "cmo61931m000nn14wdrj8bieh",
+      "name": "Срочно",
+      "color": "#ef4444",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-19T17:21:26.698Z",
+      "updatedAt": "2026-04-19T17:21:26.698Z"
+    },
+    {
+      "id": "cmo619328000pn14wwguv2uzt",
+      "name": "На согласование",
+      "color": "#f59e0b",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-19T17:21:26.721Z",
+      "updatedAt": "2026-04-19T17:21:26.721Z"
+    },
+    {
+      "id": "cmo61932t000rn14wtzcs8pki",
+      "name": "Архив",
+      "color": "#6b7280",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-19T17:21:26.742Z",
+      "updatedAt": "2026-04-19T17:21:26.742Z"
+    },
+    {
+      "id": "cmo61933f000tn14wvq9apgep",
+      "name": "Важно",
+      "color": "#8b5cf6",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-19T17:21:26.764Z",
+      "updatedAt": "2026-04-19T17:21:26.764Z"
+    },
+    {
+      "id": "cmo61933z000vn14wuzc1hf88",
+      "name": "На проверке",
+      "color": "#06b6d4",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-19T17:21:26.784Z",
+      "updatedAt": "2026-04-19T17:21:26.784Z"
+    }
+  ],
+  "documentTagLinks": [],
+  "favoriteDocuments": [],
+  "activityLogs": [
+    {
+      "id": "cmo619kv8000zn14wzf7yzfum",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "LOGIN",
+      "entityType": null,
+      "entityId": null,
+      "details": "Вход в систему: Administrator",
+      "createdAt": "2026-04-19T17:21:49.796Z"
+    },
+    {
+      "id": "cmo6yuxtj001sn14wnnafbauq",
+      "userId": "cmo6vti2m001cn14wwmfsj64o",
+      "action": "LOGIN",
+      "entityType": null,
+      "entityId": null,
+      "details": "Вход в систему: Антон Кузнецов",
+      "createdAt": "2026-04-20T09:02:13.688Z"
+    },
+    {
+      "id": "cmo6z0q5i000bn1pgoxlglt2k",
+      "userId": "cmo6vti2m001cn14wwmfsj64o",
+      "action": "CREATE_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Создан документ: Стандартный договор (DOGOVOR_PORTFEL-2026-001)",
+      "createdAt": "2026-04-20T09:06:43.687Z"
+    },
+    {
+      "id": "cmo6z980c000tn1pgbh08g9he",
+      "userId": "cmo6vti2m001cn14wwmfsj64o",
+      "action": "APPROVAL_STARTED",
+      "entityType": "DOCUMENT",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Отправлен на согласование",
+      "createdAt": "2026-04-20T09:13:20.076Z"
+    },
+    {
+      "id": "cmo6z9mij000xn1pg87svks6r",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "LOGIN",
+      "entityType": null,
+      "entityId": null,
+      "details": "Вход в систему: anna litkovskaya",
+      "createdAt": "2026-04-20T09:13:38.876Z"
+    },
+    {
+      "id": "cmo6z9sob0012n1pgmj6fyrt9",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T09:13:46.860Z"
+    },
+    {
+      "id": "cmo6zar8v0018n1pgarexg87r",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "APPROVAL_STEP_APPROVED",
+      "entityType": "DOCUMENT",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Шаг «Проверка Backoffice» — Согласован: Збс",
+      "createdAt": "2026-04-20T09:14:31.664Z"
+    },
+    {
+      "id": "cmo6zax7k001an1pgx9bwzet5",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T09:14:39.393Z"
+    },
+    {
+      "id": "cmo6zc10l001cn1pgsb7oogs5",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Изменён документ: Стандартный договор",
+      "createdAt": "2026-04-20T09:15:30.981Z"
+    },
+    {
+      "id": "cmo6zc5vy001en1pgz2gzjbko",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Изменён документ: Стандартный договор",
+      "createdAt": "2026-04-20T09:15:37.294Z"
+    },
+    {
+      "id": "cmo6zc6pu001gn1pglq0ry61s",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Изменён документ: Стандартный договор",
+      "createdAt": "2026-04-20T09:15:38.370Z"
+    },
+    {
+      "id": "cmo71cti1001in1pgqkmmcyhu",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T10:12:07.130Z"
+    },
+    {
+      "id": "cmo71tsbs0001n1z8we0e8rtj",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T10:25:18.761Z"
+    },
+    {
+      "id": "cmo71tyg00003n1z84b4ov86t",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T10:25:26.688Z"
+    },
+    {
+      "id": "cmo71u7ld0005n1z8arzoaeyz",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T10:25:38.545Z"
+    },
+    {
+      "id": "cmo71vlzt000fn1z8k10b1tqa",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "CREATE_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Создан документ: Стандартный договор (DOGOVOR_PORTFEL-2026-002)",
+      "createdAt": "2026-04-20T10:26:43.866Z"
+    },
+    {
+      "id": "cmo71xbkw0001n1wgt468iggr",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T10:28:03.681Z"
+    },
+    {
+      "id": "cmo74bm9l0001n1uot0vvy2bk",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T11:35:09.944Z"
+    },
+    {
+      "id": "cmo74fr800003n1uoxf0wo3kw",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T11:38:22.992Z"
+    },
+    {
+      "id": "cmo74fwxh0005n1uocq8ikavh",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Изменён документ: Стандартный договор",
+      "createdAt": "2026-04-20T11:38:30.390Z"
+    },
+    {
+      "id": "cmo74fzav0007n1uo9bl76q7x",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Изменён документ: Стандартный договор",
+      "createdAt": "2026-04-20T11:38:33.463Z"
+    },
+    {
+      "id": "cmo74g2230009n1uoxqpbo7xf",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T11:38:37.035Z"
+    },
+    {
+      "id": "cmo74gz4o0001n1kctc71p6va",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T11:39:19.897Z"
+    },
+    {
+      "id": "cmo74h5lq0003n1kcyn5ymrdu",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T11:39:28.286Z"
+    },
+    {
+      "id": "cmo74hapf000hn1kcfb0b0hsp",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "APPROVAL_STARTED",
+      "entityType": "DOCUMENT",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Отправлен на согласование",
+      "createdAt": "2026-04-20T11:39:34.899Z"
+    },
+    {
+      "id": "cmo74hguc000jn1kcarfx2anz",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Изменён документ: Стандартный договор",
+      "createdAt": "2026-04-20T11:39:42.853Z"
+    },
+    {
+      "id": "cmo74hiav000ln1kc7a9j0cby",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Изменён документ: Стандартный договор",
+      "createdAt": "2026-04-20T11:39:44.743Z"
+    },
+    {
+      "id": "cmo74hlx1000nn1kcoed7f5o2",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T11:39:49.429Z"
+    },
+    {
+      "id": "cmo75ic620001n1igtqjqkiz8",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T12:08:23.067Z"
+    },
+    {
+      "id": "cmo75isxj0003n1igj8mza3gh",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T12:08:44.791Z"
+    },
+    {
+      "id": "cmo75j0xs0009n1igissjk02n",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "APPROVAL_STEP_APPROVED",
+      "entityType": "DOCUMENT",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Шаг «Проверка Backoffice» — Согласован: Первое согласование",
+      "createdAt": "2026-04-20T12:08:55.168Z"
+    },
+    {
+      "id": "cmo75j5di000bn1ig2eahqb04",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T12:09:00.919Z"
+    },
+    {
+      "id": "cmo75jc87000dn1igrh6h96vi",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Изменён документ: Стандартный договор",
+      "createdAt": "2026-04-20T12:09:09.800Z"
+    },
+    {
+      "id": "cmo75jelp000fn1igmcks0t2r",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Изменён документ: Стандартный договор",
+      "createdAt": "2026-04-20T12:09:12.877Z"
+    },
+    {
+      "id": "cmo75jrkt000hn1ig75acsy7w",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T12:09:29.694Z"
+    },
+    {
+      "id": "cmo75onhd000jn1igosh9iqxo",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T12:13:17.665Z"
+    },
+    {
+      "id": "cmo75p2tt000ln1igjpvk2mcy",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T12:13:37.554Z"
+    },
+    {
+      "id": "cmo75t4tz000nn1ig3ckkjc48",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T12:16:46.775Z"
+    },
+    {
+      "id": "cmo75weqh000xn1igh4qam946",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "CREATE_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75weol000pn1igw538ti94",
+      "details": "Создан документ: Новый портфель академическая (DOGOVOR_PORTFEL-2026-003)",
+      "createdAt": "2026-04-20T12:19:19.577Z"
+    },
+    {
+      "id": "cmo75whrm001dn1igmpjqtwcy",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "APPROVAL_STARTED",
+      "entityType": "DOCUMENT",
+      "entityId": "cmo75weol000pn1igw538ti94",
+      "details": "Отправлен на согласование",
+      "createdAt": "2026-04-20T12:19:23.507Z"
+    },
+    {
+      "id": "cmo75wl4z001fn1igzm9rgtqa",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75weol000pn1igw538ti94",
+      "details": "Новый портфель академическая",
+      "createdAt": "2026-04-20T12:19:27.876Z"
+    },
+    {
+      "id": "cmo75x9ts001hn1ig7foi88nr",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "DELETE_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75weol000pn1igw538ti94",
+      "details": "Удалён документ: Новый портфель академическая",
+      "createdAt": "2026-04-20T12:19:59.873Z"
+    },
+    {
+      "id": "cmo75z4oy001rn1ig51psdess",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "CREATE_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Создан документ: Договор академическая (DOGOVOR_PORTFEL-2026-003)",
+      "createdAt": "2026-04-20T12:21:26.531Z"
+    },
+    {
+      "id": "cmo75z7yu0027n1igdsj39bd1",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "APPROVAL_STARTED",
+      "entityType": "DOCUMENT",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Отправлен на согласование",
+      "createdAt": "2026-04-20T12:21:30.774Z"
+    },
+    {
+      "id": "cmo75zg2z0029n1ig30glp6c4",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Договор академическая",
+      "createdAt": "2026-04-20T12:21:41.292Z"
+    },
+    {
+      "id": "cmo76172j002dn1igqkyr72g1",
+      "userId": "cmo6w3nc6001nn14wxptt28ah",
+      "action": "LOGIN",
+      "entityType": null,
+      "entityId": null,
+      "details": "Вход в систему: david korelov",
+      "createdAt": "2026-04-20T12:23:02.923Z"
+    },
+    {
+      "id": "cmo7fsdbd0001n1ngeyujuddl",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Договор академическая",
+      "createdAt": "2026-04-20T16:56:07.273Z"
+    },
+    {
+      "id": "cmo7fsozg0003n1ngn0czsaic",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Изменён документ: Договор академическая",
+      "createdAt": "2026-04-20T16:56:22.397Z"
+    },
+    {
+      "id": "cmo7fsrfc0005n1ngii79nfbc",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Изменён документ: Договор академическая",
+      "createdAt": "2026-04-20T16:56:25.560Z"
+    },
+    {
+      "id": "cmo7fssjb0007n1ngu6aeynet",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Изменён документ: Договор академическая",
+      "createdAt": "2026-04-20T16:56:26.999Z"
+    },
+    {
+      "id": "cmo7fstq20009n1ngh4op0tzm",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Договор академическая",
+      "createdAt": "2026-04-20T16:56:28.538Z"
+    },
+    {
+      "id": "cmo7fsxjy000bn1ng82v05d9u",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Изменён документ: Договор академическая",
+      "createdAt": "2026-04-20T16:56:33.502Z"
+    },
+    {
+      "id": "cmo7fszrl000dn1ngwnonb4cz",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Изменён документ: Договор академическая",
+      "createdAt": "2026-04-20T16:56:36.370Z"
+    },
+    {
+      "id": "cmo7ft0vr000fn1ngwm28p17v",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Договор академическая",
+      "createdAt": "2026-04-20T16:56:37.815Z"
+    },
+    {
+      "id": "cmo7g4gs40001n1a0qdz90ds7",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Договор академическая",
+      "createdAt": "2026-04-20T17:05:31.636Z"
+    },
+    {
+      "id": "cmo7g8ysz0009n1gomhd8l5a3",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "CREATE_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo7g8yrb0001n1goonnk0ogj",
+      "details": "Создан документ: Стандартный договор (DOGOVOR_PORTFEL-2026-004)",
+      "createdAt": "2026-04-20T17:09:01.620Z"
+    },
+    {
+      "id": "cmo7g96hr000nn1go9oijblis",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "APPROVAL_STARTED",
+      "entityType": "DOCUMENT",
+      "entityId": "cmo7g8yrb0001n1goonnk0ogj",
+      "details": "Отправлен на согласование",
+      "createdAt": "2026-04-20T17:09:11.584Z"
+    },
+    {
+      "id": "cmo7g9b72000pn1go8tmkogcp",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo7g8yrb0001n1goonnk0ogj",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T17:09:17.678Z"
+    },
+    {
+      "id": "cmo7g9m4z000rn1gohv38l93k",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo7g8yrb0001n1goonnk0ogj",
+      "details": "Изменён документ: Договор с маником",
+      "createdAt": "2026-04-20T17:09:31.860Z"
+    },
+    {
+      "id": "cmo7ga7qz000tn1go2dnajmqq",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo7g8yrb0001n1goonnk0ogj",
+      "details": "Договор с маником",
+      "createdAt": "2026-04-20T17:09:59.867Z"
+    },
+    {
+      "id": "cmo7gamf7000vn1go8aehr9qm",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo7g8yrb0001n1goonnk0ogj",
+      "details": "Изменён документ: Договор с маником",
+      "createdAt": "2026-04-20T17:10:18.883Z"
+    },
+    {
+      "id": "cmo7gapbi000xn1gojes9g7at",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo7g8yrb0001n1goonnk0ogj",
+      "details": "Договор с маником",
+      "createdAt": "2026-04-20T17:10:22.639Z"
+    },
+    {
+      "id": "cmo7gasjt000zn1gobgi8pd7m",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "EDIT_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo7g8yrb0001n1goonnk0ogj",
+      "details": "Изменён документ: Договор с маником",
+      "createdAt": "2026-04-20T17:10:26.825Z"
+    },
+    {
+      "id": "cmo7he3jh0011n1gondiapfap",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Договор академическая",
+      "createdAt": "2026-04-20T17:41:00.653Z"
+    },
+    {
+      "id": "cmo7he7q80013n1govq36ie0v",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo7g8yrb0001n1goonnk0ogj",
+      "details": "Договор с маником",
+      "createdAt": "2026-04-20T17:41:06.081Z"
+    },
+    {
+      "id": "cmo7hgez00015n1goc87xc82t",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Договор академическая",
+      "createdAt": "2026-04-20T17:42:48.780Z"
+    },
+    {
+      "id": "cmo7je3fg0001n1bo5zn4ubjg",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Договор академическая",
+      "createdAt": "2026-04-20T18:36:59.740Z"
+    },
+    {
+      "id": "cmo7jejs80005n1boyj63xuii",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "LOGIN",
+      "entityType": null,
+      "entityId": null,
+      "details": "Вход в систему: anna litkovskaya",
+      "createdAt": "2026-04-20T18:37:20.937Z"
+    },
+    {
+      "id": "cmo7jemty0007n1bozpswx81d",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo7g8yrb0001n1goonnk0ogj",
+      "details": "Договор с маником",
+      "createdAt": "2026-04-20T18:37:24.886Z"
+    },
+    {
+      "id": "cmo7jev3r000dn1bo5wwj7bsb",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "APPROVAL_STEP_APPROVED",
+      "entityType": "DOCUMENT",
+      "entityId": "cmo7g8yrb0001n1goonnk0ogj",
+      "details": "Шаг «Проверка Backoffice» — Согласован: vse ok",
+      "createdAt": "2026-04-20T18:37:35.607Z"
+    },
+    {
+      "id": "cmo7jeym2000fn1bogywel1sz",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Договор академическая",
+      "createdAt": "2026-04-20T18:37:40.155Z"
+    },
+    {
+      "id": "cmo7jf54m000ln1botw3aunla",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "APPROVAL_STEP_APPROVED",
+      "entityType": "DOCUMENT",
+      "entityId": "cmo75z4ms001jn1igmxaa9lbm",
+      "details": "Шаг «Проверка Backoffice» — Согласован: нормально",
+      "createdAt": "2026-04-20T18:37:48.598Z"
+    },
+    {
+      "id": "cmo7jf7j2000nn1bot1hicxx3",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T18:37:51.710Z"
+    },
+    {
+      "id": "cmo7jg161000pn1bo8nmji8y7",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo71vlxs0007n1z82vlc0e2w",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T18:38:30.122Z"
+    },
+    {
+      "id": "cmo7jg4ew000rn1bogcdfouaf",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "action": "VIEW_DOCUMENT",
+      "entityType": "Document",
+      "entityId": "cmo6z0q390001n1pga5mnm0t9",
+      "details": "Стандартный договор",
+      "createdAt": "2026-04-20T18:38:34.328Z"
+    }
+  ],
+  "notifications": [],
+  "comments": [],
+  "processDefinitions": [
+    {
+      "id": "cmo6192xw000dn14wvoyy1wdu",
+      "name": "Согласование документа",
+      "description": "Стандартный процесс согласования внутренних документов",
+      "systemName": "DOCUMENT_APPROVAL",
+      "version": 1,
+      "status": "ACTIVE",
+      "steps": "[{\"id\":\"s1\",\"name\":\"Создание документа\",\"type\":\"START\",\"assigneeRole\":\"USER\",\"order\":1},{\"id\":\"s2\",\"name\":\"Проверка руководителем\",\"type\":\"APPROVAL\",\"assigneeRole\":\"ADVANCED\",\"order\":2},{\"id\":\"s3\",\"name\":\"Финальное согласование\",\"type\":\"APPROVAL\",\"assigneeRole\":\"ADMIN\",\"order\":3},{\"id\":\"s4\",\"name\":\"Уведомление об утверждении\",\"type\":\"NOTIFICATION\",\"assigneeRole\":\"USER\",\"order\":4}]",
+      "createdAt": "2026-04-19T17:21:26.564Z",
+      "updatedAt": "2026-04-19T17:21:26.564Z"
+    },
+    {
+      "id": "cmo6192yh000en14wzsayrwxl",
+      "name": "Рассмотрение заявки",
+      "description": "Процесс рассмотрения и обработки заявок от сотрудников",
+      "systemName": "REQUEST_REVIEW",
+      "version": 1,
+      "status": "ACTIVE",
+      "steps": "[{\"id\":\"s1\",\"name\":\"Подача заявки\",\"type\":\"START\",\"assigneeRole\":\"USER\",\"order\":1},{\"id\":\"s2\",\"name\":\"Предварительная проверка\",\"type\":\"APPROVAL\",\"assigneeRole\":\"ADVANCED\",\"order\":2},{\"id\":\"s3\",\"name\":\"Проверка условий\",\"type\":\"CONDITION\",\"assigneeRole\":\"ADVANCED\",\"order\":3},{\"id\":\"s4\",\"name\":\"Утверждение директором\",\"type\":\"APPROVAL\",\"assigneeRole\":\"ADMIN\",\"order\":4},{\"id\":\"s5\",\"name\":\"Уведомление о результате\",\"type\":\"NOTIFICATION\",\"assigneeRole\":\"USER\",\"order\":5}]",
+      "createdAt": "2026-04-19T17:21:26.585Z",
+      "updatedAt": "2026-04-19T17:21:26.585Z"
+    },
+    {
+      "id": "cmo6192z3000fn14wilji7j58",
+      "name": "Обработка договора",
+      "description": "Полный цикл обработки и согласования договоров",
+      "systemName": "CONTRACT_PROCESSING",
+      "version": 1,
+      "status": "ACTIVE",
+      "steps": "[{\"id\":\"s1\",\"name\":\"Регистрация договора\",\"type\":\"START\",\"assigneeRole\":\"USER\",\"order\":1},{\"id\":\"step_1776670564980_ctlg2\",\"name\":\"Проверка Backoffice\",\"type\":\"APPROVAL\",\"assigneeRole\":\"ADMIN\",\"assigneeType\":\"user\",\"userId\":\"cmo6vt0wv001an14ws080gb7e\",\"departmentId\":null,\"order\":2,\"userName\":\"anna\",\"slaConfig\":\"{\\\"LOW\\\":48,\\\"MEDIUM\\\":24,\\\"HIGH\\\":8,\\\"CRITICAL\\\":4}\"},{\"id\":\"s2\",\"name\":\"Проверка юридическим отделом\",\"type\":\"APPROVAL\",\"assigneeRole\":\"ADVANCED\",\"order\":3,\"assigneeType\":\"department\",\"userId\":null,\"departmentId\":\"cmo61agdd0015n14wzpe4ta6w\",\"userName\":\"david\",\"slaConfig\":\"{\\\"LOW\\\":48,\\\"MEDIUM\\\":24,\\\"HIGH\\\":8,\\\"CRITICAL\\\":4}\"},{\"id\":\"s3\",\"name\":\"Финансовая проверка\",\"type\":\"APPROVAL\",\"assigneeRole\":\"ADVANCED\",\"order\":4,\"assigneeType\":\"department\",\"userId\":null,\"departmentId\":\"cmo61agdd0014n14wyqy4rly8\",\"slaConfig\":\"{\\\"LOW\\\":48,\\\"MEDIUM\\\":24,\\\"HIGH\\\":8,\\\"CRITICAL\\\":4}\"},{\"id\":\"step_1776671214831_ca8j8\",\"name\":\"Условие\",\"type\":\"CONDITION\",\"assigneeRole\":\"ADMIN\",\"assigneeType\":\"role\",\"userId\":null,\"departmentId\":null,\"order\":5,\"condition\":{\"fieldSystemName\":\"\",\"operator\":\"==\",\"value\":\"\",\"trueStepId\":\"\",\"falseStepId\":\"s2\",\"conditionSource\":\"last_decision\",\"checkValue\":\"APPROVED\"}},{\"id\":\"step_1776671266399_xi6gv\",\"name\":\"Согласование с контрагентом\",\"type\":\"APPROVAL\",\"assigneeRole\":\"ADMIN\",\"assigneeType\":\"initiator\",\"userId\":null,\"departmentId\":null,\"order\":6,\"slaConfig\":\"{\\\"LOW\\\":48,\\\"MEDIUM\\\":24,\\\"HIGH\\\":8,\\\"CRITICAL\\\":4}\"},{\"id\":\"step_1776671299927_2rtpf\",\"name\":\"Условие\",\"type\":\"CONDITION\",\"assigneeRole\":\"ADMIN\",\"assigneeType\":\"role\",\"userId\":null,\"departmentId\":null,\"order\":7,\"condition\":{\"fieldSystemName\":\"\",\"operator\":\"==\",\"value\":\"\",\"trueStepId\":\"\",\"falseStepId\":\"step_1776670564980_ctlg2\",\"conditionSource\":\"last_decision\",\"checkValue\":\"APPROVED\"}},{\"id\":\"s4\",\"name\":\"Подписание руководством\",\"type\":\"APPROVAL\",\"assigneeRole\":\"ADMIN\",\"order\":8,\"assigneeType\":\"user\",\"userId\":\"cmo6vupu2001gn14wnjtc8l1d\",\"departmentId\":null,\"userName\":\"viktor\",\"slaConfig\":\"{\\\"LOW\\\":48,\\\"MEDIUM\\\":24,\\\"HIGH\\\":8,\\\"CRITICAL\\\":4}\"},{\"id\":\"s5\",\"name\":\"Уведомление о подписании\",\"type\":\"NOTIFICATION\",\"assigneeRole\":\"USER\",\"order\":9},{\"id\":\"step_1776672822778_n15zb\",\"name\":\"Финиш\",\"type\":\"END\",\"assigneeRole\":\"ADMIN\",\"assigneeType\":\"role\",\"userId\":null,\"departmentId\":null,\"order\":10}]",
+      "createdAt": "2026-04-19T17:21:26.607Z",
+      "updatedAt": "2026-04-20T12:20:18.586Z"
+    }
+  ],
+  "processDocumentTypes": [
+    {
+      "processId": "cmo6192z3000fn14wilji7j58",
+      "documentTypeId": "cmo6192wq000bn14w9711f26c"
+    }
+  ],
+  "tasks": [],
+  "systemSettings": [],
+  "documentAttachments": [
+    {
+      "id": "cmo6z0qp3000dn1pg2enzomki",
+      "documentId": "cmo6z0q390001n1pga5mnm0t9",
+      "originalName": "Доп ЭДО РСВ.docx",
+      "fileName": "895e3d37-315a-4026-b548-1d3392d327b5.docx",
+      "fileSize": 34551,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uploadedById": "cmo6vti2m001cn14wwmfsj64o",
+      "groupId": "9b6d2c0f-2f8b-4b5e-90d9-2679c1616f6b",
+      "version": 1,
+      "isLatest": false,
+      "createdAt": "2026-04-20T09:06:44.392Z"
+    },
+    {
+      "id": "cmo6z63qd000fn1pgfllv415i",
+      "documentId": "cmo6z0q390001n1pga5mnm0t9",
+      "originalName": "Доп ЭДО РСВ.docx",
+      "fileName": "8f7cebad-e142-48c6-bdb9-a6340e75e1fd.docx",
+      "fileSize": 32216,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uploadedById": "cmo6vti2m001cn14wwmfsj64o",
+      "groupId": "9b6d2c0f-2f8b-4b5e-90d9-2679c1616f6b",
+      "version": 2,
+      "isLatest": false,
+      "createdAt": "2026-04-20T09:10:54.565Z"
+    },
+    {
+      "id": "cmo71vmix000hn1z8jbtxard7",
+      "documentId": "cmo71vlxs0007n1z82vlc0e2w",
+      "originalName": "ОТЧЕТ ПО ПАРКУ ПЕЧАТНОЙ ТЕХНИКИ (апрель 2026 г.).docx",
+      "fileName": "5944243f-919c-45e4-a4bb-4e7acee077a3.docx",
+      "fileSize": 29729,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uploadedById": "cmo61928r0000n14wija6xe47",
+      "groupId": "06839d34-fcb8-4c71-9d50-bba5d2630ae6",
+      "version": 1,
+      "isLatest": true,
+      "createdAt": "2026-04-20T10:26:44.553Z"
+    },
+    {
+      "id": "cmo71xx4a0003n1wghx2e5yzh",
+      "documentId": "cmo6z0q390001n1pga5mnm0t9",
+      "originalName": "Доп ЭДО РСВ.docx",
+      "fileName": "80c54c7d-d945-4f12-a425-b0d2b24929fc.docx",
+      "fileSize": 32385,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "uploadedById": "cmo61928r0000n14wija6xe47",
+      "groupId": "9b6d2c0f-2f8b-4b5e-90d9-2679c1616f6b",
+      "version": 3,
+      "isLatest": true,
+      "createdAt": "2026-04-20T10:28:31.594Z"
+    },
+    {
+      "id": "cmo75z4pj001tn1iglj5vvrmi",
+      "documentId": "cmo75z4ms001jn1igmxaa9lbm",
+      "originalName": "Перечень договоров списанных для взыскания за период с 01.12.2025 по 25.04.2026.xlsx",
+      "fileName": "d8146069-e52c-47d2-8e1d-f0b5c4052fa6.xlsx",
+      "fileSize": 7060,
+      "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "uploadedById": "cmo61928r0000n14wija6xe47",
+      "groupId": "af836d84-6a0f-468b-a746-984d4bc04fd7",
+      "version": 1,
+      "isLatest": true,
+      "createdAt": "2026-04-20T12:21:26.552Z"
+    }
+  ],
+  "counterparties": [
+    {
+      "id": "cmo6vyw9s001in14wfgcqbvrm",
+      "name": "ООО ПКО \"КЭФ\"",
+      "shortName": "ООО ПКО \"КЭФ\"",
+      "inn": "7707790885",
+      "kpp": "770701001",
+      "ogrn": "1127747190152",
+      "legalAddress": "127055, город Москва, ул Бутырский Вал, д. 68/70 стр. 1, этаж/помещ 4/I ком. 44",
+      "actualAddress": "127055, город Москва, ул Бутырский Вал, д. 68/70 стр. 1, этаж/помещ 4/I ком. 44",
+      "postalAddress": "127055, город Москва, ул Бутырский Вал, д. 68/70 стр. 1, этаж/помещ 4/I ком. 44",
+      "postalCode": "127055",
+      "bankAccount": "423423432432423",
+      "bank": "ПАО Спермобанк",
+      "bik": "1122334",
+      "active": true,
+      "createdAt": "2026-04-20T07:41:19.456Z",
+      "updatedAt": "2026-04-20T07:41:19.456Z"
+    },
+    {
+      "id": "cmo6vzj1l001jn14wng4y8wvm",
+      "name": "ООО \"Манимен\"",
+      "shortName": "ООО \"Манимен\"",
+      "inn": "14888888",
+      "kpp": "543534344",
+      "ogrn": "432543543543",
+      "legalAddress": "33 Lockhart Road, Wanchai",
+      "actualAddress": "33 Lockhart Road, Wanchai",
+      "postalAddress": "999077",
+      "postalCode": "999077",
+      "bankAccount": "543534534534543",
+      "bank": "ПАО Т-БАНК",
+      "bik": "2213433",
+      "active": true,
+      "createdAt": "2026-04-20T07:41:48.970Z",
+      "updatedAt": "2026-04-20T07:41:48.970Z"
+    },
+    {
+      "id": "cmo6w04tm001kn14wqdtp8yws",
+      "name": "ООО \"Шляпа\"",
+      "shortName": "ООО \"Шляпа\"",
+      "inn": "43534543543",
+      "kpp": "1222342",
+      "ogrn": "423432423234432",
+      "legalAddress": "Room 11114, 11F, 33 Lockhart Road, Wanchai, Hong Kong",
+      "actualAddress": "Room 11114, 11F, 33 Lockhart Road, Wanchai, Hong Kong",
+      "postalAddress": "999077",
+      "postalCode": "999077",
+      "bankAccount": "4532432423",
+      "bank": "ПАО Шляпа",
+      "bik": "1122334",
+      "active": true,
+      "createdAt": "2026-04-20T07:42:17.194Z",
+      "updatedAt": "2026-04-20T07:42:17.194Z"
+    }
+  ],
+  "contacts": [
+    {
+      "id": "cmo6w1bcx001ln14w0880ldvm",
+      "name": "Директор манимен",
+      "email": "director@maniman.local",
+      "phone": "+79053612222",
+      "telegramId": "@sshhhh",
+      "note": null,
+      "createdAt": "2026-04-20T07:43:12.322Z",
+      "updatedAt": "2026-04-20T07:43:12.322Z"
+    },
+    {
+      "id": "cmo6xnve7001on14wbnhx3vrn",
+      "name": "Венедиктов Вениамин Петрович",
+      "email": "venya@jopa.ru",
+      "phone": "+7905455454",
+      "telegramId": "@venya",
+      "note": "Test!",
+      "createdAt": "2026-04-20T08:28:44.335Z",
+      "updatedAt": "2026-04-20T08:29:01.723Z"
+    }
+  ],
+  "counterpartyContacts": [
+    {
+      "counterpartyId": "cmo6vzj1l001jn14wng4y8wvm",
+      "contactId": "cmo6w1bcx001ln14w0880ldvm"
+    },
+    {
+      "counterpartyId": "cmo6vzj1l001jn14wng4y8wvm",
+      "contactId": "cmo6xnve7001on14wbnhx3vrn"
+    }
+  ],
+  "approvalRoutes": [],
+  "approvalRouteSteps": [],
+  "documentApprovals": [
+    {
+      "id": "cmo6z97z6000hn1pg1wmtqx57",
+      "documentId": "cmo6z0q390001n1pga5mnm0t9",
+      "routeId": null,
+      "processId": "cmo6192z3000fn14wilji7j58",
+      "status": "IN_PROGRESS",
+      "createdById": "cmo6vti2m001cn14wwmfsj64o",
+      "createdAt": "2026-04-20T09:13:20.035Z",
+      "updatedAt": "2026-04-20T09:13:20.035Z"
+    },
+    {
+      "id": "cmo74hank0005n1kciftwx3a0",
+      "documentId": "cmo71vlxs0007n1z82vlc0e2w",
+      "routeId": null,
+      "processId": "cmo6192z3000fn14wilji7j58",
+      "status": "IN_PROGRESS",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T11:39:34.832Z",
+      "updatedAt": "2026-04-20T11:39:34.832Z"
+    },
+    {
+      "id": "cmo75z7wx001vn1iguuh9b05w",
+      "documentId": "cmo75z4ms001jn1igmxaa9lbm",
+      "routeId": null,
+      "processId": "cmo6192z3000fn14wilji7j58",
+      "status": "IN_PROGRESS",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T12:21:30.705Z",
+      "updatedAt": "2026-04-20T12:21:30.705Z"
+    },
+    {
+      "id": "cmo7g96fw000bn1go8uxv6cpt",
+      "documentId": "cmo7g8yrb0001n1goonnk0ogj",
+      "routeId": null,
+      "processId": "cmo6192z3000fn14wilji7j58",
+      "status": "IN_PROGRESS",
+      "createdById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T17:09:11.517Z",
+      "updatedAt": "2026-04-20T17:09:11.517Z"
+    }
+  ],
+  "documentApprovalSteps": [
+    {
+      "id": "cmo6z97z7000jn1pg8ynlzvur",
+      "approvalId": "cmo6z97z6000hn1pg1wmtqx57",
+      "order": 0,
+      "name": "Проверка Backoffice",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "departmentId": null,
+      "status": "APPROVED",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": "cmo6vt0wv001an14ws080gb7e",
+      "comment": "Збс",
+      "decidedAt": "2026-04-20T09:14:31.591Z",
+      "createdAt": "2026-04-20T09:13:20.035Z"
+    },
+    {
+      "id": "cmo6z97z7000kn1pg8gu7ij9m",
+      "approvalId": "cmo6z97z6000hn1pg1wmtqx57",
+      "order": 1,
+      "name": "Проверка юридическим отделом",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": null,
+      "departmentId": "cmo61agdd0015n14wzpe4ta6w",
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T09:13:20.035Z"
+    },
+    {
+      "id": "cmo6z97z7000ln1pgg7mij865",
+      "approvalId": "cmo6z97z6000hn1pg1wmtqx57",
+      "order": 2,
+      "name": "Финансовая проверка",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": null,
+      "departmentId": "cmo61agdd0014n14wyqy4rly8",
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T09:13:20.035Z"
+    },
+    {
+      "id": "cmo6z97z7000mn1pgjfvubzkd",
+      "approvalId": "cmo6z97z6000hn1pg1wmtqx57",
+      "order": 3,
+      "name": "Условие",
+      "stepType": "CONDITION",
+      "conditionConfig": "{\"conditionSource\":\"last_decision\",\"checkValue\":\"APPROVED\",\"fieldSystemName\":null,\"operator\":\"==\",\"value\":null,\"trueJumpToOrder\":null,\"falseJumpToOrder\":1}",
+      "userId": null,
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T09:13:20.035Z"
+    },
+    {
+      "id": "cmo6z97z7000nn1pgpe66hcih",
+      "approvalId": "cmo6z97z6000hn1pg1wmtqx57",
+      "order": 4,
+      "name": "Согласование с контрагентом",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": "cmo6vti2m001cn14wwmfsj64o",
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T09:13:20.035Z"
+    },
+    {
+      "id": "cmo6z97z7000on1pgrs6k3uoa",
+      "approvalId": "cmo6z97z6000hn1pg1wmtqx57",
+      "order": 5,
+      "name": "Условие",
+      "stepType": "CONDITION",
+      "conditionConfig": "{\"conditionSource\":\"last_decision\",\"checkValue\":\"APPROVED\",\"fieldSystemName\":null,\"operator\":\"==\",\"value\":null,\"trueJumpToOrder\":null,\"falseJumpToOrder\":0}",
+      "userId": null,
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T09:13:20.035Z"
+    },
+    {
+      "id": "cmo6z97z7000pn1pg6qe5gsm7",
+      "approvalId": "cmo6z97z6000hn1pg1wmtqx57",
+      "order": 6,
+      "name": "Подписание руководством",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": "cmo6vupu2001gn14wnjtc8l1d",
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T09:13:20.035Z"
+    },
+    {
+      "id": "cmo74hank0007n1kcdtpyo1kq",
+      "approvalId": "cmo74hank0005n1kciftwx3a0",
+      "order": 0,
+      "name": "Проверка Backoffice",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "departmentId": null,
+      "status": "APPROVED",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": "cmo61928r0000n14wija6xe47",
+      "comment": "Первое согласование",
+      "decidedAt": "2026-04-20T12:08:55.121Z",
+      "createdAt": "2026-04-20T11:39:34.832Z"
+    },
+    {
+      "id": "cmo74hank0008n1kclckkmj1q",
+      "approvalId": "cmo74hank0005n1kciftwx3a0",
+      "order": 1,
+      "name": "Проверка юридическим отделом",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": null,
+      "departmentId": "cmo61agdd0015n14wzpe4ta6w",
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T11:39:34.832Z"
+    },
+    {
+      "id": "cmo74hank0009n1kc7b1qer0l",
+      "approvalId": "cmo74hank0005n1kciftwx3a0",
+      "order": 2,
+      "name": "Финансовая проверка",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": null,
+      "departmentId": "cmo61agdd0014n14wyqy4rly8",
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T11:39:34.832Z"
+    },
+    {
+      "id": "cmo74hank000an1kcu9uhy137",
+      "approvalId": "cmo74hank0005n1kciftwx3a0",
+      "order": 3,
+      "name": "Условие",
+      "stepType": "CONDITION",
+      "conditionConfig": "{\"conditionSource\":\"last_decision\",\"checkValue\":\"APPROVED\",\"fieldSystemName\":null,\"operator\":\"==\",\"value\":null,\"trueJumpToOrder\":null,\"falseJumpToOrder\":1}",
+      "userId": null,
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T11:39:34.832Z"
+    },
+    {
+      "id": "cmo74hank000bn1kcnhykx697",
+      "approvalId": "cmo74hank0005n1kciftwx3a0",
+      "order": 4,
+      "name": "Согласование с контрагентом",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": "cmo61928r0000n14wija6xe47",
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T11:39:34.832Z"
+    },
+    {
+      "id": "cmo74hank000cn1kclzobol3l",
+      "approvalId": "cmo74hank0005n1kciftwx3a0",
+      "order": 5,
+      "name": "Условие",
+      "stepType": "CONDITION",
+      "conditionConfig": "{\"conditionSource\":\"last_decision\",\"checkValue\":\"APPROVED\",\"fieldSystemName\":null,\"operator\":\"==\",\"value\":null,\"trueJumpToOrder\":null,\"falseJumpToOrder\":0}",
+      "userId": null,
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T11:39:34.832Z"
+    },
+    {
+      "id": "cmo74hank000dn1kcqolb13oa",
+      "approvalId": "cmo74hank0005n1kciftwx3a0",
+      "order": 6,
+      "name": "Подписание руководством",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": "cmo6vupu2001gn14wnjtc8l1d",
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T11:39:34.832Z"
+    },
+    {
+      "id": "cmo75z7wx001xn1ig6w10s0xv",
+      "approvalId": "cmo75z7wx001vn1iguuh9b05w",
+      "order": 0,
+      "name": "Проверка Backoffice",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "departmentId": null,
+      "status": "APPROVED",
+      "slaConfig": "{\"LOW\":48,\"MEDIUM\":24,\"HIGH\":8,\"CRITICAL\":4}",
+      "dueAt": "2026-04-21T10:21:30.704Z",
+      "decidedById": "cmo6vt0wv001an14ws080gb7e",
+      "comment": "нормально",
+      "decidedAt": "2026-04-20T18:37:48.541Z",
+      "createdAt": "2026-04-20T12:21:30.705Z"
+    },
+    {
+      "id": "cmo75z7wx001yn1iggtt9rmju",
+      "approvalId": "cmo75z7wx001vn1iguuh9b05w",
+      "order": 1,
+      "name": "Проверка юридическим отделом",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": null,
+      "departmentId": "cmo61agdd0015n14wzpe4ta6w",
+      "status": "PENDING",
+      "slaConfig": "{\"LOW\":48,\"MEDIUM\":24,\"HIGH\":8,\"CRITICAL\":4}",
+      "dueAt": "2026-04-21T12:00:00.000Z",
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T12:21:30.705Z"
+    },
+    {
+      "id": "cmo75z7wx001zn1igby9htacx",
+      "approvalId": "cmo75z7wx001vn1iguuh9b05w",
+      "order": 2,
+      "name": "Финансовая проверка",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": null,
+      "departmentId": "cmo61agdd0014n14wyqy4rly8",
+      "status": "PENDING",
+      "slaConfig": "{\"LOW\":48,\"MEDIUM\":24,\"HIGH\":8,\"CRITICAL\":4}",
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T12:21:30.705Z"
+    },
+    {
+      "id": "cmo75z7wx0020n1igza0i2k9v",
+      "approvalId": "cmo75z7wx001vn1iguuh9b05w",
+      "order": 3,
+      "name": "Условие",
+      "stepType": "CONDITION",
+      "conditionConfig": "{\"conditionSource\":\"last_decision\",\"checkValue\":\"APPROVED\",\"fieldSystemName\":null,\"operator\":\"==\",\"value\":null,\"trueJumpToOrder\":null,\"falseJumpToOrder\":1}",
+      "userId": null,
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T12:21:30.705Z"
+    },
+    {
+      "id": "cmo75z7wx0021n1ig41pxhg0k",
+      "approvalId": "cmo75z7wx001vn1iguuh9b05w",
+      "order": 4,
+      "name": "Согласование с контрагентом",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": "cmo61928r0000n14wija6xe47",
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": "{\"LOW\":48,\"MEDIUM\":24,\"HIGH\":8,\"CRITICAL\":4}",
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T12:21:30.705Z"
+    },
+    {
+      "id": "cmo75z7wx0022n1igkax175lj",
+      "approvalId": "cmo75z7wx001vn1iguuh9b05w",
+      "order": 5,
+      "name": "Условие",
+      "stepType": "CONDITION",
+      "conditionConfig": "{\"conditionSource\":\"last_decision\",\"checkValue\":\"APPROVED\",\"fieldSystemName\":null,\"operator\":\"==\",\"value\":null,\"trueJumpToOrder\":null,\"falseJumpToOrder\":0}",
+      "userId": null,
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T12:21:30.705Z"
+    },
+    {
+      "id": "cmo75z7wx0023n1igv8b0426w",
+      "approvalId": "cmo75z7wx001vn1iguuh9b05w",
+      "order": 6,
+      "name": "Подписание руководством",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": "cmo6vupu2001gn14wnjtc8l1d",
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": "{\"LOW\":48,\"MEDIUM\":24,\"HIGH\":8,\"CRITICAL\":4}",
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T12:21:30.705Z"
+    },
+    {
+      "id": "cmo7g96fx000dn1golitl820l",
+      "approvalId": "cmo7g96fw000bn1go8uxv6cpt",
+      "order": 0,
+      "name": "Проверка Backoffice",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "departmentId": null,
+      "status": "APPROVED",
+      "slaConfig": "{\"LOW\":48,\"MEDIUM\":24,\"HIGH\":8,\"CRITICAL\":4}",
+      "dueAt": "2026-04-21T08:00:00.000Z",
+      "decidedById": "cmo6vt0wv001an14ws080gb7e",
+      "comment": "vse ok",
+      "decidedAt": "2026-04-20T18:37:35.559Z",
+      "createdAt": "2026-04-20T17:09:11.517Z"
+    },
+    {
+      "id": "cmo7g96fx000en1gogzdg6qor",
+      "approvalId": "cmo7g96fw000bn1go8uxv6cpt",
+      "order": 1,
+      "name": "Проверка юридическим отделом",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": null,
+      "departmentId": "cmo61agdd0015n14wzpe4ta6w",
+      "status": "PENDING",
+      "slaConfig": "{\"LOW\":48,\"MEDIUM\":24,\"HIGH\":8,\"CRITICAL\":4}",
+      "dueAt": "2026-04-21T08:00:00.000Z",
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T17:09:11.517Z"
+    },
+    {
+      "id": "cmo7g96fx000fn1gomhc2l278",
+      "approvalId": "cmo7g96fw000bn1go8uxv6cpt",
+      "order": 2,
+      "name": "Финансовая проверка",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": null,
+      "departmentId": "cmo61agdd0014n14wyqy4rly8",
+      "status": "PENDING",
+      "slaConfig": "{\"LOW\":48,\"MEDIUM\":24,\"HIGH\":8,\"CRITICAL\":4}",
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T17:09:11.517Z"
+    },
+    {
+      "id": "cmo7g96fx000gn1gol55tyh0t",
+      "approvalId": "cmo7g96fw000bn1go8uxv6cpt",
+      "order": 3,
+      "name": "Условие",
+      "stepType": "CONDITION",
+      "conditionConfig": "{\"conditionSource\":\"last_decision\",\"checkValue\":\"APPROVED\",\"fieldSystemName\":null,\"operator\":\"==\",\"value\":null,\"trueJumpToOrder\":null,\"falseJumpToOrder\":1}",
+      "userId": null,
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T17:09:11.517Z"
+    },
+    {
+      "id": "cmo7g96fx000hn1gozrsr74pr",
+      "approvalId": "cmo7g96fw000bn1go8uxv6cpt",
+      "order": 4,
+      "name": "Согласование с контрагентом",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": "cmo61928r0000n14wija6xe47",
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": "{\"LOW\":48,\"MEDIUM\":24,\"HIGH\":8,\"CRITICAL\":4}",
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T17:09:11.517Z"
+    },
+    {
+      "id": "cmo7g96fx000in1go2om0vuji",
+      "approvalId": "cmo7g96fw000bn1go8uxv6cpt",
+      "order": 5,
+      "name": "Условие",
+      "stepType": "CONDITION",
+      "conditionConfig": "{\"conditionSource\":\"last_decision\",\"checkValue\":\"APPROVED\",\"fieldSystemName\":null,\"operator\":\"==\",\"value\":null,\"trueJumpToOrder\":null,\"falseJumpToOrder\":0}",
+      "userId": null,
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": null,
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T17:09:11.517Z"
+    },
+    {
+      "id": "cmo7g96fx000jn1gotb9dcvzt",
+      "approvalId": "cmo7g96fw000bn1go8uxv6cpt",
+      "order": 6,
+      "name": "Подписание руководством",
+      "stepType": "APPROVAL",
+      "conditionConfig": null,
+      "userId": "cmo6vupu2001gn14wnjtc8l1d",
+      "departmentId": null,
+      "status": "PENDING",
+      "slaConfig": "{\"LOW\":48,\"MEDIUM\":24,\"HIGH\":8,\"CRITICAL\":4}",
+      "dueAt": null,
+      "decidedById": null,
+      "comment": null,
+      "decidedAt": null,
+      "createdAt": "2026-04-20T17:09:11.517Z"
+    }
+  ],
+  "approvalStepDecisions": [
+    {
+      "id": "cmo6zar7m0014n1pgqgf1tyl5",
+      "stepId": "cmo6z97z7000jn1pg8ynlzvur",
+      "decision": "APPROVED",
+      "comment": "Збс",
+      "decidedById": "cmo6vt0wv001an14ws080gb7e",
+      "createdAt": "2026-04-20T09:14:31.619Z"
+    },
+    {
+      "id": "cmo75j0x20005n1ig0h7qqk0t",
+      "stepId": "cmo74hank0007n1kcdtpyo1kq",
+      "decision": "APPROVED",
+      "comment": "Первое согласование",
+      "decidedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T12:08:55.142Z"
+    },
+    {
+      "id": "cmo7jev2r0009n1bo36wd90us",
+      "stepId": "cmo7g96fx000dn1golitl820l",
+      "decision": "APPROVED",
+      "comment": "vse ok",
+      "decidedById": "cmo6vt0wv001an14ws080gb7e",
+      "createdAt": "2026-04-20T18:37:35.572Z"
+    },
+    {
+      "id": "cmo7jf53l000hn1bo2159u8g7",
+      "stepId": "cmo75z7wx001xn1ig6w10s0xv",
+      "decision": "APPROVED",
+      "comment": "нормально",
+      "decidedById": "cmo6vt0wv001an14ws080gb7e",
+      "createdAt": "2026-04-20T18:37:48.561Z"
+    }
+  ],
+  "documentPermissions": [
+    {
+      "id": "cmo6z0q3l0003n1pgmrw9gvkm",
+      "documentId": "cmo6z0q390001n1pga5mnm0t9",
+      "userId": "cmo6vti2m001cn14wwmfsj64o",
+      "permission": "EDIT",
+      "grantedById": "cmo6vti2m001cn14wwmfsj64o",
+      "createdAt": "2026-04-20T09:06:43.618Z",
+      "updatedAt": "2026-04-20T09:06:43.618Z"
+    },
+    {
+      "id": "cmo6z0q400005n1pg39bkz90v",
+      "documentId": "cmo6z0q390001n1pga5mnm0t9",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "permission": "EDIT",
+      "grantedById": "cmo6vti2m001cn14wwmfsj64o",
+      "createdAt": "2026-04-20T09:06:43.632Z",
+      "updatedAt": "2026-04-20T09:06:43.632Z"
+    },
+    {
+      "id": "cmo6z0q400007n1pgvm3l22q2",
+      "documentId": "cmo6z0q390001n1pga5mnm0t9",
+      "userId": "cmo6vtwdd001en14wtd65pwti",
+      "permission": "EDIT",
+      "grantedById": "cmo6vti2m001cn14wwmfsj64o",
+      "createdAt": "2026-04-20T09:06:43.632Z",
+      "updatedAt": "2026-04-20T09:06:43.632Z"
+    },
+    {
+      "id": "cmo6z0q400009n1pgo5t6st0c",
+      "documentId": "cmo6z0q390001n1pga5mnm0t9",
+      "userId": "cmo6vupu2001gn14wnjtc8l1d",
+      "permission": "EDIT",
+      "grantedById": "cmo6vti2m001cn14wwmfsj64o",
+      "createdAt": "2026-04-20T09:06:43.633Z",
+      "updatedAt": "2026-04-20T09:06:43.633Z"
+    },
+    {
+      "id": "cmo6z9801000rn1pgja3a59yo",
+      "documentId": "cmo6z0q390001n1pga5mnm0t9",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "permission": "VIEW",
+      "grantedById": "cmo6vti2m001cn14wwmfsj64o",
+      "createdAt": "2026-04-20T09:13:20.065Z",
+      "updatedAt": "2026-04-20T09:13:20.065Z"
+    },
+    {
+      "id": "cmo6zar870016n1pggczwekk4",
+      "documentId": "cmo6z0q390001n1pga5mnm0t9",
+      "userId": "cmo6w3nc6001nn14wxptt28ah",
+      "permission": "VIEW",
+      "grantedById": "cmo6vt0wv001an14ws080gb7e",
+      "createdAt": "2026-04-20T09:14:31.640Z",
+      "updatedAt": "2026-04-20T09:14:31.640Z"
+    },
+    {
+      "id": "cmo71vlyd0009n1z81oc6dnsb",
+      "documentId": "cmo71vlxs0007n1z82vlc0e2w",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "permission": "EDIT",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T10:26:43.813Z",
+      "updatedAt": "2026-04-20T10:26:43.813Z"
+    },
+    {
+      "id": "cmo71vlyr000bn1z8vskfv5bj",
+      "documentId": "cmo71vlxs0007n1z82vlc0e2w",
+      "userId": "cmo6vtwdd001en14wtd65pwti",
+      "permission": "EDIT",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T10:26:43.827Z",
+      "updatedAt": "2026-04-20T10:26:43.827Z"
+    },
+    {
+      "id": "cmo71vlyr000dn1z8vffkpp7w",
+      "documentId": "cmo71vlxs0007n1z82vlc0e2w",
+      "userId": "cmo6vupu2001gn14wnjtc8l1d",
+      "permission": "EDIT",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T10:26:43.828Z",
+      "updatedAt": "2026-04-20T10:26:43.828Z"
+    },
+    {
+      "id": "cmo74haow000fn1kcsrjhrm5l",
+      "documentId": "cmo71vlxs0007n1z82vlc0e2w",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "permission": "VIEW",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T11:39:34.881Z",
+      "updatedAt": "2026-04-20T11:39:34.881Z"
+    },
+    {
+      "id": "cmo75j0xe0007n1igk1z4m6ji",
+      "documentId": "cmo71vlxs0007n1z82vlc0e2w",
+      "userId": "cmo6w3nc6001nn14wxptt28ah",
+      "permission": "VIEW",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T12:08:55.155Z",
+      "updatedAt": "2026-04-20T12:08:55.155Z"
+    },
+    {
+      "id": "cmo75z4nr001ln1ig5l0p495r",
+      "documentId": "cmo75z4ms001jn1igmxaa9lbm",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "permission": "EDIT",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T12:21:26.487Z",
+      "updatedAt": "2026-04-20T12:21:26.487Z"
+    },
+    {
+      "id": "cmo75z4o5001nn1igm92hyyn1",
+      "documentId": "cmo75z4ms001jn1igmxaa9lbm",
+      "userId": "cmo6vtwdd001en14wtd65pwti",
+      "permission": "EDIT",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T12:21:26.501Z",
+      "updatedAt": "2026-04-20T12:21:26.501Z"
+    },
+    {
+      "id": "cmo75z4o5001pn1igckc5jylr",
+      "documentId": "cmo75z4ms001jn1igmxaa9lbm",
+      "userId": "cmo6vupu2001gn14wnjtc8l1d",
+      "permission": "EDIT",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T12:21:26.502Z",
+      "updatedAt": "2026-04-20T12:21:26.502Z"
+    },
+    {
+      "id": "cmo75z7y90025n1ig2xy6mlah",
+      "documentId": "cmo75z4ms001jn1igmxaa9lbm",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "permission": "VIEW",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T12:21:30.753Z",
+      "updatedAt": "2026-04-20T12:21:30.753Z"
+    },
+    {
+      "id": "cmo7g8yrv0003n1go2r46botl",
+      "documentId": "cmo7g8yrb0001n1goonnk0ogj",
+      "userId": "cmo61928r0000n14wija6xe47",
+      "permission": "EDIT",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T17:09:01.580Z",
+      "updatedAt": "2026-04-20T17:09:01.580Z"
+    },
+    {
+      "id": "cmo7g8ys80005n1gowfbt83eh",
+      "documentId": "cmo7g8yrb0001n1goonnk0ogj",
+      "userId": "cmo6vtwdd001en14wtd65pwti",
+      "permission": "EDIT",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T17:09:01.593Z",
+      "updatedAt": "2026-04-20T17:09:01.593Z"
+    },
+    {
+      "id": "cmo7g8ys90007n1go68md4qfv",
+      "documentId": "cmo7g8yrb0001n1goonnk0ogj",
+      "userId": "cmo6vupu2001gn14wnjtc8l1d",
+      "permission": "EDIT",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T17:09:01.593Z",
+      "updatedAt": "2026-04-20T17:09:01.593Z"
+    },
+    {
+      "id": "cmo7g96h6000ln1gowz65ll9w",
+      "documentId": "cmo7g8yrb0001n1goonnk0ogj",
+      "userId": "cmo6vt0wv001an14ws080gb7e",
+      "permission": "VIEW",
+      "grantedById": "cmo61928r0000n14wija6xe47",
+      "createdAt": "2026-04-20T17:09:11.562Z",
+      "updatedAt": "2026-04-20T17:09:11.562Z"
+    },
+    {
+      "id": "cmo7jev33000bn1bok3le6dhd",
+      "documentId": "cmo7g8yrb0001n1goonnk0ogj",
+      "userId": "cmo6w3nc6001nn14wxptt28ah",
+      "permission": "VIEW",
+      "grantedById": "cmo6vt0wv001an14ws080gb7e",
+      "createdAt": "2026-04-20T18:37:35.584Z",
+      "updatedAt": "2026-04-20T18:37:35.584Z"
+    },
+    {
+      "id": "cmo7jf53y000jn1bo7w5msojx",
+      "documentId": "cmo75z4ms001jn1igmxaa9lbm",
+      "userId": "cmo6w3nc6001nn14wxptt28ah",
+      "permission": "VIEW",
+      "grantedById": "cmo6vt0wv001an14ws080gb7e",
+      "createdAt": "2026-04-20T18:37:48.574Z",
+      "updatedAt": "2026-04-20T18:37:48.574Z"
+    }
+  ]
+}

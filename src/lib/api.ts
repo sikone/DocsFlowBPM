@@ -9,6 +9,9 @@ const ENVELOPE_KEYS = [
   'document', 'success', 'results', 'data',
   'processes', 'process', 'tasks', 'task',
   'tags', 'tag',
+  'settings', 'attachments', 'attachment', 'permissions', 'permission',
+  'counterparties', 'counterparty',
+  'contacts', 'contact',
 ] as const;
 
 type EnvelopeKey = (typeof ENVELOPE_KEYS)[number];

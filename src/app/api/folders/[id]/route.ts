@@ -27,6 +27,11 @@ export async function PUT(
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
     }
 
+    // Prevent renaming system folders
+    if (existingFolder.isSystem && name !== undefined && name !== existingFolder.name) {
+      return NextResponse.json({ error: 'Cannot rename system folder' }, { status: 403 })
+    }
+
     // Prevent circular reference - can't set parent to self
     if (parentId && parentId === id) {
       return NextResponse.json(
@@ -90,6 +95,10 @@ export async function DELETE(
 
     if (!existingFolder) {
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
+    }
+
+    if (existingFolder.isSystem) {
+      return NextResponse.json({ error: 'Cannot delete system folder' }, { status: 403 })
     }
 
     // Check if folder has children

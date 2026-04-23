@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
+import { isPrivilegedRole } from '@/lib/doc-permissions'
 import { Prisma } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
@@ -31,27 +32,26 @@ export async function GET(request: NextRequest) {
     const validStatuses = ['DRAFT', 'IN_PROGRESS', 'APPROVED', 'REJECTED', 'COMPLETED']
 
     // Build where clause with search across multiple fields
-    const where: Prisma.DocumentWhereInput = {
-      AND: [
-        // Search conditions: match in title, number, data, creator name, or type name
-        {
-          OR: [
-            { title: { contains: query, mode: 'insensitive' } },
-            { number: { contains: query, mode: 'insensitive' } },
-            { data: { contains: query, mode: 'insensitive' } },
-            { creator: { name: { contains: query, mode: 'insensitive' } } },
-            { type: { name: { contains: query, mode: 'insensitive' } } },
-          ],
-        },
-        // Optional filters
-        ...(status && validStatuses.includes(status)
-          ? [{ status }]
-          : []),
-        ...(typeId
-          ? [{ typeId }]
-          : []),
-      ],
+    const andClauses: Prisma.DocumentWhereInput[] = []
+
+    if (!isPrivilegedRole(user.role)) {
+      andClauses.push({ OR: [{ createdById: user.id }, { permissions: { some: { userId: user.id } } }] })
     }
+
+    andClauses.push({
+      OR: [
+        { title: { contains: query } },
+        { number: { contains: query } },
+        { data: { contains: query } },
+        { creator: { name: { contains: query } } },
+        { type: { name: { contains: query } } },
+      ],
+    })
+
+    if (status && validStatuses.includes(status)) andClauses.push({ status })
+    if (typeId) andClauses.push({ typeId })
+
+    const where: Prisma.DocumentWhereInput = { AND: andClauses }
 
     const documents = await db.document.findMany({
       where,
