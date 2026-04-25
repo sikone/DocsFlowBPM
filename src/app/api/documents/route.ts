@@ -104,7 +104,35 @@ export async function GET(request: NextRequest) {
       }),
     ])
 
-    return NextResponse.json({ documents, total, page, limit })
+    // Attach each document's pending step assigned to the current user (by userId or departmentId)
+    const docIds = documents.map((d) => d.id)
+    const pendingStepByDocId = new Map<string, { id: string; dueAt: string | null }>()
+    if (docIds.length > 0) {
+      const stepOrConditions: Prisma.DocumentApprovalStepWhereInput[] = [
+        { userId: user.id },
+      ]
+      if (user.departmentId) {
+        stepOrConditions.push({ departmentId: user.departmentId })
+      }
+      const pendingSteps = await db.documentApprovalStep.findMany({
+        where: {
+          OR: stepOrConditions,
+          status: 'PENDING',
+          isActive: true,
+          approval: { documentId: { in: docIds }, status: 'IN_PROGRESS' },
+        },
+        select: { id: true, dueAt: true, approval: { select: { documentId: true } } },
+      })
+      for (const s of pendingSteps) {
+        pendingStepByDocId.set(s.approval.documentId, { id: s.id, dueAt: s.dueAt?.toISOString() ?? null })
+      }
+    }
+    const documentsWithSteps = documents.map((d) => ({
+      ...d,
+      myPendingStep: pendingStepByDocId.get(d.id) ?? null,
+    }))
+
+    return NextResponse.json({ documents: documentsWithSteps, total, page, limit })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -226,7 +254,7 @@ export async function POST(request: NextRequest) {
     logActivity({
       userId: user.id,
       action: 'CREATE_DOCUMENT',
-      entityType: 'Document',
+      entityType: 'DOCUMENT',
       entityId: document.id,
       details: `Создан документ: ${title} (${docNumber})`,
     })

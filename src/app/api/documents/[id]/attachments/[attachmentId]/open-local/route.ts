@@ -9,6 +9,7 @@ import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
 import { getUploadDir } from '@/lib/uploads'
 import { registerWatcher, stopWatcher, getWatcherEntry } from '@/lib/file-watchers'
+import { logActivity } from '@/lib/activity-log'
 
 export async function POST(
   request: NextRequest,
@@ -102,6 +103,13 @@ export async function POST(
             isLatest: true,
           },
         })
+        logActivity({
+          userId,
+          action: 'UPDATE_ATTACHMENT',
+          entityType: 'DOCUMENT',
+          entityId: documentId,
+          details: `Изменено вложение: ${originalName} (версия ${newVersion})`,
+        })
       } catch (err) {
         console.error('[open-local] upload error:', err)
       } finally {
@@ -109,7 +117,38 @@ export async function POST(
       }
     })
 
-    registerWatcher(watcherKey, { tmpPath, documentId })
+    // Detect when the external editor closes by watching its lock file.
+    // Office creates ~$<base>, LibreOffice creates .~lock.<base>#
+    // Poll every 2 s; once the lock file has appeared and then disappears → auto-stop.
+    {
+      const lockDir = path.dirname(tmpPath)
+      const lockBase = path.basename(tmpPath)
+      const msLockPath = path.join(lockDir, '~$' + lockBase)
+      const loLockPath = path.join(lockDir, '.~lock.' + lockBase + '#')
+      let lockEverSeen = false
+
+      const lockInterval = setInterval(async () => {
+        const entry = getWatcherEntry(watcherKey)
+        if (!entry) { clearInterval(lockInterval); return }
+
+        const [msOk, loOk] = await Promise.all([
+          fs.access(msLockPath).then(() => true).catch(() => false),
+          fs.access(loLockPath).then(() => true).catch(() => false),
+        ])
+        const present = msOk || loOk
+
+        if (present) {
+          lockEverSeen = true
+        } else if (lockEverSeen) {
+          // Lock was present, now gone — editor was closed.
+          clearInterval(lockInterval)
+          stopWatcher(watcherKey)
+          try { await fs.unlink(tmpPath) } catch { /* already gone */ }
+        }
+      }, 2000)
+
+      registerWatcher(watcherKey, { tmpPath, documentId, lockInterval })
+    }
 
     return NextResponse.json({ groupId })
   } catch {

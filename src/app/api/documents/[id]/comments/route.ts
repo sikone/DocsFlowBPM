@@ -58,7 +58,7 @@ export async function POST(
     logActivity({
       userId: user.id,
       action: 'COMMENT_DOCUMENT',
-      entityType: 'Document',
+      entityType: 'DOCUMENT',
       entityId: id,
       details: `Комментарий к документу: ${document.title}`,
     })

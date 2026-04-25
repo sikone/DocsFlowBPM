@@ -106,7 +106,7 @@ import WelcomeBanner from '@/components/dashboard/welcome-banner';
 import {
   FileText,
   FolderOpen,
-  Folder,
+  Folder as FolderIcon,
   ChevronRight,
   ChevronDown,
   Plus,
@@ -154,6 +154,7 @@ import {
   Tag,
   Archive,
   BarChart3,
+  AlertTriangle,
 } from 'lucide-react';
 
 // ─── Theme Toggle Component ─────────────────────────────────────────
@@ -1819,7 +1820,7 @@ export default function DashboardLayout() {
           )}
 
           {/* ── Toolbar ── */}
-          <div className="sticky top-0 z-10 bg-background border-b px-4 py-2.5 flex items-center gap-2 overflow-x-auto flex-nowrap sm:flex-wrap no-print">
+          <div className="sticky top-0 z-10 bg-background border-b px-4 py-2.5 flex items-center gap-2 flex-wrap no-print [&>*]:shrink-0">
             {/* New Document Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -2262,8 +2263,8 @@ export default function DashboardLayout() {
           </div>
 
           {/* ── Quick Actions ── */}
-          {!isLoading && (
-            <div className="px-4 pt-3 pb-0">
+          {!isLoading && (invoiceTypeId || contractTypeId || memoTypeId || user?.role === 'ADMIN') && (
+            <div className="px-4 pt-3 pb-3">
               <div className="flex flex-wrap gap-3">
                 {invoiceTypeId && (
                   <button
@@ -3027,7 +3028,7 @@ function FolderTreeNode({
           ) : isExpanded || isSelected ? (
             <FolderOpen className={`h-4 w-4 shrink-0 ${folderColorClass}`} style={folderInlineColor ? { color: folderInlineColor } : undefined} />
           ) : (
-            <Folder className={`h-4 w-4 shrink-0 ${folderColorClass}`} style={folderInlineColor ? { color: folderInlineColor } : undefined} />
+            <FolderIcon className={`h-4 w-4 shrink-0 ${folderColorClass}`} style={folderInlineColor ? { color: folderInlineColor } : undefined} />
           )}
           <span className="truncate">{folder.name}</span>
           <span
@@ -3107,6 +3108,24 @@ function FolderTreeNode({
   );
 }
 
+// Returns true when the row/card should be highlighted red:
+// the current user has a pending step AND (urgency is CRITICAL OR dueAt is ≤1h away / overdue)
+function isUrgentHighlight(doc: Document): boolean {
+  if (!doc.myPendingStep) return false
+  if (doc.urgency === 'CRITICAL') return true
+  const { dueAt } = doc.myPendingStep
+  if (!dueAt) return false
+  return new Date(dueAt).getTime() <= Date.now() + 60 * 60 * 1000
+}
+
+function urgentHighlightReason(doc: Document): string {
+  if (!doc.myPendingStep) return ''
+  if (doc.urgency === 'CRITICAL') return 'Экстренный документ'
+  const { dueAt } = doc.myPendingStep
+  if (!dueAt) return ''
+  return new Date(dueAt).getTime() < Date.now() ? 'Срок SLA истёк' : 'Осталось менее 1 часа по SLA'
+}
+
 // ══════════════════════════════════════════════════════════════════════
 // ── DOCUMENT TABLE ───────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════
@@ -3151,7 +3170,7 @@ function DocumentTable({
   }
 
   return (
-    <div className="bg-card rounded-lg border shadow-sm overflow-hidden custom-scrollbar max-h-96 overflow-y-auto">
+    <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/60">
@@ -3225,10 +3244,13 @@ function DocumentTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {documents.map((doc) => (
+          {documents.map((doc) => {
+            const urgent = isUrgentHighlight(doc)
+            const urgentReason = urgent ? urgentHighlightReason(doc) : ''
+            return (
             <TableRow
               key={doc.id}
-              className={`cursor-pointer group transition-all duration-150 hover:bg-muted/50 even:bg-muted/20 ${selectMode && selectedIds.has(doc.id) ? 'bg-emerald-50 dark:bg-emerald-950/20' : ''}`}
+              className={`cursor-pointer group transition-all duration-150 hover:bg-muted/50 even:bg-muted/20 ${selectMode && selectedIds.has(doc.id) ? 'bg-emerald-50 dark:bg-emerald-950/20' : ''} ${urgent ? 'bg-rose-50/80 dark:bg-rose-950/20' : ''}`}
               onClick={() => onDocClick(doc.id)}
             >
               <TableCell>
@@ -3260,9 +3282,19 @@ function DocumentTable({
                 </div>
               </TableCell>
               <TableCell>
-                <span className="font-medium text-sm group-hover:text-emerald-700 transition-colors truncate block max-w-xs">
-                  {doc.title}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {urgent && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                      </TooltipTrigger>
+                      <TooltipContent>{urgentReason}</TooltipContent>
+                    </Tooltip>
+                  )}
+                  <span className={`font-medium text-sm group-hover:text-emerald-700 transition-colors truncate block max-w-xs ${urgent ? 'text-rose-700 dark:text-rose-400' : ''}`}>
+                    {doc.title}
+                  </span>
+                </div>
               </TableCell>
               <TableCell className="hidden md:table-cell">
                 <span className="text-sm text-muted-foreground font-mono">
@@ -3433,7 +3465,8 @@ function DocumentTable({
                 </div>
               </TableCell>
             </TableRow>
-          ))}
+          );
+          })}
         </TableBody>
       </Table>
     </div>
@@ -3473,13 +3506,15 @@ function DocumentGrid({
           .join('')
           .toUpperCase()
           .slice(0, 2) || '?';
+        const urgent = isUrgentHighlight(doc);
+        const urgentReason = urgent ? urgentHighlightReason(doc) : '';
 
         return (
           <div
             key={doc.id}
             onClick={() => onDocClick(doc.id)}
-            className={`group card-shine bg-card rounded-xl border border-border/60 shadow-sm hover:shadow-xl hover:shadow-muted/30 hover:-translate-y-0.5 hover:border-border transition-all duration-300 cursor-pointer overflow-hidden relative ${selectMode && selectedIds.has(doc.id) ? 'ring-2 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' : ''}`}
-            style={{ borderTopColor: docColor }}
+            className={`group card-shine bg-card rounded-xl border shadow-sm hover:shadow-xl hover:shadow-muted/30 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer overflow-hidden relative ${urgent ? 'border-rose-400 dark:border-rose-700 bg-rose-50/40 dark:bg-rose-950/20 ring-1 ring-rose-300 dark:ring-rose-800' : 'border-border/60 hover:border-border'} ${selectMode && selectedIds.has(doc.id) ? 'ring-2 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' : ''}`}
+            style={{ borderTopColor: urgent ? '#f43f5e' : docColor }}
           >
             {/* Selection Checkbox */}
             {selectMode && (
@@ -3570,18 +3605,28 @@ function DocumentGrid({
                 <div
                   className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
                   style={{
-                    backgroundColor: `${docColor}15`,
-                    color: docColor,
+                    backgroundColor: urgent ? '#fef2f2' : `${docColor}15`,
+                    color: urgent ? '#f43f5e' : docColor,
                   }}
                 >
                   {getDocTypeIcon(doc.type?.systemName || '')}
                 </div>
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] font-medium ${STATUS_COLORS[doc.status] || ''}`}
-                >
-                  {STATUS_LABELS[doc.status] || doc.status}
-                </Badge>
+                <div className="flex items-center gap-1.5">
+                  {urgent && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                      </TooltipTrigger>
+                      <TooltipContent>{urgentReason}</TooltipContent>
+                    </Tooltip>
+                  )}
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] font-medium ${STATUS_COLORS[doc.status] || ''}`}
+                  >
+                    {STATUS_LABELS[doc.status] || doc.status}
+                  </Badge>
+                </div>
               </div>
 
               {/* Title + number */}
@@ -3669,7 +3714,7 @@ function EmptyState({ isSearch = false }: { isSearch?: boolean }) {
 // ══════════════════════════════════════════════════════════════════════
 function LoadingSkeleton() {
   return (
-    <div className="bg-card rounded-lg border shadow-sm overflow-hidden custom-scrollbar max-h-96 overflow-y-auto">
+    <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
       {/* Toolbar skeleton */}
       <div className="p-4 border-b space-y-3">
         <div className="flex items-center gap-3">

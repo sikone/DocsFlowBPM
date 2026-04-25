@@ -57,7 +57,7 @@ export async function PUT(request: NextRequest) {
         logActivity({
           userId: user.id,
           action: 'CHANGE_STATUS',
-          entityType: 'Document',
+          entityType: 'DOCUMENT',
           entityId: doc.id,
           details: `Массовая смена статуса: ${doc.status} → ${status} (${doc.title})`,
         })

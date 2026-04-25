@@ -90,6 +90,7 @@ export interface Document {
   type?: DocumentType;
   creator?: { id: string; name: string; email: string };
   tagLinks?: Array<{ id: string; tagId: string; tag: DocumentTag }>;
+  myPendingStep?: { id: string; dueAt: string | null } | null;
 }
 
 export interface Counterparty {
@@ -219,6 +220,7 @@ export type AppView =
   | { page: 'admin-contacts' }
   | { page: 'admin-departments' }
   | { page: 'admin-approval-routes' }
+  | { page: 'admin-deleted-objects' }
   | { page: 'profile' }
   | { page: 'reports' };
 

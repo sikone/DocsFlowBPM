@@ -3,6 +3,7 @@ import fsSync from 'fs'
 interface WatcherEntry {
   tmpPath: string
   documentId: string
+  lockInterval?: ReturnType<typeof setInterval>
 }
 
 declare global {
@@ -23,6 +24,7 @@ export function stopWatcher(key: string): void {
   const watchers = getWatchers()
   const entry = watchers.get(key)
   if (!entry) return
+  if (entry.lockInterval) clearInterval(entry.lockInterval)
   try { fsSync.unwatchFile(entry.tmpPath) } catch { /* ignore */ }
   watchers.delete(key)
 }

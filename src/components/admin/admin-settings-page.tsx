@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Loader2, Save, FolderOpen, SlidersHorizontal, Clock, Timer } from 'lucide-react';
+import { Loader2, Save, FolderOpen, SlidersHorizontal, Clock, Timer, Network, Eye, EyeOff, RefreshCw, Plug } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { useStore } from '@/lib/store';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
@@ -39,6 +41,19 @@ export function AdminSettingsPage() {
   // Default SLA hours per urgency (used when a step has no individual slaConfig)
   const [slaHours, setSlaHours] = useState<Record<UrgencyLevel, number>>({ ...DEFAULT_SLA });
 
+  // Active Directory
+  const [adEnabled, setAdEnabled] = useState(false);
+  const [adUrl, setAdUrl] = useState('');
+  const [adBaseDn, setAdBaseDn] = useState('');
+  const [adBindDn, setAdBindDn] = useState('');
+  const [adBindPassword, setAdBindPassword] = useState('');
+  const [adBindPasswordPlaceholder, setAdBindPasswordPlaceholder] = useState('');
+  const [adGroup, setAdGroup] = useState('G_Test_DocsFlow');
+  const [showAdPassword, setShowAdPassword] = useState(false);
+  const [adTesting, setAdTesting] = useState(false);
+  const [adSyncing, setAdSyncing] = useState(false);
+  const [adTestResult, setAdTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
   useEffect(() => {
     if (!token) return;
     apiFetch<{ settings: Record<string, string> }>('/api/settings', token)
@@ -61,6 +76,15 @@ export function AdminSettingsPage() {
           if (Number.isFinite(val) && val > 0) merged[level] = val;
         }
         setSlaHours(merged);
+
+        // Active Directory
+        setAdEnabled(settings.adEnabled === 'true');
+        setAdUrl(settings.adUrl ?? '');
+        setAdBaseDn(settings.adBaseDn ?? '');
+        setAdBindDn(settings.adBindDn ?? '');
+        setAdGroup(settings.adGroup ?? 'G_Test_DocsFlow');
+        // Show placeholder if password was previously saved
+        if (settings.adBindPassword) setAdBindPasswordPlaceholder('••••••••');
       })
       .catch(() => toast.error('Ошибка загрузки настроек'))
       .finally(() => setLoading(false));
@@ -90,16 +114,67 @@ export function AdminSettingsPage() {
         workHoursStart: String(startH),
         workHoursEnd:   String(endH),
         workingDays: JSON.stringify(workingDays),
+        adEnabled: String(adEnabled),
+        adUrl: adUrl.trim(),
+        adBaseDn: adBaseDn.trim(),
+        adBindDn: adBindDn.trim(),
+        adGroup: adGroup.trim() || 'G_Test_DocsFlow',
       };
+      // Only overwrite password if user typed a new one
+      if (adBindPassword) body.adBindPassword = adBindPassword;
       for (const level of URGENCY_LEVELS) {
         body[`slaDefault${level}`] = String(slaHours[level]);
       }
       await apiFetch('/api/settings', token, { method: 'PUT', body: JSON.stringify(body) });
+      if (adBindPassword) {
+        setAdBindPassword('');
+        setAdBindPasswordPlaceholder('••••••••');
+      }
       toast.success('Настройки сохранены');
     } catch {
       toast.error('Ошибка сохранения настроек');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAdTest = async () => {
+    if (!token) return;
+    setAdTesting(true);
+    setAdTestResult(null);
+    try {
+      const res = await fetch(`/api/admin/ad-test?token=${encodeURIComponent(token)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: adUrl.trim(),
+          baseDn: adBaseDn.trim(),
+          bindDn: adBindDn.trim(),
+          bindPassword: adBindPassword || undefined,
+          group: adGroup.trim() || 'G_Test_DocsFlow',
+        }),
+      });
+      const json = await res.json();
+      setAdTestResult(json);
+    } catch {
+      setAdTestResult({ success: false, message: 'Ошибка запроса' });
+    } finally {
+      setAdTesting(false);
+    }
+  };
+
+  const handleAdSync = async () => {
+    if (!token) return;
+    setAdSyncing(true);
+    try {
+      const res = await fetch(`/api/admin/ad-sync?token=${encodeURIComponent(token)}`, { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Ошибка синхронизации');
+      toast.success(`Синхронизация завершена: создано ${json.created}, обновлено ${json.updated}${json.skipped ? `, пропущено ${json.skipped}` : ''}${json.errors?.length ? `, ошибок: ${json.errors.length}` : ''}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка синхронизации');
+    } finally {
+      setAdSyncing(false);
     }
   };
 
@@ -256,6 +331,139 @@ export function AdminSettingsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Active Directory */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Network className="w-4 h-4 text-violet-500" />
+            Active Directory
+          </CardTitle>
+          <CardDescription>
+            Синхронизация пользователей из группы AD. Авторизация выполняется через LDAP bind.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="ad-enabled"
+              checked={adEnabled}
+              onCheckedChange={setAdEnabled}
+              className="data-[state=checked]:bg-emerald-600"
+            />
+            <Label htmlFor="ad-enabled" className="cursor-pointer">
+              Включить синхронизацию с AD
+            </Label>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="ad-url">URL сервера</Label>
+              <Input
+                id="ad-url"
+                value={adUrl}
+                onChange={(e) => setAdUrl(e.target.value)}
+                placeholder="ldap://192.168.1.1:389"
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ad-group">Группа синхронизации</Label>
+              <Input
+                id="ad-group"
+                value={adGroup}
+                onChange={(e) => setAdGroup(e.target.value)}
+                placeholder="G_Test_DocsFlow"
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label htmlFor="ad-base-dn">Base DN</Label>
+              <Input
+                id="ad-base-dn"
+                value={adBaseDn}
+                onChange={(e) => setAdBaseDn(e.target.value)}
+                placeholder="DC=company,DC=local"
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label htmlFor="ad-bind-dn">Bind DN (сервисный аккаунт)</Label>
+              <Input
+                id="ad-bind-dn"
+                value={adBindDn}
+                onChange={(e) => setAdBindDn(e.target.value)}
+                placeholder="CN=svc_docsflow,OU=ServiceAccounts,DC=company,DC=local"
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label htmlFor="ad-bind-pass">Пароль сервисного аккаунта</Label>
+              <div className="flex gap-1.5">
+                <Input
+                  id="ad-bind-pass"
+                  type={showAdPassword ? 'text' : 'password'}
+                  value={adBindPassword}
+                  onChange={(e) => setAdBindPassword(e.target.value)}
+                  placeholder={adBindPasswordPlaceholder || 'Введите пароль'}
+                  className="font-mono text-sm"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => setShowAdPassword((v) => !v)}
+                >
+                  {showAdPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+              {adBindPasswordPlaceholder && !adBindPassword && (
+                <p className="text-xs text-muted-foreground">Пароль сохранён. Оставьте поле пустым, чтобы не менять.</p>
+              )}
+            </div>
+          </div>
+
+          {adTestResult && (
+            <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-md border ${
+              adTestResult.success
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400'
+                : 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/30 dark:border-rose-800 dark:text-rose-400'
+            }`}>
+              <Badge variant="outline" className={`text-xs shrink-0 ${adTestResult.success ? 'border-emerald-400 text-emerald-600' : 'border-rose-400 text-rose-600'}`}>
+                {adTestResult.success ? 'OK' : 'Ошибка'}
+              </Badge>
+              {adTestResult.message}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              disabled={adTesting || !adUrl || !adBaseDn || !adBindDn || (!adBindPassword && !adBindPasswordPlaceholder)}
+              onClick={handleAdTest}
+            >
+              {adTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
+              Проверить подключение
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              disabled={adSyncing || !adEnabled}
+              onClick={handleAdSync}
+              title={!adEnabled ? 'Включите синхронизацию для запуска' : undefined}
+            >
+              {adSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Синхронизировать сейчас
+            </Button>
           </div>
         </CardContent>
       </Card>

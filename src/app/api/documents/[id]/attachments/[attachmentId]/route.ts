@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
 import { deleteUploadedFile } from '@/lib/uploads'
+import { logActivity } from '@/lib/activity-log'
 
 export async function DELETE(
   request: NextRequest,
@@ -37,6 +38,13 @@ export async function DELETE(
       await db.documentAttachment.deleteMany({
         where: { groupId: attachment.groupId, documentId },
       })
+      logActivity({
+        userId: user.id,
+        action: 'DELETE_ATTACHMENT',
+        entityType: 'DOCUMENT',
+        entityId: documentId,
+        details: `Удалено вложение: ${attachment.originalName}`,
+      })
       return NextResponse.json({ success: true, softDeleted: false })
     }
 
@@ -45,6 +53,13 @@ export async function DELETE(
     await db.documentAttachment.updateMany({
       where: { groupId: attachment.groupId, documentId },
       data: { deletedAt: now },
+    })
+    logActivity({
+      userId: user.id,
+      action: 'DELETE_ATTACHMENT',
+      entityType: 'Document',
+      entityId: documentId,
+      details: `Удалено вложение: ${attachment.originalName}`,
     })
 
     return NextResponse.json({ success: true, softDeleted: true })

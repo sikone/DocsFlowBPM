@@ -62,7 +62,7 @@ export async function PUT(request: NextRequest) {
         logActivity({
           userId: user.id,
           action: 'EDIT_DOCUMENT',
-          entityType: 'Document',
+          entityType: 'DOCUMENT',
           entityId: doc.id,
           details: `Перемещён документ из «${oldFolder}» в «${targetFolderName}»`,
         })

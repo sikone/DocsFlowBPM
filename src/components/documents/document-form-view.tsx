@@ -38,6 +38,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
+import { CounterpartyDialog } from '@/components/directory/counterparty-dialog';
+import { ContactDialog } from '@/components/directory/contact-dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,6 +67,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from '@/components/ui/command';
 import { evaluateFormula, formatFormulaResult, type FormulaResult } from '@/lib/formula-evaluator';
 import {
@@ -99,6 +102,7 @@ import {
   File,
   X,
   Pencil,
+  Plus,
 } from 'lucide-react';
 
 // ────────────────────────────────────────────
@@ -168,7 +172,14 @@ function DirectorySelectField({
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+
+  const [createOpen, setCreateOpen] = useState(false);
+
   const hasError = touched && error;
+
+  const isCounterparties = directorySource === 'counterparties';
+  const isContacts = directorySource === 'contacts';
+  const canCreate = isCounterparties || isContacts;
 
   useEffect(() => {
     const apiPath = DIRECTORY_APIS[directorySource];
@@ -200,6 +211,11 @@ function DirectorySelectField({
         ? 'border-dashed border-muted-foreground/30'
         : 'border-input',
   ].join(' ');
+
+  const openCreate = () => {
+    setOpen(false);
+    setCreateOpen(true);
+  };
 
   return (
     <div className="space-y-1.5">
@@ -268,10 +284,50 @@ function DirectorySelectField({
                   ))}
                 </CommandGroup>
               )}
+              {canCreate && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup>
+                    <CommandItem
+                      onSelect={openCreate}
+                      className="gap-2 text-emerald-600 font-medium cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {isCounterparties ? 'Добавить контрагента...' : 'Добавить контакт...'}
+                    </CommandItem>
+                  </CommandGroup>
+                </>
+              )}
             </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
+
+      {isCounterparties && (
+        <CounterpartyDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          token={token}
+          onSaved={(c) => {
+            const newOpt: DirectoryOption = { value: c.id, label: c.shortName || c.name, sub: `ИНН ${c.inn}` };
+            setOptions((prev) => [...prev, newOpt]);
+            onChange(field.id, c.id);
+          }}
+        />
+      )}
+      {isContacts && (
+        <ContactDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          token={token}
+          onSaved={(c) => {
+            const newOpt: DirectoryOption = { value: c.id, label: c.name, sub: c.phone || c.email || undefined };
+            setOptions((prev) => [...prev, newOpt]);
+            onChange(field.id, c.id);
+          }}
+        />
+      )}
+
       {hasError && (
         <p className="text-xs text-rose-500 flex items-center gap-1">
           <XCircle className="h-3 w-3" />
@@ -767,6 +823,12 @@ function getActionIcon(action: string) {
     APPROVAL_STEP_APPROVED_WITH_CHANGES: 'bg-amber-500',
     APPROVAL_STEP_REJECTED: 'bg-rose-500',
     APPROVAL_COMPLETED: 'bg-emerald-600',
+    ADD_ATTACHMENT: 'bg-emerald-500',
+    UPDATE_ATTACHMENT: 'bg-sky-500',
+    DELETE_ATTACHMENT: 'bg-rose-500',
+    RESTORE_ATTACHMENT: 'bg-emerald-500',
+    PERMANENT_DELETE_ATTACHMENT: 'bg-rose-700',
+    COMMENT_DOCUMENT: 'bg-violet-400',
   };
   return map[action] || 'bg-slate-400';
 }
@@ -782,6 +844,12 @@ function getActionLabel(action: string): string {
     APPROVAL_STEP_APPROVED_WITH_CHANGES: 'Шаг согласован с изменениями',
     APPROVAL_STEP_REJECTED: 'Шаг отклонён',
     APPROVAL_COMPLETED: 'Согласование завершено',
+    ADD_ATTACHMENT: 'Вложение добавлено',
+    UPDATE_ATTACHMENT: 'Вложение обновлено',
+    DELETE_ATTACHMENT: 'Вложение удалено',
+    RESTORE_ATTACHMENT: 'Вложение восстановлено',
+    PERMANENT_DELETE_ATTACHMENT: 'Вложение удалено навсегда',
+    COMMENT_DOCUMENT: 'Добавлен комментарий',
   };
   return map[action] || action;
 }
@@ -922,7 +990,9 @@ export default function DocumentFormView() {
   const [title, setTitle] = useState('');
   const [status, setStatus] = useState<string>('DRAFT');
   const [urgency, setUrgency] = useState<string>('');
+  const [currentUserPermission, setCurrentUserPermission] = useState<'PRIVILEGED' | 'OWNER' | 'EDIT' | 'VIEW' | null>(null);
   const isLocked = status === 'COMPLETED';
+  const isViewOnly = currentUserPermission === 'VIEW';
   const [saving, setSaving] = useState(false);
   const [loadingLocal, setLoadingLocal] = useState(true);
 
@@ -1132,7 +1202,14 @@ export default function DocumentFormView() {
       try {
         setLoadingLocal(true);
         const docId = (view as { documentId: string }).documentId;
-        const doc: Document = await apiFetch(`/api/documents/${docId}`, token);
+        const res = await fetch(`/api/documents/${docId}?token=${encodeURIComponent(token ?? '')}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ error: 'Ошибка сервера' }));
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        const json = await res.json() as { document: Document; currentUserPermission: 'PRIVILEGED' | 'OWNER' | 'EDIT' | 'VIEW' };
+        const doc = json.document;
+        setCurrentUserPermission(json.currentUserPermission ?? null);
         setDocument(doc);
         setTitle(doc.title);
         setStatus(doc.status);
@@ -1220,7 +1297,7 @@ export default function DocumentFormView() {
 
   // ── Auto-save with debounce ──
   useEffect(() => {
-    if (!autoSaveEnabled || !document || !token || !isDirty || saving) return;
+    if (!autoSaveEnabled || !document || !token || !isDirty || saving || isViewOnly) return;
 
     // Clear previous timer
     if (autoSaveTimerRef.current) {
@@ -1424,6 +1501,7 @@ export default function DocumentFormView() {
 
   const handleSave = useCallback(async () => {
     if (!token) return;
+    if (isViewOnly) return;
     if (!urgency) {
       toast.error('Выберите срочность документа');
       return;
@@ -1796,16 +1874,16 @@ export default function DocumentFormView() {
                 <span className={`inline-block w-2.5 h-2.5 rounded-full ${URGENCY_DOT_COLORS[urgency as UrgencyLevel] ?? 'bg-slate-300'}`} />
               </span>
               Срочность
-              {!urgency && !isLocked && (
+              {!urgency && !isLocked && !isViewOnly && (
                 <span className="text-[10px] text-rose-500 font-medium ml-auto">обязательно</span>
               )}
             </span>
-            <div className={`grid grid-cols-2 gap-1 rounded-md transition-colors ${!urgency && !isLocked ? 'ring-1 ring-rose-300 dark:ring-rose-700 p-0.5' : ''}`}>
+            <div className={`grid grid-cols-2 gap-1 rounded-md transition-colors ${!urgency && !isLocked && !isViewOnly ? 'ring-1 ring-rose-300 dark:ring-rose-700 p-0.5' : ''}`}>
               {(Object.keys(URGENCY_LABELS) as UrgencyLevel[]).map((level) => (
                 <button
                   key={level}
                   type="button"
-                  disabled={isLocked}
+                  disabled={isLocked || isViewOnly}
                   onClick={() => setUrgency(level)}
                   className={`text-[11px] px-2 py-1 rounded border font-medium transition-colors truncate ${
                     urgency === level
@@ -1817,7 +1895,7 @@ export default function DocumentFormView() {
                 </button>
               ))}
             </div>
-            {!urgency && !isLocked && (
+            {!urgency && !isLocked && !isViewOnly && (
               <p className="text-[10px] text-rose-500">Выберите уровень срочности</p>
             )}
           </div>
@@ -1943,16 +2021,18 @@ export default function DocumentFormView() {
             <Share2 className="h-3.5 w-3.5" />
             Поделиться ссылкой
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full justify-start gap-2 text-xs h-9"
-            disabled={isNewDoc}
-            onClick={() => setPermissionsDialogOpen(true)}
-          >
-            <User className="h-3.5 w-3.5" />
-            Управление доступом
-          </Button>
+          {!isViewOnly && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start gap-2 text-xs h-9"
+              disabled={isNewDoc}
+              onClick={() => setPermissionsDialogOpen(true)}
+            >
+              <User className="h-3.5 w-3.5" />
+              Управление доступом
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -2185,7 +2265,7 @@ export default function DocumentFormView() {
             <Input
               value={title}
               onChange={(e) => handleTitleChange(e.target.value)}
-              disabled={isLocked}
+              disabled={isLocked || isViewOnly}
               className={`h-8 text-sm font-medium border-transparent hover:border-input focus:border-input bg-transparent font-semibold transition-all duration-200 focus-visible:ring-emerald-600/20 focus-visible:border-emerald-600/50 ${touchedFields.has('__title') && validationErrors['__title'] ? 'border-rose-400' : ''}`}
             />
             {touchedFields.has('__title') && validationErrors['__title'] && (
@@ -2208,11 +2288,19 @@ export default function DocumentFormView() {
             </Badge>
           )}
 
+          {/* View-only badge */}
+          {isViewOnly && (
+            <Badge variant="outline" className="text-xs shrink-0 border-amber-400 text-amber-600 dark:text-amber-400 gap-1 hidden sm:flex">
+              <Pencil className="h-3 w-3 line-through" />
+              Только просмотр
+            </Badge>
+          )}
+
           {/* Status dropdown */}
           <StatusDropdown
             currentStatus={status}
             onStatusChange={handleStatusChange}
-            disabled={isNewDoc || isLocked}
+            disabled={isNewDoc || isLocked || isViewOnly}
           />
 
           {/* Auto-save indicator */}
@@ -2329,7 +2417,7 @@ export default function DocumentFormView() {
                 <Button
                   size="sm"
                   onClick={handleSave}
-                  disabled={saving || isLocked}
+                  disabled={saving || isLocked || isViewOnly}
                   className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform no-print"
                 >
                   {saving ? (
@@ -2437,7 +2525,7 @@ export default function DocumentFormView() {
 
                 {/* Dynamic form fields */}
                 {formFields.length > 0 ? (
-                  <div className={isLocked ? 'pointer-events-none opacity-60 select-none' : undefined}>
+                  <div className={isLocked || isViewOnly ? 'pointer-events-none opacity-60 select-none' : undefined}>
                     <FormRowGroup
                       fields={formFields}
                       formData={allFormData}
@@ -2494,7 +2582,7 @@ export default function DocumentFormView() {
                               <button
                                 key={tag.id}
                                 type="button"
-                                disabled={isSyncing}
+                                disabled={isSyncing || isViewOnly}
                                 onClick={() => handleToggleTag(tag)}
                                 className={`
                                   inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium
@@ -2592,7 +2680,7 @@ export default function DocumentFormView() {
               <Button
                 size="sm"
                 onClick={handleSave}
-                disabled={saving || isLocked}
+                disabled={saving || isLocked || isViewOnly}
                 className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-transform h-10 px-5"
               >
                 {saving ? (

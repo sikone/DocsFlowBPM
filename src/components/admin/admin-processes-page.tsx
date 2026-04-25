@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Flag,
   FileCheck2,
+  KeyRound,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -109,10 +110,19 @@ export interface StepCondition {
   falseStepId: string;
 }
 
+interface GrantAccessConfig {
+  grantType: 'user' | 'department' | 'role';
+  userId?: string | null;
+  userName?: string | null;
+  departmentId?: string | null;
+  role?: 'ADMIN' | 'ADVANCED' | 'USER' | null;
+  permission: 'VIEW' | 'EDIT';
+}
+
 interface ProcessStep {
   id: string;
   name: string;
-  type: 'START' | 'APPROVAL' | 'NOTIFICATION' | 'CONDITION' | 'END' | 'STATUS_CHANGE';
+  type: 'START' | 'APPROVAL' | 'NOTIFICATION' | 'CONDITION' | 'END' | 'STATUS_CHANGE' | 'GRANT_ACCESS';
   assigneeRole: 'ADMIN' | 'ADVANCED' | 'USER';
   assigneeType?: 'role' | 'user' | 'department' | 'initiator';
   userId?: string | null;
@@ -122,6 +132,7 @@ interface ProcessStep {
   condition?: StepCondition;
   slaConfig?: string | null;
   targetStatus?: string | null;
+  grantAccessConfig?: GrantAccessConfig | null;
 }
 
 const CONDITION_OPERATOR_LABELS: Record<ConditionOperator, string> = {
@@ -177,6 +188,7 @@ const STEP_TYPE_LABELS: Record<string, string> = {
   NOTIFICATION: 'Уведомление',
   CONDITION: 'Условие',
   STATUS_CHANGE: 'Статус документа',
+  GRANT_ACCESS: 'Выдать доступ',
   END: 'Финиш',
 };
 
@@ -186,6 +198,7 @@ const STEP_TYPE_ICONS: Record<string, React.ElementType> = {
   NOTIFICATION: Bell,
   CONDITION: HelpCircle,
   STATUS_CHANGE: FileCheck2,
+  GRANT_ACCESS: KeyRound,
   END: Flag,
 };
 
@@ -195,6 +208,7 @@ const STEP_TYPE_COLORS: Record<string, string> = {
   NOTIFICATION: 'bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800',
   CONDITION: 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-800',
   STATUS_CHANGE: 'bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800',
+  GRANT_ACCESS: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:border-orange-800',
   END: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
 };
 
@@ -557,6 +571,7 @@ export function AdminProcessesPage() {
       departmentId: null,
       order: form.steps.length + 1,
       ...(type === 'STATUS_CHANGE' ? { targetStatus: 'APPROVED' } : {}),
+      ...(type === 'GRANT_ACCESS' ? { grantAccessConfig: { grantType: 'role' as const, role: 'USER' as const, permission: 'VIEW' as const } } : {}),
     };
     setForm((f) => ({ ...f, steps: [...f.steps, newStep] }));
   };
@@ -1065,6 +1080,113 @@ export function AdminProcessesPage() {
                                       <SelectItem value="COMPLETED" className="text-xs">Завершён</SelectItem>
                                     </SelectContent>
                                   </Select>
+                                ) : step.type === 'GRANT_ACCESS' ? (
+                                  <>
+                                    <Select
+                                      value={step.grantAccessConfig?.permission || 'VIEW'}
+                                      onValueChange={(val) =>
+                                        updateStep(step.id, {
+                                          grantAccessConfig: {
+                                            ...(step.grantAccessConfig || { grantType: 'role' }),
+                                            permission: val as 'VIEW' | 'EDIT',
+                                          },
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="w-32 h-7 text-xs border-orange-200 dark:border-orange-800" onClick={(e) => e.stopPropagation()}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="VIEW" className="text-xs">Просмотр</SelectItem>
+                                        <SelectItem value="EDIT" className="text-xs">Редактирование</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <Select
+                                      value={step.grantAccessConfig?.grantType || 'role'}
+                                      onValueChange={(val) =>
+                                        updateStep(step.id, {
+                                          grantAccessConfig: {
+                                            ...(step.grantAccessConfig || { permission: 'VIEW' }),
+                                            grantType: val as GrantAccessConfig['grantType'],
+                                            userId: null,
+                                            userName: null,
+                                            departmentId: null,
+                                            role: null,
+                                          },
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="w-28 h-7 text-xs" onClick={(e) => e.stopPropagation()}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="role" className="text-xs">По роли</SelectItem>
+                                        <SelectItem value="user" className="text-xs">Пользователь</SelectItem>
+                                        <SelectItem value="department" className="text-xs">Отдел</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    {(step.grantAccessConfig?.grantType === 'role' || !step.grantAccessConfig?.grantType) && (
+                                      <Select
+                                        value={step.grantAccessConfig?.role || 'USER'}
+                                        onValueChange={(val) =>
+                                          updateStep(step.id, {
+                                            grantAccessConfig: {
+                                              ...(step.grantAccessConfig || { permission: 'VIEW', grantType: 'role' }),
+                                              role: val as 'ADMIN' | 'ADVANCED' | 'USER',
+                                            },
+                                          })
+                                        }
+                                      >
+                                        <SelectTrigger className="w-28 h-7 text-xs" onClick={(e) => e.stopPropagation()}>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {Object.entries(ASSIGNEE_ROLE_LABELS).map(([key, label]) => (
+                                            <SelectItem key={key} value={key} className="text-xs">{label}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                    {step.grantAccessConfig?.grantType === 'user' && (
+                                      <UserPicker
+                                        token={token!}
+                                        value={step.grantAccessConfig?.userId}
+                                        displayName={step.grantAccessConfig?.userName}
+                                        onChange={(id, name) =>
+                                          updateStep(step.id, {
+                                            grantAccessConfig: {
+                                              ...(step.grantAccessConfig || { permission: 'VIEW', grantType: 'user' }),
+                                              userId: id,
+                                              userName: name,
+                                            },
+                                          })
+                                        }
+                                      />
+                                    )}
+                                    {step.grantAccessConfig?.grantType === 'department' && (
+                                      <Select
+                                        value={step.grantAccessConfig?.departmentId || '__none__'}
+                                        onValueChange={(val) =>
+                                          updateStep(step.id, {
+                                            grantAccessConfig: {
+                                              ...(step.grantAccessConfig || { permission: 'VIEW', grantType: 'department' }),
+                                              departmentId: val === '__none__' ? null : val,
+                                            },
+                                          })
+                                        }
+                                      >
+                                        <SelectTrigger className="w-40 h-7 text-xs" onClick={(e) => e.stopPropagation()}>
+                                          <SelectValue placeholder="Выбрать отдел..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="__none__" className="text-xs">— Выбрать —</SelectItem>
+                                          {departments.map((d) => (
+                                            <SelectItem key={d.id} value={d.id} className="text-xs">{d.name}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </>
                                 ) : null}
                               </div>
                             </div>
@@ -1464,6 +1586,21 @@ function StepsPreview({
                         → {DOC_STATUS_LABELS[step.targetStatus || 'APPROVED'] ?? step.targetStatus ?? '—'}
                       </span>
                     )}
+                    {step.type === 'GRANT_ACCESS' && step.grantAccessConfig && (() => {
+                      const cfg = step.grantAccessConfig!;
+                      const permLabel = cfg.permission === 'EDIT' ? 'Редактирование' : 'Просмотр';
+                      let target = '—';
+                      if (cfg.grantType === 'user') {
+                        const u = users.find((x) => x.id === cfg.userId);
+                        target = u?.name ?? cfg.userName ?? cfg.userId ?? '—';
+                      } else if (cfg.grantType === 'department') {
+                        const d = departments.find((x) => x.id === cfg.departmentId);
+                        target = `отдел: ${d?.name ?? cfg.departmentId ?? '—'}`;
+                      } else {
+                        target = `роль: ${ASSIGNEE_ROLE_LABELS[cfg.role || 'USER'] || cfg.role || '—'}`;
+                      }
+                      return <span className="text-xs text-muted-foreground">→ {permLabel} / {target}</span>;
+                    })()}
                     {(step.type === 'APPROVAL' || step.type === 'NOTIFICATION') && (() => {
                       if (step.assigneeType === 'initiator') {
                         return <span className="text-xs text-muted-foreground">→ Инициатор документа</span>;

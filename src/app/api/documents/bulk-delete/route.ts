@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       logActivity({
         userId: user.id,
         action: 'DELETE_DOCUMENT',
-        entityType: 'Document',
+        entityType: 'DOCUMENT',
         entityId: doc.id,
         details: `Массовое удаление: ${doc.title}`,
       })

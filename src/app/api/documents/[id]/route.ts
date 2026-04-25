@@ -43,12 +43,18 @@ export async function GET(
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
 
-    if (!isPrivilegedRole(user.role) && document.creator.id !== user.id) {
+    let currentUserPermission: 'PRIVILEGED' | 'OWNER' | 'EDIT' | 'VIEW' = 'PRIVILEGED'
+    if (isPrivilegedRole(user.role)) {
+      currentUserPermission = 'PRIVILEGED'
+    } else if (document.creator.id === user.id) {
+      currentUserPermission = 'OWNER'
+    } else {
       const perm = await db.documentPermission.findFirst({ where: { documentId: id, userId: user.id } })
       if (!perm) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      currentUserPermission = perm.permission as 'EDIT' | 'VIEW'
     }
 
-    return NextResponse.json({ document })
+    return NextResponse.json({ document, currentUserPermission })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -77,6 +83,14 @@ export async function PUT(
     const existingDoc = await db.document.findUnique({ where: { id } })
     if (!existingDoc) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
+    }
+
+    // Check edit permission: only owner, creator, or EDIT permission holders can update
+    if (!isPrivilegedRole(user.role) && existingDoc.createdById !== user.id) {
+      const perm = await db.documentPermission.findFirst({ where: { documentId: id, userId: user.id } })
+      if (!perm || perm.permission !== 'EDIT') {
+        return NextResponse.json({ error: 'Edit access denied' }, { status: 403 })
+      }
     }
 
     // Validate status if provided
@@ -142,7 +156,7 @@ export async function PUT(
       logActivity({
         userId: user.id,
         action: 'CHANGE_STATUS',
-        entityType: 'Document',
+        entityType: 'DOCUMENT',
         entityId: id,
         details: `Статус изменён: ${existingDoc.status} → ${status}`,
       })
@@ -153,7 +167,7 @@ export async function PUT(
       logActivity({
         userId: user.id,
         action: 'EDIT_DOCUMENT',
-        entityType: 'Document',
+        entityType: 'DOCUMENT',
         entityId: id,
         details: `Изменён документ: ${updatedDocument.title}`,
       })

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Upload, X, Download, Loader2, File, FileText, Image as ImageIcon,
   FileSpreadsheet, Presentation, ChevronDown, ChevronRight,
-  Pencil, CircleDot, CheckCircle2, History, UserRound, Trash2,
+  Pencil, CircleDot, CheckCircle2, History, UserRound, Trash2, RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -177,6 +177,7 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+  const [restoringGroupId, setRestoringGroupId] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [watchingGroupId, setWatchingGroupId] = useState<string | null>(null);
   const [openingGroupId, setOpeningGroupId] = useState<string | null>(null);
@@ -186,19 +187,33 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
 
   const isDraft = documentStatus === 'DRAFT';
 
-  // Stop server watcher on unmount
+  // Stop server watcher on unmount (in-app navigation)
   useEffect(() => {
     return () => {
       const attId = serverWatchAttIdRef.current;
       if (attId) {
         fetch(
           `/api/documents/${documentId}/attachments/${attId}/open-local?token=${encodeURIComponent(token)}`,
-          { method: 'DELETE' }
+          { method: 'DELETE', keepalive: true }
         ).catch(() => {});
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Stop server watcher on browser close / page refresh
+  useEffect(() => {
+    const handlePageHide = () => {
+      const attId = serverWatchAttIdRef.current;
+      if (!attId) return;
+      fetch(
+        `/api/documents/${documentId}/attachments/${attId}/open-local?token=${encodeURIComponent(token)}`,
+        { method: 'DELETE', keepalive: true }
+      ).catch(() => {});
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    return () => window.removeEventListener('pagehide', handlePageHide);
+  }, [documentId, token]);
 
   const fetchAttachments = useCallback(async () => {
     try {
@@ -215,12 +230,33 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
 
   useEffect(() => { fetchAttachments(); }, [fetchAttachments]);
 
-  // Poll for new versions while a file is being watched server-side
+  // Poll for new versions AND check if server watcher is still active (detects editor close).
   useEffect(() => {
     if (!watchingGroupId) return;
-    const interval = setInterval(fetchAttachments, 3000);
+    const attId = serverWatchAttIdRef.current;
+
+    const poll = async () => {
+      await fetchAttachments();
+      // Auto-stop UI when the server watcher was terminated (e.g. editor lock file gone).
+      if (attId) {
+        try {
+          const res = await fetch(
+            `/api/documents/${documentId}/attachments/${attId}/watch-status?token=${encodeURIComponent(token)}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (!data.active) {
+              serverWatchAttIdRef.current = null;
+              setWatchingGroupId(null);
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
+    };
+
+    const interval = setInterval(poll, 3000);
     return () => clearInterval(interval);
-  }, [watchingGroupId, fetchAttachments]);
+  }, [watchingGroupId, fetchAttachments, documentId, token]);
 
   // ── Upload ────────────────────────────────────────────────────────────────
 
@@ -299,6 +335,27 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
       toast.error('Ошибка удаления файла');
     } finally {
       setDeletingGroupId(null);
+    }
+  };
+
+  // ── Restore ───────────────────────────────────────────────────────────────
+
+  const handleRestore = async (group: AttachmentGroup) => {
+    setRestoringGroupId(group.groupId);
+    try {
+      const res = await fetch(
+        `/api/documents/${documentId}/attachments/${group.latest.id}/restore?token=${encodeURIComponent(token)}`,
+        { method: 'POST' }
+      );
+      if (!res.ok) throw new Error();
+      setAttachments((prev) =>
+        prev.map((a) => a.groupId === group.groupId ? { ...a, deletedAt: null } : a)
+      );
+      toast.success(`${group.latest.originalName} восстановлен`);
+    } catch {
+      toast.error('Ошибка восстановления файла');
+    } finally {
+      setRestoringGroupId(null);
     }
   };
 
@@ -476,8 +533,23 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
             </div>
           </div>
 
-          {/* Actions — only for active attachments */}
-          {!isDeleted && (
+          {/* Actions */}
+          {isDeleted ? (
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                onClick={() => handleRestore(group)}
+                disabled={restoringGroupId === groupId}
+                className="p-1.5 rounded text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
+                title="Восстановить вложение"
+              >
+                {restoringGroupId === groupId ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <RotateCcw className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
+          ) : (
             <div className="flex items-center gap-0.5 shrink-0">
               {/* Open for editing */}
               {canEdit && (

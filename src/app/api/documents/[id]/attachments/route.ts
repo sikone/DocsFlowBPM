@@ -5,6 +5,7 @@ import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
 import { getUploadDir } from '@/lib/uploads'
+import { logActivity } from '@/lib/activity-log'
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100 MB
 
@@ -91,6 +92,16 @@ export async function POST(
         isLatest: true,
       },
       include: { uploadedBy: { select: { id: true, name: true } } },
+    })
+
+    logActivity({
+      userId: user.id,
+      action: version === 1 ? 'ADD_ATTACHMENT' : 'UPDATE_ATTACHMENT',
+      entityType: 'DOCUMENT',
+      entityId: documentId,
+      details: version === 1
+        ? `Добавлено вложение: ${file.name}`
+        : `Изменено вложение: ${file.name} (версия ${version})`,
     })
 
     return NextResponse.json({ attachment }, { status: 201 })

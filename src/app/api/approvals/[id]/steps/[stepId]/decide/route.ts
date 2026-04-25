@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
-import { grantStepPermissions } from '@/lib/doc-permissions'
+import { grantStepPermissions, grantDocumentPermission } from '@/lib/doc-permissions'
 import { logActivity } from '@/lib/activity-log'
 import { computeStepDueAt } from '@/lib/sla'
+import { notifyStepAssignees, notifyUsers } from '@/lib/notifications'
 
 export async function POST(
   request: NextRequest,
@@ -26,12 +27,17 @@ export async function POST(
     const approval = await db.documentApproval.findUnique({
       where: { id: approvalId },
       include: {
-        steps: { orderBy: { order: 'asc' }, select: {
-          id: true, order: true, name: true, stepType: true,
-          conditionConfig: true, slaConfig: true, userId: true, departmentId: true, status: true,
-        }},
+        steps: {
+          where: { isActive: true } as any,
+          orderBy: { order: 'asc' },
+          select: {
+            id: true, order: true, name: true, stepType: true,
+            conditionConfig: true, slaConfig: true, userId: true, departmentId: true,
+            status: true, iteration: true,
+          },
+        },
         process: true,
-        document: { select: { urgency: true } },
+        document: { select: { urgency: true, title: true, createdById: true } },
       },
     })
     if (!approval) return NextResponse.json({ error: 'Approval not found' }, { status: 404 })
@@ -42,8 +48,8 @@ export async function POST(
     if (!step) return NextResponse.json({ error: 'Step not found' }, { status: 404 })
     if (step.status !== 'PENDING')
       return NextResponse.json({ error: 'Step is already decided' }, { status: 400 })
-    if (step.stepType === 'CONDITION')
-      return NextResponse.json({ error: 'CONDITION steps are auto-evaluated' }, { status: 400 })
+    if (step.stepType === 'CONDITION' || step.stepType === 'GRANT_ACCESS')
+      return NextResponse.json({ error: 'Этот шаг выполняется автоматически' }, { status: 400 })
 
     // Sequential enforcement: only the first PENDING APPROVAL step can be decided
     const firstPendingApproval = approval.steps
@@ -86,7 +92,7 @@ export async function POST(
     })
 
     if (decision === 'REJECTED') {
-      // Reject the whole approval — mark all remaining PENDING steps as SKIPPED
+      // Reject the whole approval — mark all remaining active PENDING steps as SKIPPED
       const pendingIds = approval.steps
         .filter((s) => s.id !== stepId && s.status === 'PENDING')
         .map((s) => s.id)
@@ -105,6 +111,14 @@ export async function POST(
         entityId: approval.documentId,
         details: `Шаг «${step.name}» отклонён${comment?.trim() ? `: ${comment.trim()}` : ''}`,
       })
+      if (approval.document.createdById !== user.id) {
+        await notifyUsers([approval.document.createdById], {
+          type: 'APPROVAL_REJECTED',
+          title: `Шаг «${step.name}» отклонён — документ «${approval.document.title}»`,
+          entityType: 'DOCUMENT',
+          entityId: approval.documentId,
+        })
+      }
     } else {
       // APPROVED or APPROVED_WITH_CHANGES
       const VALID_DOC_STATUSES = ['IN_PROGRESS', 'APPROVED', 'REJECTED', 'COMPLETED']
@@ -130,15 +144,49 @@ export async function POST(
         autoExecutedIds.add(scStep.id)
       }
 
+      // Helper: auto-execute a GRANT_ACCESS step
+      const executeGrantAccess = async (gaStep: typeof approval.steps[0]) => {
+        try {
+          const cfg = JSON.parse((gaStep as any).conditionConfig || '{}')
+          const permission = (cfg.permission === 'EDIT' ? 'EDIT' : 'VIEW') as 'VIEW' | 'EDIT'
+          if (cfg.grantType === 'user' && cfg.userId) {
+            await grantDocumentPermission(approval.documentId, cfg.userId, permission, user.id)
+          } else if (cfg.grantType === 'department' && cfg.departmentId) {
+            const deptUsers = await db.user.findMany({
+              where: { departmentId: cfg.departmentId, active: true },
+              select: { id: true },
+            })
+            await Promise.all(deptUsers.map((u) => grantDocumentPermission(approval.documentId, u.id, permission, user.id)))
+          } else if (cfg.grantType === 'role' && cfg.role) {
+            const roleUsers = await db.user.findMany({
+              where: { role: cfg.role, active: true },
+              select: { id: true },
+            })
+            await Promise.all(roleUsers.map((u) => grantDocumentPermission(approval.documentId, u.id, permission, user.id)))
+          }
+        } catch { /* ignore malformed config */ }
+        await db.documentApprovalStep.update({
+          where: { id: gaStep.id },
+          data: { status: 'APPROVED', decidedAt: new Date() },
+        })
+        autoExecutedIds.add(gaStep.id)
+      }
+
       let targetOrder: number | null = null
+      // Track which orders were reset via backward jump (to look up new step IDs for dueAt)
+      let backwardJumpOrders: number[] = []
 
       // Wave 1: get pending steps after the decided step; auto-execute leading STATUS_CHANGE steps
       let stepsAfter = approval.steps
         .filter((s) => s.order > step.order && s.status === 'PENDING')
         .sort((a, b) => a.order - b.order)
 
-      while (stepsAfter.length > 0 && stepsAfter[0].stepType === 'STATUS_CHANGE') {
-        await executeStatusChange(stepsAfter[0])
+      while (stepsAfter.length > 0 && (stepsAfter[0].stepType === 'STATUS_CHANGE' || stepsAfter[0].stepType === 'GRANT_ACCESS')) {
+        if (stepsAfter[0].stepType === 'GRANT_ACCESS') {
+          await executeGrantAccess(stepsAfter[0])
+        } else {
+          await executeStatusChange(stepsAfter[0])
+        }
         stepsAfter = stepsAfter.slice(1)
       }
 
@@ -178,15 +226,41 @@ export async function POST(
 
         if (jumpToOrder !== null) {
           if (jumpToOrder <= condStep.order) {
-            // Backward jump: reset condition step and steps from target back to PENDING
+            // ── Backward jump ───────────────────────────────────────────────
+            // Archive the decided steps and create new iterations so that
+            // the original decision data is preserved for historical reports.
             const toReset = approval.steps.filter(
               (s) => s.order >= jumpToOrder! && s.order <= condStep.order,
             )
             if (toReset.length > 0) {
+              // 1. Mark old step records as inactive (preserves all decision data)
               await db.documentApprovalStep.updateMany({
                 where: { id: { in: toReset.map((s) => s.id) } },
-                data: { status: 'PENDING', decidedById: null, comment: null, decidedAt: null },
+                data: { isActive: false } as any,
               })
+
+              // 2. Create new active iterations for each step in the reset range
+              await Promise.all(
+                toReset.map((s) =>
+                  db.documentApprovalStep.create({
+                    data: {
+                      approvalId,
+                      order: s.order,
+                      name: s.name,
+                      stepType: s.stepType,
+                      conditionConfig: s.conditionConfig,
+                      slaConfig: s.slaConfig,
+                      userId: s.userId,
+                      departmentId: s.departmentId,
+                      status: 'PENDING',
+                      iteration: ((s as any).iteration ?? 1) + 1,
+                      isActive: true,
+                    } as any,
+                  })
+                )
+              )
+
+              backwardJumpOrders = toReset.map((s) => s.order)
             }
           } else {
             // Forward jump: mark skipped steps between condition and target
@@ -208,13 +282,17 @@ export async function POST(
         targetOrder = stepsAfter.length > 0 ? stepsAfter[0].order : null
       }
 
-      // Wave 2: auto-execute STATUS_CHANGE steps at the jump target (e.g., after a CONDITION branch)
+      // Wave 2: auto-execute STATUS_CHANGE/GRANT_ACCESS steps at the jump target (e.g., after a CONDITION branch)
       while (targetOrder !== null) {
         const tStep = approval.steps.find(
           (s) => s.order === targetOrder && !autoExecutedIds.has(s.id) && s.status === 'PENDING',
         )
-        if (!tStep || tStep.stepType !== 'STATUS_CHANGE') break
-        await executeStatusChange(tStep)
+        if (!tStep || (tStep.stepType !== 'STATUS_CHANGE' && tStep.stepType !== 'GRANT_ACCESS')) break
+        if (tStep.stepType === 'GRANT_ACCESS') {
+          await executeGrantAccess(tStep)
+        } else {
+          await executeStatusChange(tStep)
+        }
         // Advance to next pending step
         const next = approval.steps
           .filter((s) => s.order > tStep.order && s.status === 'PENDING' && !autoExecutedIds.has(s.id))
@@ -230,6 +308,15 @@ export async function POST(
             userId: targetStep.userId,
             departmentId: targetStep.departmentId,
           })
+          await notifyStepAssignees(
+            { userId: targetStep.userId, departmentId: targetStep.departmentId },
+            {
+              type: 'APPROVAL_REQUEST',
+              title: `Документ «${approval.document.title}» ожидает вашего согласования (шаг: ${targetStep.name})`,
+              entityType: 'DOCUMENT',
+              entityId: approval.documentId,
+            },
+          )
 
           // Compute dueAt if the step has an SLA config
           if (targetStep.slaConfig) {
@@ -239,8 +326,16 @@ export async function POST(
             const urgency = (approval as any).document?.urgency ?? 'MEDIUM'
             const dueAt = computeStepDueAt(urgency, targetStep.slaConfig, settings)
             if (dueAt) {
+              // If this step was recreated via backward jump, find the new active record's ID
+              const stepIdForUpdate = backwardJumpOrders.includes(targetOrder)
+                ? (await db.documentApprovalStep.findFirst({
+                    where: { approvalId, order: targetOrder, isActive: true } as any,
+                    select: { id: true },
+                  }))?.id ?? targetStep.id
+                : targetStep.id
+
               await db.documentApprovalStep.update({
-                where: { id: targetStep.id },
+                where: { id: stepIdForUpdate },
                 data: { dueAt },
               })
             }
@@ -248,9 +343,9 @@ export async function POST(
         }
       }
 
-      // Re-fetch latest step statuses to check completion
+      // Re-fetch latest step statuses (active only) to check completion
       const freshSteps = await db.documentApprovalStep.findMany({
-        where: { approvalId },
+        where: { approvalId, isActive: true } as any,
         select: { id: true, status: true, stepType: true },
       })
       const stillPending = freshSteps.filter(
@@ -265,6 +360,14 @@ export async function POST(
         entityId: approval.documentId,
         details: `Шаг «${step.name}» — ${decisionLabel}${comment?.trim() ? `: ${comment.trim()}` : ''}`,
       })
+      if (approval.document.createdById !== user.id) {
+        await notifyUsers([approval.document.createdById], {
+          type: 'APPROVAL_APPROVED',
+          title: `Шаг «${step.name}» ${decision === 'APPROVED' ? 'согласован' : 'согласован с изменениями'} — документ «${approval.document.title}»`,
+          entityType: 'DOCUMENT',
+          entityId: approval.documentId,
+        })
+      }
 
       if (stillPending.length === 0) {
         await db.documentApproval.update({ where: { id: approvalId }, data: { status: 'APPROVED' } })
@@ -292,7 +395,7 @@ export async function POST(
       }
     }
 
-    // Re-fetch updated approval
+    // Re-fetch updated approval — show only active steps to the UI
     const updated = await db.documentApproval.findUnique({
       where: { id: approvalId },
       select: {
@@ -306,6 +409,7 @@ export async function POST(
         createdAt: true,
         updatedAt: true,
         steps: {
+          where: { isActive: true } as any,
           orderBy: { order: 'asc' },
           select: {
             id: true,
@@ -321,6 +425,7 @@ export async function POST(
             departmentId: true,
             department: { select: { id: true, name: true } },
             status: true,
+            iteration: true,
             decidedById: true,
             decidedBy: { select: { id: true, name: true } },
             comment: true,

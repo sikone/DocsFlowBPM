@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
+import { isPrivilegedRole } from '@/lib/doc-permissions'
 
 export async function GET(
   request: NextRequest,
@@ -47,6 +48,14 @@ export async function POST(
 
     const doc = await db.document.findUnique({ where: { id: documentId } })
     if (!doc) return NextResponse.json({ error: 'Document not found' }, { status: 404 })
+
+    // Only privileged roles, document creator, or EDIT-permission holders can manage access
+    if (!isPrivilegedRole(user.role) && doc.createdById !== user.id) {
+      const callerPerm = await db.documentPermission.findFirst({ where: { documentId, userId: user.id } })
+      if (!callerPerm || callerPerm.permission !== 'EDIT') {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
+    }
 
     const result = await db.documentPermission.upsert({
       where: { documentId_userId: { documentId, userId } },

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { AppView } from '@/lib/types';
 
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ import {
   FileX2,
   FileClock,
   Share2,
+  AlertTriangle,
 } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ function getNotificationIcon(type: string, className = 'h-4 w-4') {
     APPROVAL_APPROVED: <FileCheck2 className={className} />,
     APPROVAL_REJECTED: <FileX2 className={className} />,
     DOCUMENT_SHARED:   <Share2 className={className} />,
+    SLA_WARNING:       <AlertTriangle className={className} />,
   };
   return map[type] || <Bell className={className} />;
 }
@@ -106,6 +108,7 @@ function getNotificationIconBg(type: string): string {
     APPROVAL_APPROVED: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400',
     APPROVAL_REJECTED: 'bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400',
     DOCUMENT_SHARED:   'bg-sky-100 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400',
+    SLA_WARNING:       'bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400',
   };
   return map[type] || 'bg-muted text-muted-foreground';
 }
@@ -185,6 +188,31 @@ function NotificationItem({
   );
 }
 
+// ─── Notification sound (Web Audio API, no file needed) ────────────
+function playNotificationSound(): void {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const playTone = (freq: number, start: number, duration: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.25, start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+      osc.start(start);
+      osc.stop(start + duration);
+    };
+    const t = ctx.currentTime;
+    playTone(880, t, 0.25);        // A5
+    playTone(1174.66, t + 0.12, 0.35); // D6
+  } catch { /* Web Audio unavailable */ }
+}
+
 // ─── Main Component ────────────────────────────────────────────────
 export default function NotificationCenter({
   token,
@@ -195,6 +223,8 @@ export default function NotificationCenter({
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  // -1 means "not yet initialised" — prevents sound on first page load
+  const prevUnreadRef = useRef<number>(-1);
 
   // ── Fetch notifications ──
   const fetchNotifications = useCallback(async () => {
@@ -204,8 +234,11 @@ export default function NotificationCenter({
       const res = await fetch(`/api/notifications?token=${encodeURIComponent(token)}`);
       if (!res.ok) return;
       const data = await res.json();
+      const newCount = typeof data.unreadCount === 'number' ? data.unreadCount : 0;
       setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
-      setUnreadCount(typeof data.unreadCount === 'number' ? data.unreadCount : 0);
+      setUnreadCount(newCount);
+      // Initialise ref on first load so polling can detect future increases
+      if (prevUnreadRef.current === -1) prevUnreadRef.current = newCount;
     } catch {
       setNotifications([]);
       setUnreadCount(0);
@@ -218,7 +251,7 @@ export default function NotificationCenter({
   useEffect(() => { fetchNotifications(); }, []);
   useEffect(() => { if (open) fetchNotifications(); }, [open]);
 
-  // Poll for unread count every 30s
+  // Poll for unread count every 30s; play sound when count grows
   useEffect(() => {
     if (!token) return;
     const poll = async () => {
@@ -226,7 +259,12 @@ export default function NotificationCenter({
         const res = await fetch(`/api/notifications?limit=1&token=${encodeURIComponent(token)}`);
         if (!res.ok) return;
         const data = await res.json();
-        setUnreadCount(typeof data.unreadCount === 'number' ? data.unreadCount : 0);
+        const newCount = typeof data.unreadCount === 'number' ? data.unreadCount : 0;
+        if (prevUnreadRef.current !== -1 && newCount > prevUnreadRef.current) {
+          playNotificationSound();
+        }
+        prevUnreadRef.current = newCount;
+        setUnreadCount(newCount);
       } catch { /* silent */ }
     };
     const interval = setInterval(poll, 30000);

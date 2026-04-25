@@ -1,9 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
-import { grantStepPermissions } from '@/lib/doc-permissions'
+import { grantStepPermissions, grantDocumentPermission } from '@/lib/doc-permissions'
 import { logActivity } from '@/lib/activity-log'
 import { computeStepDueAt } from '@/lib/sla'
+import { notifyStepAssignees } from '@/lib/notifications'
+
+async function applyGrantAccess(
+  documentId: string,
+  grantedById: string,
+  cfg: { grantType?: string; userId?: string; departmentId?: string; role?: string; permission?: string },
+) {
+  const permission = (cfg.permission === 'EDIT' ? 'EDIT' : 'VIEW') as 'VIEW' | 'EDIT'
+  if (cfg.grantType === 'user' && cfg.userId) {
+    await grantDocumentPermission(documentId, cfg.userId, permission, grantedById)
+  } else if (cfg.grantType === 'department' && cfg.departmentId) {
+    const users = await db.user.findMany({
+      where: { departmentId: cfg.departmentId, active: true },
+      select: { id: true },
+    })
+    await Promise.all(users.map((u) => grantDocumentPermission(documentId, u.id, permission, grantedById)))
+  } else if (cfg.grantType === 'role' && cfg.role) {
+    const users = await db.user.findMany({
+      where: { role: cfg.role, active: true },
+      select: { id: true },
+    })
+    await Promise.all(users.map((u) => grantDocumentPermission(documentId, u.id, permission, grantedById)))
+  }
+}
 
 const approvalSelect = {
   id: true,
@@ -16,6 +40,7 @@ const approvalSelect = {
   createdAt: true,
   updatedAt: true,
   steps: {
+    where: { isActive: true } as any,
     orderBy: { order: 'asc' as const },
     select: {
       id: true,
@@ -31,6 +56,7 @@ const approvalSelect = {
       departmentId: true,
       department: { select: { id: true, name: true } },
       status: true,
+      iteration: true,
       decidedById: true,
       decidedBy: { select: { id: true, name: true } },
       comment: true,
@@ -105,7 +131,7 @@ export async function POST(
 
     type ResolvedStep = {
       name: string
-      stepType: 'APPROVAL' | 'CONDITION' | 'STATUS_CHANGE'
+      stepType: 'APPROVAL' | 'CONDITION' | 'STATUS_CHANGE' | 'GRANT_ACCESS'
       userId?: string | null
       departmentId?: string | null
       conditionConfig?: string | null
@@ -120,8 +146,8 @@ export async function POST(
       if (!process) return NextResponse.json({ error: 'Process not found' }, { status: 404 })
       try {
         const allSteps: any[] = JSON.parse(process.steps)
-        // Include APPROVAL, CONDITION, STATUS_CHANGE steps (exclude START, END, NOTIFICATION)
-        const meaningful = allSteps.filter((s: any) => s.type === 'APPROVAL' || s.type === 'CONDITION' || s.type === 'STATUS_CHANGE')
+        // Include APPROVAL, CONDITION, STATUS_CHANGE, GRANT_ACCESS steps (exclude START, END, NOTIFICATION)
+        const meaningful = allSteps.filter((s: any) => s.type === 'APPROVAL' || s.type === 'CONDITION' || s.type === 'STATUS_CHANGE' || s.type === 'GRANT_ACCESS')
         // Build a map from process step id → resolved order index
         const stepIdToOrder = new Map<string, number>(meaningful.map((s: any, i: number) => [s.id, i]))
 
@@ -132,6 +158,15 @@ export async function POST(
               stepType: 'STATUS_CHANGE' as const,
               conditionConfig: s.targetStatus
                 ? JSON.stringify({ targetStatus: s.targetStatus })
+                : null,
+            }
+          }
+          if (s.type === 'GRANT_ACCESS') {
+            return {
+              name: s.name,
+              stepType: 'GRANT_ACCESS' as const,
+              conditionConfig: s.grantAccessConfig
+                ? JSON.stringify(s.grantAccessConfig)
                 : null,
             }
           }
@@ -232,7 +267,7 @@ export async function POST(
       select: approvalSelect,
     })
 
-    // Auto-execute STATUS_CHANGE steps that precede the first APPROVAL step
+    // Auto-execute STATUS_CHANGE and GRANT_ACCESS steps that precede the first APPROVAL step
     let docStatus = 'IN_PROGRESS'
     const VALID_DOC_STATUSES = ['IN_PROGRESS', 'APPROVED', 'REJECTED', 'COMPLETED']
     for (const createdStep of approval.steps) {
@@ -243,6 +278,15 @@ export async function POST(
           if (cfg.targetStatus && VALID_DOC_STATUSES.includes(cfg.targetStatus)) {
             docStatus = cfg.targetStatus
           }
+        } catch { /* ignore */ }
+        await db.documentApprovalStep.update({
+          where: { id: createdStep.id },
+          data: { status: 'APPROVED', decidedAt: now },
+        })
+      } else if (createdStep.stepType === 'GRANT_ACCESS') {
+        try {
+          const cfg = JSON.parse((createdStep as any).conditionConfig || '{}')
+          await applyGrantAccess(documentId, user.id, cfg)
         } catch { /* ignore */ }
         await db.documentApprovalStep.update({
           where: { id: createdStep.id },
@@ -264,6 +308,15 @@ export async function POST(
         userId: firstApprovalStep.userId ?? null,
         departmentId: firstApprovalStep.departmentId ?? null,
       })
+      await notifyStepAssignees(
+        { userId: firstApprovalStep.userId ?? null, departmentId: firstApprovalStep.departmentId ?? null },
+        {
+          type: 'APPROVAL_REQUEST',
+          title: `Документ «${doc.title}» ожидает вашего согласования`,
+          entityType: 'DOCUMENT',
+          entityId: documentId,
+        },
+      )
     }
 
     logActivity({

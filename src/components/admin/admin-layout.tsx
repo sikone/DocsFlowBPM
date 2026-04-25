@@ -20,6 +20,7 @@ import {
   Building2,
   UserRound,
   Building,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -56,6 +57,7 @@ import { AdminSettingsPage } from '@/components/admin/admin-settings-page';
 import { AdminCounterpartiesPage } from '@/components/admin/admin-counterparties-page';
 import { AdminContactsPage } from '@/components/admin/admin-contacts-page';
 import { AdminDepartmentsPage } from '@/components/admin/admin-departments-page';
+import { AdminDeletedObjectsPage } from '@/components/admin/admin-deleted-objects-page';
 
 const NAV_ITEMS: {
   label: string;
@@ -73,6 +75,7 @@ const NAV_ITEMS: {
   { label: 'Контакты', icon: UserRound, page: { page: 'admin-contacts' } },
   { label: 'Отделы', icon: Building, page: { page: 'admin-departments' } },
   { label: 'Настройки', icon: SlidersHorizontal, page: { page: 'admin-settings' } },
+  { label: 'Удалённые объекты', icon: Trash2, page: { page: 'admin-deleted-objects' } },
 ];
 
 export default function AdminLayout() {
@@ -214,6 +217,8 @@ export default function AdminLayout() {
         return <AdminContactsPage />;
       case 'admin-departments':
         return <AdminDepartmentsPage />;
+      case 'admin-deleted-objects':
+        return <AdminDeletedObjectsPage />;
       default:
         return <AdminDashboard />;
     }

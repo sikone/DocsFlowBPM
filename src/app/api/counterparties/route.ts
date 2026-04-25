@@ -40,8 +40,8 @@ export async function POST(request: NextRequest) {
     const token = extractToken(request)
     if (!token) return NextResponse.json({ error: 'Token is required' }, { status: 401 })
     const user = await getAuthUser(token)
-    if (!user || user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    if (!user) {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
     }
 
     const body = await request.json()

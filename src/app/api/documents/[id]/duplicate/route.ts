@@ -81,7 +81,7 @@ export async function POST(
     logActivity({
       userId: user.id,
       action: 'CREATE_DOCUMENT',
-      entityType: 'Document',
+      entityType: 'DOCUMENT',
       entityId: newDocument.id,
       details: `Документ скопирован из «${originalDoc.title}»: ${newDocument.title} (${docNumber})`,
     })

@@ -1,20 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Pencil, Trash2, Search, MoreHorizontal, Loader2,
-  UserRound, Mail, Phone, Send, Building2, X, ChevronDown,
+  UserRound, Mail, Phone, Send, Building2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -26,162 +20,23 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useStore } from '@/lib/store';
-import type { Contact, Counterparty } from '@/lib/types';
+import type { Contact } from '@/lib/types';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
-
-interface ContactForm {
-  name: string;
-  email: string;
-  phone: string;
-  telegramId: string;
-  note: string;
-  counterpartyIds: string[];
-}
-
-const EMPTY: ContactForm = { name: '', email: '', phone: '', telegramId: '', note: '', counterpartyIds: [] };
-
-function toForm(c: Contact): ContactForm {
-  return {
-    name: c.name,
-    email: c.email ?? '',
-    phone: c.phone ?? '',
-    telegramId: c.telegramId ?? '',
-    note: c.note ?? '',
-    counterpartyIds: c.counterparties?.map((l) => l.counterparty.id) ?? [],
-  };
-}
-
-function CounterpartyMultiSelect({
-  counterparties,
-  selected,
-  onChange,
-}: {
-  counterparties: Counterparty[];
-  selected: string[];
-  onChange: (ids: string[]) => void;
-}) {
-  const [query, setQuery] = React.useState('');
-  const [open, setOpen] = React.useState(false);
-  const containerRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const filtered = counterparties.filter((cp) => {
-    if (selected.includes(cp.id)) return false;
-    const q = query.toLowerCase();
-    return (cp.shortName ?? '').toLowerCase().includes(q) || cp.name.toLowerCase().includes(q) || cp.inn.includes(q);
-  });
-
-  const selectedItems = counterparties.filter((cp) => selected.includes(cp.id));
-
-  const add = (id: string) => { onChange([...selected, id]); setQuery(''); };
-  const remove = (id: string) => onChange(selected.filter((x) => x !== id));
-
-  return (
-    <div className="space-y-2" ref={containerRef}>
-      {/* Selected badges */}
-      {selectedItems.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {selectedItems.map((cp) => (
-            <span key={cp.id}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-xs">
-              <Building2 className="w-3 h-3" />
-              {cp.shortName || cp.name}
-              <button type="button" onClick={() => remove(cp.id)} className="hover:text-rose-500 transition-colors">
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Search input */}
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
-          placeholder="Поиск контрагента..."
-          className="w-full h-9 pl-8 pr-8 text-sm border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-        />
-        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-
-        {open && (
-          <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-48 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <p className="px-3 py-2 text-xs text-muted-foreground">
-                {query ? 'Ничего не найдено' : (counterparties.length === selected.length ? 'Все контрагенты уже выбраны' : 'Нет доступных контрагентов')}
-              </p>
-            ) : (
-              filtered.map((cp) => (
-                <button
-                  key={cp.id}
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); add(cp.id); setOpen(false); }}
-                  className="w-full flex items-start gap-2 px-3 py-2 text-left text-sm hover:bg-accent transition-colors"
-                >
-                  <Building2 className="w-3.5 h-3.5 mt-0.5 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{cp.shortName || cp.name}</p>
-                    {cp.shortName && <p className="text-xs text-muted-foreground truncate">{cp.name}</p>}
-                    <p className="text-xs text-muted-foreground">ИНН {cp.inn}</p>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, id, value, onChange, placeholder, type = 'text' }: {
-  label: string; id: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; type?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-sm">{label}</Label>
-      <Input id={id} type={type} value={value} onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder} className="h-9 text-sm" />
-    </div>
-  );
-}
+import { ContactDialog } from '@/components/directory/contact-dialog';
 
 export function AdminContactsPage() {
   const { token } = useStore();
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
-  const [form, setForm] = useState<ContactForm>(EMPTY);
-  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  const set = <K extends keyof ContactForm>(k: K, v: ContactForm[K]) =>
-    setForm((f) => ({ ...f, [k]: v }));
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
-    try {
-      const cp = await apiFetch<Counterparty[]>('/api/counterparties?active=false', token);
-      setCounterparties(cp);
-    } catch {
-      toast.error('Не удалось загрузить контрагентов');
-    }
     try {
       const c = await apiFetch<Contact[]>('/api/contacts', token);
       setContacts(c);
@@ -194,36 +49,8 @@ export function AdminContactsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const openCreate = () => { setEditing(null); setForm(EMPTY); setDialogOpen(true); };
-  const openEdit = (c: Contact) => { setEditing(c); setForm(toForm(c)); setDialogOpen(true); };
-
-  const handleSave = async () => {
-    if (!token || !form.name.trim()) return;
-    setSaving(true);
-    try {
-      const body = {
-        name: form.name.trim(),
-        email: form.email.trim() || null,
-        phone: form.phone.trim() || null,
-        telegramId: form.telegramId.trim() || null,
-        note: form.note.trim() || null,
-        counterpartyIds: form.counterpartyIds,
-      };
-      if (editing) {
-        await apiFetch(`/api/contacts/${editing.id}`, token, { method: 'PUT', body: JSON.stringify(body) });
-        toast.success('Контакт обновлён');
-      } else {
-        await apiFetch('/api/contacts', token, { method: 'POST', body: JSON.stringify(body) });
-        toast.success('Контакт добавлен');
-      }
-      setDialogOpen(false);
-      load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Ошибка сохранения');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const openCreate = () => { setEditing(null); setDialogOpen(true); };
+  const openEdit = (c: Contact) => { setEditing(c); setDialogOpen(true); };
 
   const handleDelete = async (id: string) => {
     if (!token) return;
@@ -269,8 +96,8 @@ export function AdminContactsPage() {
 
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Поиск по ФИО, email, телефону..."
-          value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+        <Input placeholder="Поиск по ФИО, email, телефону..." value={search}
+          onChange={(e) => setSearch(e.target.value)} className="pl-10" />
       </div>
 
       <Card>
@@ -401,53 +228,13 @@ export function AdminContactsPage() {
         </p>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? 'Редактировать контакт' : 'Новый контакт'}</DialogTitle>
-            <DialogDescription>
-              {editing ? 'Измените данные контактного лица' : 'Заполните данные нового контактного лица'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <Field label="ФИО *" id="name" value={form.name} onChange={(v) => set('name', v)} placeholder="Иванов Иван Иванович" />
-
-            <Separator />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Email" id="email" type="email" value={form.email} onChange={(v) => set('email', v)} placeholder="ivan@example.com" />
-              <Field label="Телефон" id="phone" value={form.phone} onChange={(v) => set('phone', v)} placeholder="+7 (999) 123-45-67" />
-            </div>
-            <Field label="Telegram ID" id="telegram" value={form.telegramId} onChange={(v) => set('telegramId', v)} placeholder="@username или числовой ID" />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="note" className="text-sm">Примечание</Label>
-              <Textarea id="note" value={form.note} onChange={(e) => set('note', e.target.value)}
-                placeholder="Дополнительная информация..." className="text-sm min-h-[60px] resize-none" />
-            </div>
-
-            <Separator />
-
-            <div className="space-y-1.5">
-              <Label className="text-sm">Контрагенты</Label>
-              <CounterpartyMultiSelect
-                counterparties={counterparties}
-                selected={form.counterpartyIds}
-                onChange={(ids) => set('counterpartyIds', ids)}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Отмена</Button>
-            <Button onClick={handleSave} disabled={saving || !form.name.trim()} className="gap-2">
-              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-              {editing ? 'Сохранить' : 'Добавить'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ContactDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        token={token}
+        editing={editing}
+        onSaved={() => load()}
+      />
     </div>
   );
 }

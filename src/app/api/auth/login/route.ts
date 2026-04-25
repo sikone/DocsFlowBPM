@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logActivity } from '@/lib/activity-log'
 import { comparePassword, isHashed } from '@/lib/password'
+import { getAdSettings, ldapVerifyPassword } from '@/lib/ldap'
 import crypto from 'crypto'
 
 export async function POST(request: NextRequest) {
@@ -34,10 +35,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Support both plain text and hashed passwords during migration
-    const isValid = await (await isHashed(user.password))
-      ? comparePassword(password, user.password)
-      : Promise.resolve(user.password === password)
+    let isValid = false
+    if (user.adDn) {
+      // AD user — verify via LDAP bind; fall back to local password if AD unreachable
+      const adSettings = await getAdSettings()
+      if (adSettings?.enabled && adSettings.url) {
+        isValid = await ldapVerifyPassword(user.adDn, password, adSettings.url)
+      } else {
+        // AD disabled or not configured — allow local password fallback
+        const hashed = await isHashed(user.password)
+        isValid = hashed
+          ? await comparePassword(password, user.password)
+          : user.password === password
+      }
+    } else {
+      // Local user
+      const hashed = await isHashed(user.password)
+      isValid = hashed
+        ? await comparePassword(password, user.password)
+        : user.password === password
+    }
 
     if (!isValid) {
       return NextResponse.json(
