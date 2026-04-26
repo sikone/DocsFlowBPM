@@ -14,6 +14,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Mail,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -69,6 +70,7 @@ interface StepDraft {
   departmentId: string;
   slaEnabled: boolean;
   slaHours: SlaConfig;
+  sendEmail: boolean;
 }
 
 function makeStep(): StepDraft {
@@ -80,6 +82,7 @@ function makeStep(): StepDraft {
     departmentId: '',
     slaEnabled: false,
     slaHours: { ...DEFAULT_SLA },
+    sendEmail: true,
   };
 }
 
@@ -161,6 +164,7 @@ export function AdminApprovalRoutesPage() {
           departmentId: s.departmentId ?? '',
           slaEnabled,
           slaHours,
+          sendEmail: s.sendEmail ?? true,
         };
       }),
     );
@@ -184,6 +188,7 @@ export function AdminApprovalRoutesPage() {
           userId: s.assigneeType === 'user' ? s.userId : null,
           departmentId: s.assigneeType === 'department' ? s.departmentId : null,
           slaConfig: s.slaEnabled ? JSON.stringify(s.slaHours) : null,
+          sendEmail: s.sendEmail,
         })),
       };
       if (editing) {
@@ -453,6 +458,21 @@ export function AdminApprovalRoutesPage() {
                           </Button>
                         )}
                       </div>
+                    </div>
+
+                    {/* Send email toggle */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`send-email-${step.id}`}
+                        checked={step.sendEmail}
+                        onChange={(e) => updateStep(idx, { sendEmail: e.target.checked })}
+                        className="h-3.5 w-3.5 rounded border-border accent-emerald-600"
+                      />
+                      <Label htmlFor={`send-email-${step.id}`} className="text-xs cursor-pointer flex items-center gap-1.5">
+                        <Mail className="w-3 h-3 text-blue-500" />
+                        Отправить e-mail уведомление исполнителю
+                      </Label>
                     </div>
 
                     {/* SLA matrix toggle + table */}

@@ -24,7 +24,7 @@ export async function PUT(
 
     const { id } = await params
     const body = await request.json()
-    const { name, email, password, role, active, departmentId, isDepartmentHead } = body
+    const { name, email, password, role, active, departmentId, isDepartmentHead, isAbsent, substituteId, absentUntil } = body
 
     // Check user exists
     const existingUser = await db.user.findUnique({ where: { id } })
@@ -50,6 +50,10 @@ export async function PUT(
     if (active !== undefined) updateData.active = active
     if (isDepartmentHead !== undefined) updateData.isDepartmentHead = isDepartmentHead
     if (departmentId !== undefined) updateData.departmentId = departmentId || null
+    if (isAbsent !== undefined) updateData.isAbsent = isAbsent
+    if (substituteId !== undefined) updateData.substituteId = substituteId || null
+    if (absentUntil !== undefined) updateData.absentUntil = absentUntil ? new Date(absentUntil) : null
+    if (isAbsent === false) updateData.absentUntil = null
 
     const updatedUser = await db.user.update({
       where: { id },
@@ -64,6 +68,10 @@ export async function PUT(
         isDepartmentHead: true,
         departmentId: true,
         department: { select: { id: true, name: true } },
+        isAbsent: true,
+        substituteId: true,
+        substitute: { select: { id: true, name: true } },
+        absentUntil: true,
         createdAt: true,
         updatedAt: true,
       },

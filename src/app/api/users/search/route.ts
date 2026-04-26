@@ -10,19 +10,18 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
-    const q = searchParams.get('q')?.toLowerCase() ?? ''
+    const q = searchParams.get('q') ?? ''
     const departmentId = searchParams.get('departmentId')
 
     const users = await db.user.findMany({
       where: {
         active: true,
-        id: { not: user.id },
         ...(departmentId ? { departmentId } : {}),
         ...(q
           ? {
               OR: [
-                { name: { contains: q } },
-                { email: { contains: q } },
+                { name: { contains: q, mode: 'insensitive' } },
+                { email: { contains: q, mode: 'insensitive' } },
               ],
             }
           : {}),

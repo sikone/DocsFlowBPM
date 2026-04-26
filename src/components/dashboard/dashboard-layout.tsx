@@ -1744,7 +1744,7 @@ export default function DashboardLayout() {
             </div>
 
             {/* Notification Center */}
-            <NotificationCenter token={token} />
+            <NotificationCenter token={token} onNavigate={navigate} />
 
             {/* Theme Toggle */}
             <ThemeToggle />

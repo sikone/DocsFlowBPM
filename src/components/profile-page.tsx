@@ -28,7 +28,13 @@ import {
   AlertTriangle,
   ShieldCheck,
   CalendarDays,
+  UserX,
+  ChevronsUpDown,
+  Loader2,
 } from 'lucide-react';
+
+import { Switch } from '@/components/ui/switch';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -147,6 +153,80 @@ interface ActivityEntry {
   user: { id: string; name: string; email: string; role: string };
 }
 
+// ─── SubstitutePicker ────────────────────────────────────────────────
+
+interface SubstitutePickerProps {
+  token: string;
+  value: string;
+  displayName: string;
+  excludeId: string;
+  onChange: (id: string, name: string) => void;
+}
+
+function SubstitutePicker({ token, value, displayName, excludeId, onChange }: SubstitutePickerProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}&token=${token}`);
+        if (res.ok) {
+          const data = await res.json();
+          setResults((data.users as { id: string; name: string; email: string }[]).filter((u) => u.id !== excludeId));
+        }
+      } catch { /* silent */ } finally {
+        setLoading(false);
+      }
+    }, 200);
+    return () => clearTimeout(t);
+  }, [query, open, token, excludeId]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center justify-between w-full h-9 px-3 rounded-md border border-input bg-background text-sm ring-offset-background hover:bg-accent transition-colors"
+        >
+          <span className={value ? 'text-foreground' : 'text-muted-foreground'}>
+            {displayName || 'Выберите сотрудника'}
+          </span>
+          <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-2" align="start">
+        <input
+          autoFocus
+          placeholder="Поиск по имени…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full h-8 px-2 text-sm rounded-md border border-input bg-background mb-2 outline-none focus:ring-1 focus:ring-ring"
+        />
+        <div className="max-h-48 overflow-y-auto space-y-0.5">
+          {loading && <p className="text-xs text-muted-foreground px-2 py-1">Поиск…</p>}
+          {!loading && results.length === 0 && <p className="text-xs text-muted-foreground px-2 py-1">Не найдено</p>}
+          {results.map((u) => (
+            <button
+              key={u.id}
+              type="button"
+              className="flex flex-col w-full text-left px-2 py-1.5 rounded hover:bg-accent text-sm"
+              onClick={() => { onChange(u.id, u.name); setOpen(false); setQuery(''); }}
+            >
+              <span className="font-medium">{u.name}</span>
+              <span className="text-xs text-muted-foreground">{u.email}</span>
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────────────────
 
 export default function ProfilePage() {
@@ -173,6 +253,14 @@ export default function ProfilePage() {
   // ── Activity log ──
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
+
+  // ── Absence ──
+  const [absIsAbsent, setAbsIsAbsent] = useState(false);
+  const [absSubstituteId, setAbsSubstituteId] = useState('');
+  const [absSubstituteName, setAbsSubstituteName] = useState('');
+  const [absUntil, setAbsUntil] = useState('');
+  const [absenceLoading, setAbsenceLoading] = useState(true);
+  const [absenceSaving, setAbsenceSaving] = useState(false);
 
   // ── Computed ──
   const userInitials = useMemo(() => {
@@ -233,10 +321,57 @@ export default function ProfilePage() {
     }
   }, [user?.id, token]);
 
+  // ── Fetch absence ──
+  const fetchAbsence = useCallback(async () => {
+    if (!token) return;
+    setAbsenceLoading(true);
+    try {
+      const res = await fetch(`/api/profile/absence?token=${token}`);
+      if (res.ok) {
+        const data = await res.json();
+        const a = data.absence;
+        setAbsIsAbsent(a.isAbsent ?? false);
+        setAbsSubstituteId(a.substituteId ?? '');
+        setAbsSubstituteName(a.substitute?.name ?? '');
+        setAbsUntil(a.absentUntil ? new Date(a.absentUntil).toISOString().split('T')[0] : '');
+      }
+    } catch { /* silent */ } finally {
+      setAbsenceLoading(false);
+    }
+  }, [token]);
+
+  // ── Save absence ──
+  const handleSaveAbsence = useCallback(async () => {
+    if (!token) return;
+    setAbsenceSaving(true);
+    try {
+      const res = await fetch(`/api/profile/absence?token=${token}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isAbsent: absIsAbsent,
+          substituteId: absIsAbsent ? (absSubstituteId || null) : null,
+          absentUntil: absIsAbsent && absUntil ? absUntil : null,
+        }),
+      });
+      if (res.ok) {
+        toast.success('Настройки отсутствия сохранены');
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Ошибка сохранения');
+      }
+    } catch {
+      toast.error('Ошибка соединения с сервером');
+    } finally {
+      setAbsenceSaving(false);
+    }
+  }, [token, absIsAbsent, absSubstituteId, absUntil]);
+
   useEffect(() => {
     fetchStats();
     fetchActivity();
-  }, [fetchStats, fetchActivity]);
+    fetchAbsence();
+  }, [fetchStats, fetchActivity, fetchAbsence]);
 
   // ── Handle save name ──
   const handleSaveName = useCallback(async () => {
@@ -577,6 +712,94 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* ─── Absence Card ─── */}
+        <Card className="transition-shadow hover:shadow-md">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <UserX className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-base">Замещение на время отсутствия</CardTitle>
+            </div>
+            <CardDescription>Назначьте заместителя и укажите дату возвращения</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {absenceLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Загрузка…
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-medium">Я отсутствую</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Задачи будут переходить к заместителю
+                    </p>
+                  </div>
+                  <Switch
+                    checked={absIsAbsent}
+                    onCheckedChange={(v) => {
+                      setAbsIsAbsent(v);
+                      if (!v) { setAbsUntil(''); }
+                    }}
+                  />
+                </div>
+
+                {absIsAbsent && (
+                  <>
+                    <Separator />
+                    <div className="space-y-2">
+                      <Label className="text-sm">Замещающий сотрудник</Label>
+                      {token && (
+                        <SubstitutePicker
+                          token={token}
+                          value={absSubstituteId}
+                          displayName={absSubstituteName}
+                          excludeId={user?.id ?? ''}
+                          onChange={(id, name) => {
+                            setAbsSubstituteId(id);
+                            setAbsSubstituteName(name);
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="absent-until" className="text-sm">Отсутствую до</Label>
+                      <Input
+                        id="absent-until"
+                        type="date"
+                        value={absUntil}
+                        min={new Date().toISOString().split('T')[0]}
+                        onChange={(e) => setAbsUntil(e.target.value)}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        По наступлении даты статус отсутствия снимается автоматически
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                <Button
+                  onClick={handleSaveAbsence}
+                  disabled={absenceSaving}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-md shadow-emerald-600/20"
+                >
+                  {absenceSaving ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Сохранение…
+                    </span>
+                  ) : (
+                    'Сохранить'
+                  )}
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
 
         {/* ─── Activity Summary Card ─── */}
         <Card className="transition-shadow hover:shadow-md">

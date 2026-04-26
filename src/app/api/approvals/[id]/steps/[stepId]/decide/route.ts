@@ -5,6 +5,8 @@ import { grantStepPermissions, grantDocumentPermission } from '@/lib/doc-permiss
 import { logActivity } from '@/lib/activity-log'
 import { computeStepDueAt } from '@/lib/sla'
 import { notifyStepAssignees, notifyUsers } from '@/lib/notifications'
+import { sendApprovalEmail } from '@/lib/mailer'
+import { resolveEffectiveUserId } from '@/lib/approval-utils'
 
 export async function POST(
   request: NextRequest,
@@ -33,11 +35,11 @@ export async function POST(
           select: {
             id: true, order: true, name: true, stepType: true,
             conditionConfig: true, slaConfig: true, userId: true, departmentId: true,
-            status: true, iteration: true,
+            status: true, iteration: true, sendEmail: true,
           },
         },
         process: true,
-        document: { select: { urgency: true, title: true, createdById: true } },
+        document: { select: { urgency: true, title: true, number: true, data: true, typeId: true, createdById: true } },
       },
     })
     if (!approval) return NextResponse.json({ error: 'Approval not found' }, { status: 404 })
@@ -144,6 +146,42 @@ export async function POST(
         autoExecutedIds.add(scStep.id)
       }
 
+      // Helper: auto-execute a NOTIFICATION step
+      const executeNotification = async (notStep: typeof approval.steps[0]) => {
+        try {
+          await notifyStepAssignees(
+            { userId: notStep.userId ?? null, departmentId: notStep.departmentId ?? null },
+            {
+              type: 'NOTIFICATION',
+              title: `Уведомление по документу «${approval.document.title}»`,
+              entityType: 'DOCUMENT',
+              entityId: approval.documentId,
+            },
+          )
+          if ((notStep as any).sendEmail ?? true) {
+            sendApprovalEmail({
+              documentId: approval.documentId,
+              documentTitle: approval.document.title,
+              documentNumber: (approval.document as any).number ?? null,
+              documentData: (approval.document as any).data ?? '{}',
+              documentTypeId: (approval.document as any).typeId,
+              stepId: null,
+              stepName: notStep.name,
+              dueAt: null,
+              assigneeUserId: notStep.userId ?? null,
+              assigneeDepId: notStep.departmentId ?? null,
+              prevDeciderName: user.name,
+              prevComment: comment?.trim() || null,
+            }).catch((e) => console.error('sendNotificationEmail error:', e))
+          }
+        } catch { /* ignore */ }
+        await db.documentApprovalStep.update({
+          where: { id: notStep.id },
+          data: { status: 'APPROVED', decidedAt: new Date() },
+        })
+        autoExecutedIds.add(notStep.id)
+      }
+
       // Helper: auto-execute a GRANT_ACCESS step
       const executeGrantAccess = async (gaStep: typeof approval.steps[0]) => {
         try {
@@ -181,9 +219,11 @@ export async function POST(
         .filter((s) => s.order > step.order && s.status === 'PENDING')
         .sort((a, b) => a.order - b.order)
 
-      while (stepsAfter.length > 0 && (stepsAfter[0].stepType === 'STATUS_CHANGE' || stepsAfter[0].stepType === 'GRANT_ACCESS')) {
+      while (stepsAfter.length > 0 && (stepsAfter[0].stepType === 'STATUS_CHANGE' || stepsAfter[0].stepType === 'GRANT_ACCESS' || stepsAfter[0].stepType === 'NOTIFICATION')) {
         if (stepsAfter[0].stepType === 'GRANT_ACCESS') {
           await executeGrantAccess(stepsAfter[0])
+        } else if (stepsAfter[0].stepType === 'NOTIFICATION') {
+          await executeNotification(stepsAfter[0])
         } else {
           await executeStatusChange(stepsAfter[0])
         }
@@ -255,6 +295,7 @@ export async function POST(
                       status: 'PENDING',
                       iteration: ((s as any).iteration ?? 1) + 1,
                       isActive: true,
+                      sendEmail: (s as any).sendEmail ?? true,
                     } as any,
                   })
                 )
@@ -287,9 +328,11 @@ export async function POST(
         const tStep = approval.steps.find(
           (s) => s.order === targetOrder && !autoExecutedIds.has(s.id) && s.status === 'PENDING',
         )
-        if (!tStep || (tStep.stepType !== 'STATUS_CHANGE' && tStep.stepType !== 'GRANT_ACCESS')) break
+        if (!tStep || (tStep.stepType !== 'STATUS_CHANGE' && tStep.stepType !== 'GRANT_ACCESS' && tStep.stepType !== 'NOTIFICATION')) break
         if (tStep.stepType === 'GRANT_ACCESS') {
           await executeGrantAccess(tStep)
+        } else if (tStep.stepType === 'NOTIFICATION') {
+          await executeNotification(tStep)
         } else {
           await executeStatusChange(tStep)
         }
@@ -304,12 +347,33 @@ export async function POST(
       if (targetOrder !== null) {
         const targetStep = approval.steps.find((s) => s.order === targetOrder)
         if (targetStep && targetStep.stepType === 'APPROVAL') {
+          // Resolve the actual DB step ID once (new record if recreated by backward jump)
+          const nextStepDbId = backwardJumpOrders.includes(targetOrder)
+            ? (await db.documentApprovalStep.findFirst({
+                where: { approvalId, order: targetOrder, isActive: true } as any,
+                select: { id: true },
+              }))?.id ?? targetStep.id
+            : targetStep.id
+
+          // Redirect to substitute if the assigned user is absent
+          let effectiveUserId = targetStep.userId ?? null
+          if (effectiveUserId) {
+            const resolvedId = await resolveEffectiveUserId(effectiveUserId)
+            if (resolvedId !== effectiveUserId) {
+              effectiveUserId = resolvedId
+              await db.documentApprovalStep.update({
+                where: { id: nextStepDbId },
+                data: { userId: effectiveUserId },
+              })
+            }
+          }
+
           await grantStepPermissions(approval.documentId, user.id, {
-            userId: targetStep.userId,
+            userId: effectiveUserId,
             departmentId: targetStep.departmentId,
           })
           await notifyStepAssignees(
-            { userId: targetStep.userId, departmentId: targetStep.departmentId },
+            { userId: effectiveUserId, departmentId: targetStep.departmentId },
             {
               type: 'APPROVAL_REQUEST',
               title: `Документ «${approval.document.title}» ожидает вашего согласования (шаг: ${targetStep.name})`,
@@ -319,26 +383,37 @@ export async function POST(
           )
 
           // Compute dueAt if the step has an SLA config
+          let nextDueAt: Date | null = null
           if (targetStep.slaConfig) {
             const settingRows = await db.systemSettings.findMany()
             const settings: Record<string, string> = {}
             for (const row of settingRows) settings[row.key] = row.value
             const urgency = (approval as any).document?.urgency ?? 'MEDIUM'
-            const dueAt = computeStepDueAt(urgency, targetStep.slaConfig, settings)
-            if (dueAt) {
-              // If this step was recreated via backward jump, find the new active record's ID
-              const stepIdForUpdate = backwardJumpOrders.includes(targetOrder)
-                ? (await db.documentApprovalStep.findFirst({
-                    where: { approvalId, order: targetOrder, isActive: true } as any,
-                    select: { id: true },
-                  }))?.id ?? targetStep.id
-                : targetStep.id
-
+            nextDueAt = computeStepDueAt(urgency, targetStep.slaConfig, settings)
+            if (nextDueAt) {
               await db.documentApprovalStep.update({
-                where: { id: stepIdForUpdate },
-                data: { dueAt },
+                where: { id: nextStepDbId },
+                data: { dueAt: nextDueAt },
               })
             }
+          }
+
+          // Send email notification to the next step assignee
+          if ((targetStep as any).sendEmail ?? true) {
+            sendApprovalEmail({
+              documentId: approval.documentId,
+              documentTitle: approval.document.title,
+              documentNumber: (approval.document as any).number ?? null,
+              documentData: (approval.document as any).data ?? '{}',
+              documentTypeId: (approval.document as any).typeId,
+              stepId: nextStepDbId,
+              stepName: targetStep.name,
+              dueAt: nextDueAt,
+              assigneeUserId: effectiveUserId,
+              assigneeDepId: targetStep.departmentId ?? null,
+              prevDeciderName: user.name,
+              prevComment: comment?.trim() || null,
+            }).catch((e) => console.error('sendApprovalEmail error:', e))
           }
         }
       }

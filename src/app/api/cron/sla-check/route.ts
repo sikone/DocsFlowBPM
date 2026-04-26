@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { notifyStepAssignees } from '@/lib/notifications'
+import { sendSlaWarningEmail } from '@/lib/mailer'
 
 // Called by Vercel Cron (vercel.json) or any external scheduler every ~5 min.
 // Sends a one-time SLA_WARNING notification per step when dueAt <= now + 1 hour.
@@ -77,6 +78,15 @@ export async function GET(request: NextRequest) {
           title,
         },
       )
+      await sendSlaWarningEmail({
+        stepId: step.id,
+        stepName: step.name,
+        dueAt: step.dueAt,
+        assigneeUserId: step.userId,
+        assigneeDepId: step.departmentId,
+        documentId: step.approval.documentId,
+        documentTitle: docTitle,
+      })
       notifiedCount++
     }
 

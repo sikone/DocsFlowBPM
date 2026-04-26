@@ -29,11 +29,16 @@ model User {
   active            Boolean  @default(true)
   isDepartmentHead  Boolean  @default(false)
   departmentId      String?
+  isAbsent          Boolean   @default(false)
+  substituteId      String?
+  absentUntil       DateTime?
   adDn              String?  // Active Directory Distinguished Name; set for AD-synced users
   createdAt         DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   department          Department?          @relation(fields: [departmentId], references: [id])
+  substitute          User?                @relation("UserSubstitute", fields: [substituteId], references: [id])
+  substitutedFor      User[]               @relation("UserSubstitute")
   documents           Document[]
   createdFolders      Folder[]             @relation("FolderCreator")
   sessions            Session[]
@@ -383,6 +388,7 @@ model ApprovalRouteStep {
   departmentId String?
   department   Department?   @relation(fields: [departmentId], references: [id])
   slaConfig    String?       // JSON: {"LOW":48,"MEDIUM":24,"HIGH":8,"CRITICAL":4}
+  sendEmail    Boolean       @default(true)
 
   @@index([routeId])
 }
@@ -427,6 +433,7 @@ model DocumentApprovalStep {
   decidedAt       DateTime?
   iteration       Int              @default(1)
   isActive        Boolean          @default(true)
+  sendEmail       Boolean          @default(true)
   createdAt       DateTime         @default(now())
 
   decisions       ApprovalStepDecision[]

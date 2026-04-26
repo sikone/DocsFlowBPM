@@ -30,6 +30,10 @@ export async function GET(request: NextRequest) {
         isDepartmentHead: true,
         departmentId: true,
         department: { select: { id: true, name: true } },
+        isAbsent: true,
+        substituteId: true,
+        substitute: { select: { id: true, name: true } },
+        absentUntil: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -59,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, email, password, role, departmentId, isDepartmentHead } = body
+    const { name, email, password, role, departmentId, isDepartmentHead, isAbsent, substituteId } = body
 
     if (!name || !email || !password) {
       return NextResponse.json(
@@ -95,6 +99,8 @@ export async function POST(request: NextRequest) {
         role: role || 'USER',
         isDepartmentHead: isDepartmentHead ?? false,
         departmentId: departmentId || null,
+        isAbsent: isAbsent ?? false,
+        substituteId: substituteId || null,
       },
       select: {
         id: true,
@@ -106,6 +112,10 @@ export async function POST(request: NextRequest) {
         isDepartmentHead: true,
         departmentId: true,
         department: { select: { id: true, name: true } },
+        isAbsent: true,
+        substituteId: true,
+        substitute: { select: { id: true, name: true } },
+        absentUntil: true,
         createdAt: true,
         updatedAt: true,
       },

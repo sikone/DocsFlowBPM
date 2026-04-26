@@ -5,6 +5,8 @@ import { grantStepPermissions, grantDocumentPermission } from '@/lib/doc-permiss
 import { logActivity } from '@/lib/activity-log'
 import { computeStepDueAt } from '@/lib/sla'
 import { notifyStepAssignees } from '@/lib/notifications'
+import { sendApprovalEmail } from '@/lib/mailer'
+import { resolveEffectiveUserId } from '@/lib/approval-utils'
 
 async function applyGrantAccess(
   documentId: string,
@@ -56,6 +58,7 @@ const approvalSelect = {
       departmentId: true,
       department: { select: { id: true, name: true } },
       status: true,
+      sendEmail: true,
       iteration: true,
       decidedById: true,
       decidedBy: { select: { id: true, name: true } },
@@ -91,13 +94,27 @@ export async function GET(
 
     const { id: documentId } = await params
 
-    const approvals = await db.documentApproval.findMany({
-      where: { documentId },
-      orderBy: { createdAt: 'desc' },
-      select: approvalSelect,
-    })
+    const [approvals, allStepDecisions] = await Promise.all([
+      db.documentApproval.findMany({
+        where: { documentId },
+        orderBy: { createdAt: 'desc' },
+        select: approvalSelect,
+      }),
+      db.approvalStepDecision.findMany({
+        where: { step: { approval: { documentId } } },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          decision: true,
+          comment: true,
+          createdAt: true,
+          decidedBy: { select: { id: true, name: true } },
+          step: { select: { name: true } },
+        },
+      }),
+    ])
 
-    return NextResponse.json({ approvals })
+    return NextResponse.json({ approvals, allStepDecisions })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -131,11 +148,12 @@ export async function POST(
 
     type ResolvedStep = {
       name: string
-      stepType: 'APPROVAL' | 'CONDITION' | 'STATUS_CHANGE' | 'GRANT_ACCESS'
+      stepType: 'APPROVAL' | 'CONDITION' | 'STATUS_CHANGE' | 'GRANT_ACCESS' | 'NOTIFICATION'
       userId?: string | null
       departmentId?: string | null
       conditionConfig?: string | null
       slaConfig?: string | null
+      sendEmail?: boolean
     }
 
     let resolvedSteps: ResolvedStep[] = []
@@ -147,7 +165,7 @@ export async function POST(
       try {
         const allSteps: any[] = JSON.parse(process.steps)
         // Include APPROVAL, CONDITION, STATUS_CHANGE, GRANT_ACCESS steps (exclude START, END, NOTIFICATION)
-        const meaningful = allSteps.filter((s: any) => s.type === 'APPROVAL' || s.type === 'CONDITION' || s.type === 'STATUS_CHANGE' || s.type === 'GRANT_ACCESS')
+        const meaningful = allSteps.filter((s: any) => s.type === 'APPROVAL' || s.type === 'CONDITION' || s.type === 'STATUS_CHANGE' || s.type === 'GRANT_ACCESS' || s.type === 'NOTIFICATION')
         // Build a map from process step id → resolved order index
         const stepIdToOrder = new Map<string, number>(meaningful.map((s: any, i: number) => [s.id, i]))
 
@@ -195,12 +213,22 @@ export async function POST(
               conditionConfig: config ? JSON.stringify(config) : null,
             }
           }
+          if (s.type === 'NOTIFICATION') {
+            return {
+              name: s.name,
+              stepType: 'NOTIFICATION' as const,
+              userId: s.assigneeType === 'initiator' ? doc.createdById : (s.userId || null),
+              departmentId: s.departmentId || null,
+              sendEmail: (s as any).sendEmail ?? true,
+            }
+          }
           return {
             name: s.name,
             stepType: 'APPROVAL' as const,
             userId: s.assigneeType === 'initiator' ? doc.createdById : (s.userId || null),
             departmentId: s.departmentId || null,
             slaConfig: (s as any).slaConfig ?? null,
+            sendEmail: (s as any).sendEmail ?? true,
           }
         })
       } catch {
@@ -218,6 +246,7 @@ export async function POST(
         userId: s.userId,
         departmentId: s.departmentId,
         slaConfig: (s as any).slaConfig ?? null,
+        sendEmail: (s as any).sendEmail ?? true,
       }))
     } else if (Array.isArray(steps) && steps.length > 0) {
       resolvedSteps = steps
@@ -260,6 +289,7 @@ export async function POST(
               userId: s.userId || null,
               departmentId: s.departmentId || null,
               status: 'PENDING',
+              sendEmail: s.sendEmail ?? true,
             }
           }),
         },
@@ -292,6 +322,36 @@ export async function POST(
           where: { id: createdStep.id },
           data: { status: 'APPROVED', decidedAt: now },
         })
+      } else if (createdStep.stepType === 'NOTIFICATION') {
+        try {
+          await notifyStepAssignees(
+            { userId: (createdStep as any).userId ?? null, departmentId: (createdStep as any).departmentId ?? null },
+            {
+              type: 'NOTIFICATION',
+              title: `Уведомление по документу «${doc.title}»`,
+              entityType: 'DOCUMENT',
+              entityId: documentId,
+            },
+          )
+          if ((createdStep as any).sendEmail ?? true) {
+            sendApprovalEmail({
+              documentId,
+              documentTitle: doc.title,
+              documentNumber: doc.number ?? null,
+              documentData: doc.data,
+              documentTypeId: doc.typeId,
+              stepId: null,
+              stepName: createdStep.name,
+              dueAt: null,
+              assigneeUserId: (createdStep as any).userId ?? null,
+              assigneeDepId: (createdStep as any).departmentId ?? null,
+            }).catch((e) => console.error('sendNotificationEmail error:', e))
+          }
+        } catch { /* ignore */ }
+        await db.documentApprovalStep.update({
+          where: { id: createdStep.id },
+          data: { status: 'APPROVED', decidedAt: now },
+        })
       }
     }
 
@@ -304,12 +364,30 @@ export async function POST(
     // Grant VIEW to first APPROVAL step assignees (skip CONDITION/STATUS_CHANGE steps at start)
     const firstApprovalStep = resolvedSteps.find((s) => s.stepType === 'APPROVAL')
     if (firstApprovalStep) {
+      const firstApprovalStepIdx = resolvedSteps.indexOf(firstApprovalStep)
+      const createdStep = approval.steps.find((s) => s.order === firstApprovalStepIdx)
+
+      // Resolve substitute if the first assignee is absent at the moment the step becomes active
+      let effectiveUserId = firstApprovalStep.userId ?? null
+      if (effectiveUserId) {
+        const resolvedId = await resolveEffectiveUserId(effectiveUserId)
+        if (resolvedId !== effectiveUserId) {
+          effectiveUserId = resolvedId
+          if (createdStep) {
+            await db.documentApprovalStep.update({
+              where: { id: createdStep.id },
+              data: { userId: effectiveUserId },
+            })
+          }
+        }
+      }
+
       await grantStepPermissions(documentId, user.id, {
-        userId: firstApprovalStep.userId ?? null,
+        userId: effectiveUserId,
         departmentId: firstApprovalStep.departmentId ?? null,
       })
       await notifyStepAssignees(
-        { userId: firstApprovalStep.userId ?? null, departmentId: firstApprovalStep.departmentId ?? null },
+        { userId: effectiveUserId, departmentId: firstApprovalStep.departmentId ?? null },
         {
           type: 'APPROVAL_REQUEST',
           title: `Документ «${doc.title}» ожидает вашего согласования`,
@@ -317,6 +395,20 @@ export async function POST(
           entityId: documentId,
         },
       )
+      if (firstApprovalStep.sendEmail ?? true) {
+        sendApprovalEmail({
+          documentId,
+          documentTitle: doc.title,
+          documentNumber: doc.number ?? null,
+          documentData: doc.data,
+          documentTypeId: doc.typeId,
+          stepId: createdStep?.id ?? null,
+          stepName: firstApprovalStep.name,
+          dueAt: (createdStep as any)?.dueAt ?? null,
+          assigneeUserId: effectiveUserId,
+          assigneeDepId: firstApprovalStep.departmentId ?? null,
+        }).catch((e) => console.error('sendApprovalEmail error:', e))
+      }
     }
 
     logActivity({

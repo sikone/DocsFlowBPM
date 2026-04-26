@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Loader2, Save, FolderOpen, SlidersHorizontal, Clock, Timer, Network, Eye, EyeOff, RefreshCw, Plug } from 'lucide-react';
+import { Loader2, Save, FolderOpen, SlidersHorizontal, Clock, Timer, Network, Eye, EyeOff, RefreshCw, Plug, Mail, Send, Inbox } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,28 @@ export function AdminSettingsPage() {
   // Default SLA hours per urgency (used when a step has no individual slaConfig)
   const [slaHours, setSlaHours] = useState<Record<UrgencyLevel, number>>({ ...DEFAULT_SLA });
 
+  // Email / SMTP / POP3
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('587');
+  const [smtpSecure, setSmtpSecure] = useState(false);
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPassword, setSmtpPassword] = useState('');
+  const [smtpPasswordPlaceholder, setSmtpPasswordPlaceholder] = useState('');
+  const [smtpFrom, setSmtpFrom] = useState('');
+  const [smtpFromName, setSmtpFromName] = useState('');
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [pop3Host, setPop3Host] = useState('');
+  const [pop3Port, setPop3Port] = useState('995');
+  const [pop3Secure, setPop3Secure] = useState(true);
+  const [pop3User, setPop3User] = useState('');
+  const [pop3Password, setPop3Password] = useState('');
+  const [pop3PasswordPlaceholder, setPop3PasswordPlaceholder] = useState('');
+  const [showPop3Password, setShowPop3Password] = useState(false);
+  const [testEmailTo, setTestEmailTo] = useState('');
+  const [emailTesting, setEmailTesting] = useState(false);
+  const [emailTestResult, setEmailTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
   // Active Directory
   const [adEnabled, setAdEnabled] = useState(false);
   const [adUrl, setAdUrl] = useState('');
@@ -56,8 +78,8 @@ export function AdminSettingsPage() {
 
   useEffect(() => {
     if (!token) return;
-    apiFetch<{ settings: Record<string, string> }>('/api/settings', token)
-      .then(({ settings }) => {
+    apiFetch<Record<string, string>>('/api/settings', token)
+      .then((settings) => {
         setUploadPath(settings.uploadPath ?? './storage/uploads');
 
         const start = parseInt(settings.workHoursStart ?? '', 10);
@@ -76,6 +98,21 @@ export function AdminSettingsPage() {
           if (Number.isFinite(val) && val > 0) merged[level] = val;
         }
         setSlaHours(merged);
+
+        // Email
+        setEmailEnabled(settings.emailEnabled === 'true');
+        setSmtpHost(settings.smtpHost ?? '');
+        setSmtpPort(settings.smtpPort ?? '587');
+        setSmtpSecure(settings.smtpSecure === 'true');
+        setSmtpUser(settings.smtpUser ?? '');
+        setSmtpFrom(settings.smtpFrom ?? '');
+        setSmtpFromName(settings.smtpFromName ?? '');
+        if (settings.smtpPassword) setSmtpPasswordPlaceholder('••••••••');
+        setPop3Host(settings.pop3Host ?? '');
+        setPop3Port(settings.pop3Port ?? '995');
+        setPop3Secure(settings.pop3Secure !== 'false');
+        setPop3User(settings.pop3User ?? '');
+        if (settings.pop3Password) setPop3PasswordPlaceholder('••••••••');
 
         // Active Directory
         setAdEnabled(settings.adEnabled === 'true');
@@ -114,18 +151,33 @@ export function AdminSettingsPage() {
         workHoursStart: String(startH),
         workHoursEnd:   String(endH),
         workingDays: JSON.stringify(workingDays),
+        emailEnabled: String(emailEnabled),
+        smtpHost: smtpHost.trim(),
+        smtpPort: smtpPort.trim() || '587',
+        smtpSecure: String(smtpSecure),
+        smtpUser: smtpUser.trim(),
+        smtpFrom: smtpFrom.trim(),
+        smtpFromName: smtpFromName.trim(),
+        pop3Host: pop3Host.trim(),
+        pop3Port: pop3Port.trim() || '995',
+        pop3Secure: String(pop3Secure),
+        pop3User: pop3User.trim(),
         adEnabled: String(adEnabled),
         adUrl: adUrl.trim(),
         adBaseDn: adBaseDn.trim(),
         adBindDn: adBindDn.trim(),
         adGroup: adGroup.trim() || 'G_Test_DocsFlow',
       };
+      if (smtpPassword) body.smtpPassword = smtpPassword;
+      if (pop3Password) body.pop3Password = pop3Password;
       // Only overwrite password if user typed a new one
       if (adBindPassword) body.adBindPassword = adBindPassword;
       for (const level of URGENCY_LEVELS) {
         body[`slaDefault${level}`] = String(slaHours[level]);
       }
       await apiFetch('/api/settings', token, { method: 'PUT', body: JSON.stringify(body) });
+      if (smtpPassword) { setSmtpPassword(''); setSmtpPasswordPlaceholder('••••••••'); }
+      if (pop3Password)  { setPop3Password('');  setPop3PasswordPlaceholder('••••••••'); }
       if (adBindPassword) {
         setAdBindPassword('');
         setAdBindPasswordPlaceholder('••••••••');
@@ -135,6 +187,34 @@ export function AdminSettingsPage() {
       toast.error('Ошибка сохранения настроек');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEmailTest = async () => {
+    if (!token) return;
+    setEmailTesting(true);
+    setEmailTestResult(null);
+    try {
+      const res = await fetch(`/api/admin/email-test?token=${encodeURIComponent(token)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: testEmailTo.trim(),
+          host: smtpHost.trim(),
+          port: parseInt(smtpPort, 10) || 587,
+          secure: smtpSecure,
+          smtpUser: smtpUser.trim(),
+          password: smtpPassword || undefined,
+          from: smtpFrom.trim(),
+          fromName: smtpFromName.trim() || undefined,
+        }),
+      });
+      const json = await res.json();
+      setEmailTestResult(json);
+    } catch {
+      setEmailTestResult({ success: false, message: 'Ошибка запроса' });
+    } finally {
+      setEmailTesting(false);
     }
   };
 
@@ -331,6 +411,260 @@ export function AdminSettingsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Email */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Mail className="w-4 h-4 text-blue-500" />
+            Электронная почта
+          </CardTitle>
+          <CardDescription>
+            Настройки почтового сервера для отправки уведомлений о действиях с документами.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="email-enabled"
+              checked={emailEnabled}
+              onCheckedChange={setEmailEnabled}
+              className="data-[state=checked]:bg-emerald-600"
+            />
+            <Label htmlFor="email-enabled" className="cursor-pointer">
+              Включить отправку уведомлений по e-mail
+            </Label>
+          </div>
+
+          {/* SMTP */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <Send className="w-3.5 h-3.5 text-blue-500" />
+              SMTP — исходящая почта
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="smtp-host">Адрес сервера</Label>
+                <Input
+                  id="smtp-host"
+                  value={smtpHost}
+                  onChange={(e) => setSmtpHost(e.target.value)}
+                  placeholder="smtp.company.local"
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="smtp-port">Порт</Label>
+                <Input
+                  id="smtp-port"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={smtpPort}
+                  onChange={(e) => setSmtpPort(e.target.value)}
+                  placeholder="587"
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="smtp-user">Логин</Label>
+                <Input
+                  id="smtp-user"
+                  value={smtpUser}
+                  onChange={(e) => setSmtpUser(e.target.value)}
+                  placeholder="docsflow@company.local"
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="smtp-pass">Пароль</Label>
+                <div className="flex gap-1.5">
+                  <Input
+                    id="smtp-pass"
+                    type={showSmtpPassword ? 'text' : 'password'}
+                    value={smtpPassword}
+                    onChange={(e) => setSmtpPassword(e.target.value)}
+                    placeholder={smtpPasswordPlaceholder || 'Введите пароль'}
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    onClick={() => setShowSmtpPassword((v) => !v)}
+                  >
+                    {showSmtpPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
+                </div>
+                {smtpPasswordPlaceholder && !smtpPassword && (
+                  <p className="text-xs text-muted-foreground">Пароль сохранён. Оставьте поле пустым, чтобы не менять.</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="smtp-from">E-mail отправителя</Label>
+                <Input
+                  id="smtp-from"
+                  type="email"
+                  value={smtpFrom}
+                  onChange={(e) => setSmtpFrom(e.target.value)}
+                  placeholder="noreply@company.local"
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="smtp-from-name">Имя отправителя</Label>
+                <Input
+                  id="smtp-from-name"
+                  value={smtpFromName}
+                  onChange={(e) => setSmtpFromName(e.target.value)}
+                  placeholder="DocsFlow"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                id="smtp-secure"
+                checked={smtpSecure}
+                onCheckedChange={setSmtpSecure}
+                className="data-[state=checked]:bg-emerald-600"
+              />
+              <Label htmlFor="smtp-secure" className="cursor-pointer text-sm">
+                SSL/TLS (порт 465) — отключите для STARTTLS (порт 587)
+              </Label>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* POP3 */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <Inbox className="w-3.5 h-3.5 text-blue-500" />
+              POP3 — входящая почта
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="pop3-host">Адрес сервера</Label>
+                <Input
+                  id="pop3-host"
+                  value={pop3Host}
+                  onChange={(e) => setPop3Host(e.target.value)}
+                  placeholder="pop3.company.local"
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pop3-port">Порт</Label>
+                <Input
+                  id="pop3-port"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={pop3Port}
+                  onChange={(e) => setPop3Port(e.target.value)}
+                  placeholder="995"
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pop3-user">Логин</Label>
+                <Input
+                  id="pop3-user"
+                  value={pop3User}
+                  onChange={(e) => setPop3User(e.target.value)}
+                  placeholder="docsflow@company.local"
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pop3-pass">Пароль</Label>
+                <div className="flex gap-1.5">
+                  <Input
+                    id="pop3-pass"
+                    type={showPop3Password ? 'text' : 'password'}
+                    value={pop3Password}
+                    onChange={(e) => setPop3Password(e.target.value)}
+                    placeholder={pop3PasswordPlaceholder || 'Введите пароль'}
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    onClick={() => setShowPop3Password((v) => !v)}
+                  >
+                    {showPop3Password ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
+                </div>
+                {pop3PasswordPlaceholder && !pop3Password && (
+                  <p className="text-xs text-muted-foreground">Пароль сохранён. Оставьте поле пустым, чтобы не менять.</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                id="pop3-secure"
+                checked={pop3Secure}
+                onCheckedChange={setPop3Secure}
+                className="data-[state=checked]:bg-emerald-600"
+              />
+              <Label htmlFor="pop3-secure" className="cursor-pointer text-sm">
+                SSL/TLS (порт 995)
+              </Label>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Test send */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <Send className="w-3.5 h-3.5 text-blue-500" />
+              Проверка отправки
+            </div>
+            <div className="flex gap-2 flex-wrap items-start">
+              <div className="flex-1 min-w-48 space-y-1.5">
+                <Label htmlFor="test-email-to">E-mail получателя</Label>
+                <Input
+                  id="test-email-to"
+                  type="email"
+                  value={testEmailTo}
+                  onChange={(e) => setTestEmailTo(e.target.value)}
+                  placeholder="admin@company.local"
+                />
+              </div>
+              <div className="flex flex-col justify-end space-y-1.5">
+                <Label className="invisible select-none">.</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 whitespace-nowrap"
+                  disabled={emailTesting || !testEmailTo.trim() || !smtpHost.trim() || !smtpFrom.trim()}
+                  onClick={handleEmailTest}
+                >
+                  {emailTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Отправить тестовый e-mail
+                </Button>
+              </div>
+            </div>
+            {emailTestResult && (
+              <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-md border ${
+                emailTestResult.success
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400'
+                  : 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/30 dark:border-rose-800 dark:text-rose-400'
+              }`}>
+                <Badge variant="outline" className={`text-xs shrink-0 ${emailTestResult.success ? 'border-emerald-400 text-emerald-600' : 'border-rose-400 text-rose-600'}`}>
+                  {emailTestResult.success ? 'OK' : 'Ошибка'}
+                </Badge>
+                {emailTestResult.message}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

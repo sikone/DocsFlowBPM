@@ -32,6 +32,8 @@ import {
   GitBranch,
   Building2,
   Calculator,
+  ChevronsUpDown,
+  UserX,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -92,6 +94,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { useStore } from '@/lib/store';
 import {
   ROLE_LABELS,
@@ -337,8 +344,88 @@ export function AdminDashboard() {
 }
 
 // ============================================================
-// 2. AdminUsers
+// 2. AdminUsers — substitute picker
 // ============================================================
+interface SearchUser { id: string; name: string; email: string }
+
+function SubstitutePicker({
+  token,
+  value,
+  displayName,
+  excludeId,
+  onChange,
+}: {
+  token: string;
+  value: string;
+  displayName: string;
+  excludeId?: string;
+  onChange: (id: string, name: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [results, setResults] = useState<SearchUser[]>([]);
+  const [fetching, setFetching] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setFetching(true);
+    fetch(`/api/users/search?token=${encodeURIComponent(token)}&q=${encodeURIComponent(search)}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setResults((d.users ?? []).filter((u: SearchUser) => u.id !== excludeId)); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setFetching(false); });
+    return () => { cancelled = true; };
+  }, [open, search, token, excludeId]);
+
+  return (
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearch(''); }}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+          <span className="truncate">{value ? displayName || '...' : 'Выбрать сотрудника'}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-full p-0" align="start">
+        <div className="flex items-center border-b px-3 py-2 gap-2">
+          <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+          <input
+            autoFocus
+            placeholder="Поиск по имени..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+          {fetching && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
+        </div>
+        <div className="max-h-52 overflow-y-auto">
+          {results.length === 0 && !fetching ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              {search ? 'Не найдено' : 'Начните вводить имя'}
+            </p>
+          ) : (
+            results.map((u) => (
+              <button
+                key={u.id}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-accent text-left transition-colors ${value === u.id ? 'bg-accent' : ''}`}
+                onClick={() => { onChange(u.id, u.name); setOpen(false); setSearch(''); }}
+              >
+                <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-semibold shrink-0">
+                  {u.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{u.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 interface UserFormData {
   name: string;
   email: string;
@@ -347,6 +434,10 @@ interface UserFormData {
   active: boolean;
   isDepartmentHead: boolean;
   departmentId: string;
+  isAbsent: boolean;
+  substituteId: string;
+  substituteName: string;
+  absentUntil: string;
 }
 
 const DEFAULT_USER_FORM: UserFormData = {
@@ -357,6 +448,10 @@ const DEFAULT_USER_FORM: UserFormData = {
   active: true,
   isDepartmentHead: false,
   departmentId: '',
+  isAbsent: false,
+  substituteId: '',
+  substituteName: '',
+  absentUntil: '',
 };
 
 export function AdminUsers() {
@@ -413,6 +508,10 @@ export function AdminUsers() {
       active: user.active,
       isDepartmentHead: user.isDepartmentHead ?? false,
       departmentId: user.departmentId ?? '',
+      isAbsent: user.isAbsent ?? false,
+      substituteId: user.substituteId ?? '',
+      substituteName: user.substitute?.name ?? '',
+      absentUntil: user.absentUntil ? new Date(user.absentUntil).toISOString().split('T')[0] : '',
     });
     setDialogOpen(true);
   };
@@ -429,6 +528,9 @@ export function AdminUsers() {
           active: form.active,
           isDepartmentHead: form.isDepartmentHead,
           departmentId: form.departmentId || null,
+          isAbsent: form.isAbsent,
+          substituteId: form.isAbsent ? (form.substituteId || null) : null,
+          absentUntil: form.isAbsent && form.absentUntil ? form.absentUntil : null,
         };
         if (form.password) body.password = form.password;
         await apiFetch(`/api/users/${editingUser.id}`, token, {
@@ -439,7 +541,14 @@ export function AdminUsers() {
         if (!form.password) return;
         await apiFetch('/api/users', token, {
           method: 'POST',
-          body: JSON.stringify({ ...form, departmentId: form.departmentId || null, isDepartmentHead: form.isDepartmentHead }),
+          body: JSON.stringify({
+            ...form,
+            departmentId: form.departmentId || null,
+            isDepartmentHead: form.isDepartmentHead,
+            isAbsent: form.isAbsent,
+            substituteId: form.isAbsent ? (form.substituteId || null) : null,
+            absentUntil: form.isAbsent && form.absentUntil ? form.absentUntil : null,
+          }),
         });
       }
       setDialogOpen(false);
@@ -553,16 +662,23 @@ export function AdminUsers() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          user.active
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800 text-xs'
-                            : 'bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 text-xs'
-                        }
-                      >
-                        {user.active ? 'Активен' : 'Неактивен'}
-                      </Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge
+                          variant="outline"
+                          className={
+                            user.active
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800 text-xs'
+                              : 'bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 text-xs'
+                          }
+                        >
+                          {user.active ? 'Активен' : 'Неактивен'}
+                        </Badge>
+                        {user.isAbsent && (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800 text-xs w-fit">
+                            Отсутствует{user.absentUntil ? ` до ${new Date(user.absentUntil).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}` : ''}
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -729,6 +845,47 @@ export function AdminUsers() {
                 checked={form.active}
                 onCheckedChange={(checked) => setForm((f) => ({ ...f, active: checked }))}
               />
+            </div>
+            <div className={`rounded-lg border p-3 space-y-3 ${form.isAbsent ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/10 dark:border-amber-800' : ''}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserX className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="user-absent" className="cursor-pointer">
+                    Отсутствует
+                  </Label>
+                </div>
+                <Switch
+                  id="user-absent"
+                  checked={form.isAbsent}
+                  onCheckedChange={(checked) =>
+                    setForm((f) => ({ ...f, isAbsent: checked, substituteId: checked ? f.substituteId : '', substituteName: checked ? f.substituteName : '', absentUntil: checked ? f.absentUntil : '' }))
+                  }
+                />
+              </div>
+              {form.isAbsent && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Замещающий сотрудник</Label>
+                    <SubstitutePicker
+                      token={token ?? ''}
+                      value={form.substituteId}
+                      displayName={form.substituteName}
+                      excludeId={editingUser?.id}
+                      onChange={(id, name) => setForm((f) => ({ ...f, substituteId: id, substituteName: name }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Отсутствует до</Label>
+                    <Input
+                      type="date"
+                      value={form.absentUntil}
+                      min={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setForm((f) => ({ ...f, absentUntil: e.target.value }))}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

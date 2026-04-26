@@ -75,7 +75,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Check, ChevronsUpDown } from 'lucide-react';
+import { Check, ChevronsUpDown, Mail } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
@@ -131,6 +131,7 @@ interface ProcessStep {
   order: number;
   condition?: StepCondition;
   slaConfig?: string | null;
+  sendEmail?: boolean;
   targetStatus?: string | null;
   grantAccessConfig?: GrantAccessConfig | null;
 }
@@ -570,6 +571,7 @@ export function AdminProcessesPage() {
       userId: null,
       departmentId: null,
       order: form.steps.length + 1,
+      ...((type === 'APPROVAL' || type === 'NOTIFICATION') ? { sendEmail: true } : {}),
       ...(type === 'STATUS_CHANGE' ? { targetStatus: 'APPROVED' } : {}),
       ...(type === 'GRANT_ACCESS' ? { grantAccessConfig: { grantType: 'role' as const, role: 'USER' as const, permission: 'VIEW' as const } } : {}),
     };
@@ -1199,6 +1201,23 @@ export function AdminProcessesPage() {
                               <X className="w-4 h-4" />
                             </button>
                           </div>
+
+                          {/* Send email for APPROVAL/NOTIFICATION steps */}
+                          {(step.type === 'APPROVAL' || step.type === 'NOTIFICATION') && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={`send-email-${step.id}`}
+                                checked={step.sendEmail ?? true}
+                                onChange={(e) => updateStep(step.id, { sendEmail: e.target.checked })}
+                                className="h-3.5 w-3.5 rounded border-border accent-emerald-600"
+                              />
+                              <label htmlFor={`send-email-${step.id}`} className="text-xs cursor-pointer flex items-center gap-1.5 text-muted-foreground select-none">
+                                <Mail className="w-3 h-3 text-blue-500" />
+                                Отправить e-mail уведомление исполнителю
+                              </label>
+                            </div>
+                          )}
 
                           {/* SLA matrix for APPROVAL steps */}
                           {step.type === 'APPROVAL' && (() => {

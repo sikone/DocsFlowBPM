@@ -208,23 +208,19 @@ export default function DocumentComments({
       setComments(commentList);
       onCommentCountChange?.(commentList.length);
 
-      // Extract step comments from immutable decision history
+      // Extract step comments from immutable decision history (includes inactive/archived steps)
       const stepComments: ApprovalStepComment[] = [];
-      const approvals: any[] = (approvalsData as any).approvals || [];
-      for (const approval of approvals) {
-        for (const step of approval.steps ?? []) {
-          for (const dec of step.decisions ?? []) {
-            if (dec.comment) {
-              stepComments.push({
-                id: dec.id,
-                stepName: step.name,
-                decision: dec.decision,
-                comment: dec.comment,
-                decidedBy: dec.decidedBy,
-                decidedAt: dec.createdAt,
-              });
-            }
-          }
+      const allStepDecisions: any[] = (approvalsData as any).allStepDecisions || [];
+      for (const dec of allStepDecisions) {
+        if (dec.comment) {
+          stepComments.push({
+            id: dec.id,
+            stepName: dec.step?.name ?? '',
+            decision: dec.decision,
+            comment: dec.comment,
+            decidedBy: dec.decidedBy,
+            decidedAt: dec.createdAt,
+          });
         }
       }
       setApprovalComments(stepComments);

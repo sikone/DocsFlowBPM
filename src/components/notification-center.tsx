@@ -149,16 +149,32 @@ function EmptyState() {
 function NotificationItem({
   notification,
   onRead,
+  onNavigate,
+  onClose,
 }: {
   notification: Notification;
   onRead: (id: string) => void;
+  onNavigate?: (view: AppView) => void;
+  onClose?: () => void;
 }) {
+  const isDocumentLink = notification.entityType === 'DOCUMENT' && !!notification.entityId && !!onNavigate;
+
+  const handleClick = () => {
+    if (!notification.isRead) onRead(notification.id);
+    if (isDocumentLink) {
+      onNavigate!({ page: 'edit-document', documentId: notification.entityId! });
+      onClose?.();
+    }
+  };
+
   return (
     <div
-      className={`flex items-start gap-3 px-1 py-3 rounded-lg transition-colors group cursor-pointer ${
+      className={`flex items-start gap-3 px-1 py-3 rounded-lg transition-colors group ${
+        isDocumentLink || !notification.isRead ? 'cursor-pointer' : 'cursor-default'
+      } ${
         notification.isRead ? 'hover:bg-muted/50' : 'bg-blue-50/50 dark:bg-blue-950/10 hover:bg-blue-50 dark:hover:bg-blue-950/20'
       }`}
-      onClick={() => !notification.isRead && onRead(notification.id)}
+      onClick={handleClick}
     >
       {/* Icon */}
       <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${getNotificationIconBg(notification.type)}`}>
@@ -368,7 +384,7 @@ export default function NotificationCenter({
                 <div className="py-1">
                   {notifications.map((n, index) => (
                     <React.Fragment key={n.id}>
-                      <NotificationItem notification={n} onRead={handleMarkRead} />
+                      <NotificationItem notification={n} onRead={handleMarkRead} onNavigate={onNavigate} onClose={() => setOpen(false)} />
                       {index < notifications.length - 1 && (
                         <Separator className="ml-12 mr-1 opacity-40" />
                       )}

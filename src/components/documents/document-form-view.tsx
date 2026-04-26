@@ -103,6 +103,7 @@ import {
   X,
   Pencil,
   Plus,
+  RefreshCw,
 } from 'lucide-react';
 
 // ────────────────────────────────────────────
@@ -995,6 +996,7 @@ export default function DocumentFormView() {
   const isViewOnly = currentUserPermission === 'VIEW';
   const [saving, setSaving] = useState(false);
   const [loadingLocal, setLoadingLocal] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // ── Pending attachments (before document is saved) ──
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -1267,7 +1269,7 @@ export default function DocumentFormView() {
     setLogsLoading(true);
     try {
       const res = await apiFetch<{ logs: ActivityLogEntry[]; total: number }>(
-        `/api/activity-log?entityType=DOCUMENT&entityId=${docId}&limit=20`,
+        `/api/activity-log?entityType=DOCUMENT&entityId=${docId}&limit=20&excludeAction=VIEW_DOCUMENT`,
         t
       );
       setActivityLogs(res.logs || []);
@@ -1277,6 +1279,56 @@ export default function DocumentFormView() {
       setLogsLoading(false);
     }
   }, []);
+
+  // ── Refresh document ──
+  const handleRefresh = useCallback(async () => {
+    if (!token || isNewDoc) return;
+    const docId = (view as { documentId: string }).documentId;
+    if (!docId) return;
+    setRefreshing(true);
+    try {
+      const res = await fetch(`/api/documents/${docId}?token=${encodeURIComponent(token ?? '')}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: 'Ошибка сервера' }));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const json = await res.json() as { document: Document; currentUserPermission: 'PRIVILEGED' | 'OWNER' | 'EDIT' | 'VIEW' };
+      const doc = json.document;
+      setCurrentUserPermission(json.currentUserPermission ?? null);
+      setDocument(doc);
+      setTitle(doc.title);
+      setStatus(doc.status);
+      setUrgency(doc.urgency ?? 'MEDIUM');
+
+      if (doc.type) {
+        setDocType(doc.type);
+        let fields: FormField[] = [];
+        try { fields = JSON.parse(doc.type.formSchema); } catch { /* empty */ }
+        setFormFields(fields);
+        let dataObj: Record<string, string | boolean> = {};
+        try { dataObj = JSON.parse(doc.data); } catch { /* empty */ }
+        fields.forEach((f) => {
+          if (dataObj[f.id] === undefined) {
+            if (f.defaultValue !== undefined && f.defaultValue !== '') {
+              dataObj[f.id] = f.defaultValue;
+            } else if (f.type === 'checkbox' || f.type === 'switch') {
+              dataObj[f.id] = false;
+            } else {
+              dataObj[f.id] = '';
+            }
+          }
+        });
+        setFormData(dataObj);
+        initialDataRef.current = { title: doc.title, formData: { ...dataObj }, status: doc.status, urgency: doc.urgency ?? 'MEDIUM' };
+        loadActivityLogs(docId, token);
+      }
+      toast.success('Документ обновлён');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка обновления документа');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [token, isNewDoc, view, loadActivityLogs]);
 
   // ── Dirty state check ──
   const isDirty = useMemo(() => {
@@ -2302,6 +2354,24 @@ export default function DocumentFormView() {
             onStatusChange={handleStatusChange}
             disabled={isNewDoc || isLocked || isViewOnly}
           />
+
+          {/* Refresh button */}
+          {!isNewDoc && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRefresh}
+                  disabled={refreshing || saving}
+                  className="shrink-0 h-8 w-8 p-0"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Обновить документ</TooltipContent>
+            </Tooltip>
+          )}
 
           {/* Auto-save indicator */}
           <div className="hidden sm:flex items-center">

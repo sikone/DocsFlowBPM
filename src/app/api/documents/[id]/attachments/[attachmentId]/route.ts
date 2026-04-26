@@ -57,7 +57,7 @@ export async function DELETE(
     logActivity({
       userId: user.id,
       action: 'DELETE_ATTACHMENT',
-      entityType: 'Document',
+      entityType: 'DOCUMENT',
       entityId: documentId,
       details: `Удалено вложение: ${attachment.originalName}`,
     })

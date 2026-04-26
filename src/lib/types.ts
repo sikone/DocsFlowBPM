@@ -18,6 +18,10 @@ export interface User {
   isDepartmentHead?: boolean;
   departmentId?: string | null;
   department?: { id: string; name: string } | null;
+  isAbsent?: boolean;
+  substituteId?: string | null;
+  substitute?: { id: string; name: string } | null;
+  absentUntil?: string | null;
 }
 
 export interface Folder {
@@ -134,6 +138,7 @@ export interface ApprovalRouteStep {
   departmentId?: string | null;
   department?: { id: string; name: string } | null;
   slaConfig?: string | null; // JSON SlaConfig
+  sendEmail?: boolean;
 }
 
 export interface ApprovalRoute {

@@ -12,6 +12,7 @@ const stepSelect = {
   departmentId: true,
   department: { select: { id: true, name: true } },
   slaConfig: true,
+  sendEmail: true,
 }
 
 export async function PUT(
@@ -50,6 +51,7 @@ export async function PUT(
             userId: s.userId || null,
             departmentId: s.departmentId || null,
             slaConfig: s.slaConfig || null,
+            sendEmail: s.sendEmail ?? true,
           })),
         },
       },
