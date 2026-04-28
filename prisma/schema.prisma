@@ -418,7 +418,7 @@ model DocumentApprovalStep {
   approval        DocumentApproval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
   order           Int
   name            String
-  stepType        String           @default("APPROVAL") // APPROVAL | CONDITION | STATUS_CHANGE | GRANT_ACCESS
+  stepType        String           @default("APPROVAL") // APPROVAL | CONDITION | STATUS_CHANGE | GRANT_ACCESS | SIGNATURE
   conditionConfig String?          // JSON for CONDITION steps
   userId          String?
   user            User?            @relation("ApprovalStepAssignee", fields: [userId], references: [id])
@@ -437,6 +437,7 @@ model DocumentApprovalStep {
   createdAt       DateTime         @default(now())
 
   decisions       ApprovalStepDecision[]
+  signature       DocumentSignature?
 
   @@index([approvalId])
   @@index([approvalId, isActive])
@@ -457,6 +458,21 @@ model ApprovalStepDecision {
 
   @@index([stepId])
   @@index([decidedById])
+}
+
+model DocumentSignature {
+  id           String               @id @default(cuid())
+  stepId       String               @unique
+  step         DocumentApprovalStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  documentId   String
+  signerUserId String
+  thumbprint   String?
+  issuer       String?
+  subject      String?
+  signedAt     DateTime             @default(now())
+
+  @@index([documentId])
+  @@index([signerUserId])
 }
 
 model DocumentPermission {

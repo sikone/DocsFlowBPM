@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url)
     const folderId = url.searchParams.get('folderId')
+    const inboxMode = url.searchParams.get('inboxMode') === 'true'
     const typeId = url.searchParams.get('typeId')
     const status = url.searchParams.get('status')
     const search = url.searchParams.get('search')
@@ -45,6 +46,24 @@ export async function GET(request: NextRequest) {
 
     if (folderId) {
       where.folderId = folderId
+    } else if (inboxMode) {
+      // Inbox mode: exclude docs already organised in the user's own non-inbox folders.
+      // This prevents a document from appearing in both "Входящие" and e.g. "Мои документы".
+      // We still show: docs with no folder, docs in the user's inbox folder, and docs
+      // in folders owned by other users (shared via permissions).
+      const userNonInboxFolders = await db.folder.findMany({
+        where: {
+          createdById: user.id,
+          NOT: { isSystem: true, order: 0 }, // keep the inbox folder itself out of exclusions
+        },
+        select: { id: true },
+      })
+      const excludeIds = userNonInboxFolders.map((f) => f.id)
+      if (excludeIds.length > 0) {
+        where.AND = [
+          { OR: [{ folderId: null }, { folderId: { notIn: excludeIds } }] },
+        ]
+      }
     }
 
     if (typeId) {

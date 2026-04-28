@@ -172,12 +172,23 @@ export interface ApprovalStepDecision {
   createdAt: string;
 }
 
+export interface DocumentSignature {
+  id: string;
+  stepId: string;
+  documentId: string;
+  signerUserId: string;
+  thumbprint?: string | null;
+  issuer?: string | null;
+  subject?: string | null;
+  signedAt: string;
+}
+
 export interface DocumentApprovalStep {
   id: string;
   approvalId: string;
   order: number;
   name: string;
-  stepType: 'APPROVAL' | 'CONDITION';
+  stepType: 'APPROVAL' | 'CONDITION' | 'SIGNATURE';
   conditionConfig?: string | null;
   slaConfig?: string | null; // JSON SlaConfig
   dueAt?: string | null;
@@ -192,6 +203,7 @@ export interface DocumentApprovalStep {
   decidedAt?: string | null;
   createdAt: string;
   decisions?: ApprovalStepDecision[];
+  signature?: DocumentSignature | null;
 }
 
 export interface DocumentApproval {

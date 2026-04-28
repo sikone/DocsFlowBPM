@@ -21,6 +21,7 @@ import {
   Flag,
   FileCheck2,
   KeyRound,
+  PenLine,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -122,7 +123,7 @@ interface GrantAccessConfig {
 interface ProcessStep {
   id: string;
   name: string;
-  type: 'START' | 'APPROVAL' | 'NOTIFICATION' | 'CONDITION' | 'END' | 'STATUS_CHANGE' | 'GRANT_ACCESS';
+  type: 'START' | 'APPROVAL' | 'NOTIFICATION' | 'CONDITION' | 'END' | 'STATUS_CHANGE' | 'GRANT_ACCESS' | 'SIGNATURE';
   assigneeRole: 'ADMIN' | 'ADVANCED' | 'USER';
   assigneeType?: 'role' | 'user' | 'department' | 'initiator';
   userId?: string | null;
@@ -190,6 +191,7 @@ const STEP_TYPE_LABELS: Record<string, string> = {
   CONDITION: 'Условие',
   STATUS_CHANGE: 'Статус документа',
   GRANT_ACCESS: 'Выдать доступ',
+  SIGNATURE: 'Подписание ЭЦП',
   END: 'Финиш',
 };
 
@@ -200,6 +202,7 @@ const STEP_TYPE_ICONS: Record<string, React.ElementType> = {
   CONDITION: HelpCircle,
   STATUS_CHANGE: FileCheck2,
   GRANT_ACCESS: KeyRound,
+  SIGNATURE: PenLine,
   END: Flag,
 };
 
@@ -210,6 +213,7 @@ const STEP_TYPE_COLORS: Record<string, string> = {
   CONDITION: 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-800',
   STATUS_CHANGE: 'bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800',
   GRANT_ACCESS: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:border-orange-800',
+  SIGNATURE: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800',
   END: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
 };
 
@@ -571,7 +575,7 @@ export function AdminProcessesPage() {
       userId: null,
       departmentId: null,
       order: form.steps.length + 1,
-      ...((type === 'APPROVAL' || type === 'NOTIFICATION') ? { sendEmail: true } : {}),
+      ...((type === 'APPROVAL' || type === 'NOTIFICATION' || type === 'SIGNATURE') ? { sendEmail: true } : {}),
       ...(type === 'STATUS_CHANGE' ? { targetStatus: 'APPROVED' } : {}),
       ...(type === 'GRANT_ACCESS' ? { grantAccessConfig: { grantType: 'role' as const, role: 'USER' as const, permission: 'VIEW' as const } } : {}),
     };
@@ -991,8 +995,8 @@ export function AdminProcessesPage() {
                                     ))}
                                   </SelectContent>
                                 </Select>
-                                {/* Assignee selector — user/dept for APPROVAL/NOTIFICATION, none for END */}
-                                {step.type === 'APPROVAL' || step.type === 'NOTIFICATION' ? (
+                                {/* Assignee selector — user/dept for APPROVAL/NOTIFICATION/SIGNATURE, none for END */}
+                                {step.type === 'APPROVAL' || step.type === 'NOTIFICATION' || step.type === 'SIGNATURE' ? (
                                   <>
                                     <Select
                                       value={step.assigneeType || 'role'}
@@ -1202,8 +1206,8 @@ export function AdminProcessesPage() {
                             </button>
                           </div>
 
-                          {/* Send email for APPROVAL/NOTIFICATION steps */}
-                          {(step.type === 'APPROVAL' || step.type === 'NOTIFICATION') && (
+                          {/* Send email for APPROVAL/NOTIFICATION/SIGNATURE steps */}
+                          {(step.type === 'APPROVAL' || step.type === 'NOTIFICATION' || step.type === 'SIGNATURE') && (
                             <div className="mt-2 flex items-center gap-2">
                               <input
                                 type="checkbox"
@@ -1219,8 +1223,8 @@ export function AdminProcessesPage() {
                             </div>
                           )}
 
-                          {/* SLA matrix for APPROVAL steps */}
-                          {step.type === 'APPROVAL' && (() => {
+                          {/* SLA matrix for APPROVAL/SIGNATURE steps */}
+                          {(step.type === 'APPROVAL' || step.type === 'SIGNATURE') && (() => {
                             let slaEnabled = false;
                             let slaHours: SlaConfig = { ...DEFAULT_SLA };
                             if (step.slaConfig) {
@@ -1236,7 +1240,7 @@ export function AdminProcessesPage() {
                               } catch { /* ignore */ }
                             }
                             return (
-                              <div className="mt-3 pt-3 border-t border-amber-100 dark:border-amber-900/30 space-y-2">
+                              <div className={`mt-3 pt-3 border-t ${step.type === 'SIGNATURE' ? 'border-indigo-100 dark:border-indigo-900/30' : 'border-amber-100 dark:border-amber-900/30'} space-y-2`}>
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="checkbox"
@@ -1249,7 +1253,7 @@ export function AdminProcessesPage() {
                                     }
                                     className="h-3.5 w-3.5 rounded border-border accent-emerald-600"
                                   />
-                                  <Label htmlFor={`sla-${step.id}`} className="text-xs cursor-pointer text-amber-700 dark:text-amber-400 font-medium">
+                                  <Label htmlFor={`sla-${step.id}`} className={`text-xs cursor-pointer ${step.type === 'SIGNATURE' ? 'text-indigo-700 dark:text-indigo-400' : 'text-amber-700 dark:text-amber-400'} font-medium`}>
                                     SLA матрица (контроль сроков по срочности)
                                   </Label>
                                   {slaEnabled && (

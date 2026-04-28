@@ -52,10 +52,12 @@ export async function POST(
       return NextResponse.json({ error: 'Step is already decided' }, { status: 400 })
     if (step.stepType === 'CONDITION' || step.stepType === 'GRANT_ACCESS')
       return NextResponse.json({ error: 'Этот шаг выполняется автоматически' }, { status: 400 })
+    if (step.stepType === 'SIGNATURE')
+      return NextResponse.json({ error: 'Шаг подписания выполняется через /sign' }, { status: 400 })
 
-    // Sequential enforcement: only the first PENDING APPROVAL step can be decided
+    // Sequential enforcement: first PENDING human step (APPROVAL or SIGNATURE) must be this one
     const firstPendingApproval = approval.steps
-      .filter((s) => s.status === 'PENDING' && s.stepType === 'APPROVAL')
+      .filter((s) => s.status === 'PENDING' && (s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE'))
       .sort((a, b) => a.order - b.order)[0]
     if (firstPendingApproval?.id !== stepId)
       return NextResponse.json({ error: 'Этот шаг ещё не активен — дождитесь завершения предыдущих шагов' }, { status: 400 })
@@ -346,7 +348,7 @@ export async function POST(
       // Grant permissions and compute dueAt for the next APPROVAL step
       if (targetOrder !== null) {
         const targetStep = approval.steps.find((s) => s.order === targetOrder)
-        if (targetStep && targetStep.stepType === 'APPROVAL') {
+        if (targetStep && (targetStep.stepType === 'APPROVAL' || targetStep.stepType === 'SIGNATURE')) {
           // Resolve the actual DB step ID once (new record if recreated by backward jump)
           const nextStepDbId = backwardJumpOrders.includes(targetOrder)
             ? (await db.documentApprovalStep.findFirst({
@@ -372,11 +374,14 @@ export async function POST(
             userId: effectiveUserId,
             departmentId: targetStep.departmentId,
           })
+          const notifyTitle = targetStep.stepType === 'SIGNATURE'
+            ? `Документ «${approval.document.title}» ожидает вашей подписи (шаг: ${targetStep.name})`
+            : `Документ «${approval.document.title}» ожидает вашего согласования (шаг: ${targetStep.name})`
           await notifyStepAssignees(
             { userId: effectiveUserId, departmentId: targetStep.departmentId },
             {
               type: 'APPROVAL_REQUEST',
-              title: `Документ «${approval.document.title}» ожидает вашего согласования (шаг: ${targetStep.name})`,
+              title: notifyTitle,
               entityType: 'DOCUMENT',
               entityId: approval.documentId,
             },
@@ -424,7 +429,7 @@ export async function POST(
         select: { id: true, status: true, stepType: true },
       })
       const stillPending = freshSteps.filter(
-        (s) => s.status === 'PENDING' && s.stepType === 'APPROVAL',
+        (s) => s.status === 'PENDING' && (s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE'),
       )
       const decisionLabel =
         decision === 'APPROVED' ? 'Согласован' : 'Согласован с изменениями'

@@ -494,9 +494,14 @@ export default function DashboardLayout() {
   const buildDocsParams = useCallback((page: number, overrideFolderId?: string | null) => {
     const params = new URLSearchParams({ token: token || '', page: String(page), limit: String(PAGE_SIZE), sortField, sortDir });
     const fid = overrideFolderId !== undefined ? overrideFolderId : selectedFolderId;
-    // Inbox folder (isSystem, order=0) means "all documents" — don't pass folderId
     const inboxFolder = folders.find((f) => f.isSystem && f.order === 0);
-    if (fid && fid !== inboxFolder?.id) params.set('folderId', fid);
+    if (fid && fid !== inboxFolder?.id) {
+      params.set('folderId', fid);
+    } else if (fid && fid === inboxFolder?.id) {
+      // Inbox selected: tell API to exclude docs already in the user's personal folders
+      params.set('inboxMode', 'true');
+    }
+    // null fid (= "Все документы"): no param → API returns all accessible docs
     const effectiveStatus = filterStatus !== 'ALL' ? filterStatus : statusFilter !== 'ALL' ? statusFilter : null;
     if (effectiveStatus) params.set('status', effectiveStatus);
     if (filterCreatorId !== 'all') params.set('creatorId', filterCreatorId);
@@ -564,8 +569,12 @@ export default function DashboardLayout() {
         setDocumentTypes(Array.isArray(typesData) ? typesData : typesData.types || []);
       }
 
-      // Fetch first page of documents with current (or newly set inbox) folder
-      const params = buildDocsParams(1, inboxId ?? selectedFolderId);
+      // Fetch first page of documents with current (or newly set inbox) folder.
+      // When inboxId is set we just auto-selected inbox (= "all documents").
+      // buildDocsParams has stale folders=[] at this point and cannot detect the inbox
+      // by ID, so it would incorrectly add folderId=inbox-id to the query, returning
+      // nothing. Pass null to skip the folderId param and get all documents instead.
+      const params = buildDocsParams(1, inboxId !== null ? null : selectedFolderId);
       const docsRes = await fetch(`/api/documents?${params}`);
       if (docsRes.ok) {
         const data = await docsRes.json();
