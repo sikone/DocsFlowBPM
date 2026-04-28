@@ -95,6 +95,7 @@ export interface Document {
   creator?: { id: string; name: string; email: string };
   tagLinks?: Array<{ id: string; tagId: string; tag: DocumentTag }>;
   myPendingStep?: { id: string; dueAt: string | null } | null;
+  isRead?: boolean;
 }
 
 export interface Counterparty {

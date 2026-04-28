@@ -155,6 +155,7 @@ import {
   Archive,
   BarChart3,
   AlertTriangle,
+  EyeOff,
 } from 'lucide-react';
 
 // ─── Theme Toggle Component ─────────────────────────────────────────
@@ -451,6 +452,7 @@ export default function DashboardLayout() {
   const [filterDateRange, setFilterDateRange] = useState<string>('all');
   const [filterCreatorId, setFilterCreatorId] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [filterUnread, setFilterUnread] = useState<boolean>(false);
   const [availableTags, setAvailableTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
 
   // ── Pagination ─────────────────────────────────────────────────────
@@ -464,6 +466,9 @@ export default function DashboardLayout() {
   const [serverSearchResults, setServerSearchResults] = useState<Document[]>([]);
   const [serverSearching, setServerSearching] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Unread Counts ──────────────────────────────────────────────────
+  const [unreadCounts, setUnreadCounts] = useState<{ counts: Record<string, number>; inboxUnread: number }>({ counts: {}, inboxUnread: 0 });
 
   // ── Templates ──────────────────────────────────────────────────────
   const [templates, setTemplates] = useState<Array<{
@@ -489,6 +494,18 @@ export default function DashboardLayout() {
     traverse(nodes);
     return result;
   }, []);
+
+  // ── Fetch and refresh unread counts ───────────────────────────────
+  const fetchUnreadCounts = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/documents/unread-counts?token=${token}`);
+      if (res.ok) {
+        const data = await res.json();
+        setUnreadCounts({ counts: data.counts || {}, inboxUnread: data.inboxUnread ?? 0 });
+      }
+    } catch { /* silent */ }
+  }, [token]);
 
   // ── Build API params for document list ─────────────────────────────
   const buildDocsParams = useCallback((page: number, overrideFolderId?: string | null) => {
@@ -519,8 +536,9 @@ export default function DashboardLayout() {
       }
       params.set('dateFrom', startDate.toISOString());
     }
+    if (filterUnread) params.set('unreadOnly', 'true');
     return params;
-  }, [token, folders, selectedFolderId, filterStatus, statusFilter, filterCreatorId, filterTags, filterDateRange, sortField, sortDir, PAGE_SIZE]);
+  }, [token, folders, selectedFolderId, filterStatus, statusFilter, filterCreatorId, filterTags, filterDateRange, filterUnread, sortField, sortDir, PAGE_SIZE]);
 
   // ── Fetch only documents (paginated) ──────────────────────────────
   const fetchDocs = useCallback(async (page: number, overrideFolderId?: string | null) => {
@@ -582,6 +600,12 @@ export default function DashboardLayout() {
         setDocsTotal(data.total ?? 0);
         setDocsPage(1);
       }
+
+      // Refresh unread counts in background
+      fetch(`/api/documents/unread-counts?token=${token}`)
+        .then((r) => r.json())
+        .then((data) => setUnreadCounts({ counts: data.counts || {}, inboxUnread: data.inboxUnread ?? 0 }))
+        .catch(() => {});
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {
@@ -593,7 +617,7 @@ export default function DashboardLayout() {
   // ── Re-fetch page 1 when filters or folder change ─────────────────
   const filtersKey = [
     selectedFolderId, filterStatus, statusFilter, filterCreatorId,
-    [...filterTags].sort().join(','), filterDateRange, sortField, sortDir,
+    [...filterTags].sort().join(','), filterDateRange, filterUnread, sortField, sortDir,
   ].join('|');
   const prevFiltersKeyRef = useRef('');
   useEffect(() => {
@@ -709,15 +733,18 @@ export default function DashboardLayout() {
     return documents;
   }, [documents, docSearch, searchMode, serverSearchResults, serverSearching]);
 
-  // ── Count docs in folder (recursive) ───────────────────────────────
-  const countDocsInFolder = useCallback(
+  // ── Count unread docs in folder (recursive) ────────────────────────
+  const getUnreadCount = useCallback(
     (folderId: string): number => {
-      const direct = documents.filter((d) => d.folderId === folderId).length;
+      const folder = folders.find((f) => f.id === folderId);
+      // Inbox folder uses its own special counter
+      if (folder?.isSystem && folder.order === 0) return unreadCounts.inboxUnread;
+      const direct = unreadCounts.counts[folderId] ?? 0;
       const children = folders.filter((f) => f.parentId === folderId);
-      const childCount = children.reduce((sum, c) => sum + countDocsInFolder(c.id), 0);
-      return direct + childCount;
+      const childSum = children.reduce((sum, c) => sum + getUnreadCount(c.id), 0);
+      return direct + childSum;
     },
-    [documents, folders]
+    [folders, unreadCounts]
   );
 
   // ── Toggle folder expand ───────────────────────────────────────────
@@ -807,8 +834,9 @@ export default function DashboardLayout() {
     if (filterDateRange !== 'all') count++;
     if (filterCreatorId !== 'all') count++;
     if (filterStatus !== 'ALL') count++;
+    if (filterUnread) count++;
     return count;
-  }, [filterTags, filterDateRange, filterCreatorId, filterStatus]);
+  }, [filterTags, filterDateRange, filterCreatorId, filterStatus, filterUnread]);
 
   // ── Reset all filters ──────────────────────────────────────────────
   const resetAllFilters = useCallback(() => {
@@ -817,6 +845,7 @@ export default function DashboardLayout() {
     setFilterCreatorId('all');
     setFilterStatus('ALL');
     setStatusFilter('ALL');
+    setFilterUnread(false);
   }, []);
 
   // ── Toggle tag in filter set ───────────────────────────────────────
@@ -875,17 +904,36 @@ export default function DashboardLayout() {
   // ── Handle document row click ──────────────────────────────────────
   const handleDocClick = useCallback(
     (docId: string) => {
-      // Record document view for recently viewed feature
       if (token) {
+        // Optimistic local read flag
+        setDocuments(documents.map((d) => d.id === docId ? { ...d, isRead: true } : d));
+        // Record recent view
         fetch(`/api/documents/recent?token=${token}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ documentId: docId }),
         }).catch(() => {});
+        // Mark as read then refresh counts
+        fetch(`/api/documents/${docId}/read?token=${token}`, { method: 'POST' })
+          .then(() => fetchUnreadCounts())
+          .catch(() => {});
       }
       navigate({ page: 'edit-document', documentId: docId });
     },
-    [navigate, token]
+    [navigate, token, documents, setDocuments, fetchUnreadCounts]
+  );
+
+  // ── Mark document as read manually ────────────────────────────────
+  const handleMarkRead = useCallback(
+    (docId: string) => {
+      if (!token) return;
+      // Optimistic local update
+      setDocuments(documents.map((d) => d.id === docId ? { ...d, isRead: true } : d));
+      fetch(`/api/documents/${docId}/read?token=${token}`, { method: 'POST' })
+        .then(() => fetchUnreadCounts())
+        .catch(() => {});
+    },
+    [token, documents, setDocuments, fetchUnreadCounts]
   );
 
   // ── Handle create folder ───────────────────────────────────────────
@@ -1408,12 +1456,17 @@ export default function DashboardLayout() {
           >
             <Home className="h-4 w-4 shrink-0" />
             <span className="truncate">Все документы</span>
-            <Badge
-              variant="secondary"
-              className="ml-auto text-[10px] px-1.5 py-0 bg-slate-700 text-slate-300 hover:bg-slate-700"
-            >
-              {documents.length}
-            </Badge>
+            {(() => {
+              const total = unreadCounts.inboxUnread + Object.values(unreadCounts.counts).reduce((a, b) => a + b, 0);
+              return total > 0 ? (
+                <Badge
+                  variant="secondary"
+                  className="ml-auto text-[10px] px-1.5 py-0 bg-blue-600 text-white hover:bg-blue-600"
+                >
+                  {total}
+                </Badge>
+              ) : null;
+            })()}
           </button>
 
           <div className="px-3 py-1.5 flex items-center justify-between">
@@ -1438,7 +1491,7 @@ export default function DashboardLayout() {
               selectedFolderId={selectedFolderId}
               expandedFolders={expandedFolders}
               getChildren={getChildren}
-              countDocsInFolder={countDocsInFolder}
+              getUnreadCount={getUnreadCount}
               onToggleExpand={toggleExpand}
               onSelectFolder={(id) => {
                 handleFolderSelect(id);
@@ -1516,8 +1569,8 @@ export default function DashboardLayout() {
       </div>
     </>
   ), [
-    folderSearch, selectedFolderId, documents, rootFolders, expandedFolders,
-    getChildren, countDocsInFolder, handleAllDocuments, handleFolderSelect,
+    folderSearch, selectedFolderId, unreadCounts, rootFolders, expandedFolders,
+    getChildren, getUnreadCount, handleAllDocuments, handleFolderSelect,
     toggleExpand, handleDeleteFolder, user?.role, navigate, setNewFolderOpen,
     setNewFolderParentId, setMobileSheetOpen,
   ]);
@@ -2003,6 +2056,28 @@ export default function DashboardLayout() {
 
                   <Separator />
 
+                  {/* Unread Filter */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                      <EyeOff className="h-3.5 w-3.5" />
+                      Прочитанность
+                    </label>
+                    <button
+                      onClick={() => setFilterUnread((v) => !v)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all border ${
+                        filterUnread
+                          ? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
+                          : 'border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground'
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                      Только непрочитанные
+                      {filterUnread && <X className="h-3 w-3 ml-0.5" />}
+                    </button>
+                  </div>
+
+                  <Separator />
+
                   {/* Tags Filter */}
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
@@ -2368,6 +2443,7 @@ export default function DashboardLayout() {
                 onToggleFavorite={handleToggleFavorite}
                 statusChangingDocId={statusChangingDocId}
                 onStatusChange={handleQuickStatusChange}
+                onMarkRead={handleMarkRead}
               />
             ) : (
               <DocumentGrid
@@ -2380,6 +2456,7 @@ export default function DashboardLayout() {
                 onToggleDocSelection={toggleDocSelection}
                 favoriteDocIds={favoriteDocIds}
                 onToggleFavorite={handleToggleFavorite}
+                onMarkRead={handleMarkRead}
               />
             )}
 
@@ -2962,7 +3039,7 @@ interface FolderTreeNodeProps {
   selectedFolderId: string | null;
   expandedFolders: Set<string>;
   getChildren: (parentId: string) => Folder[];
-  countDocsInFolder: (folderId: string) => number;
+  getUnreadCount: (folderId: string) => number;
   onToggleExpand: (id: string) => void;
   onSelectFolder: (id: string) => void;
   onRename: (folder: Folder) => void;
@@ -2978,7 +3055,7 @@ function FolderTreeNode({
   selectedFolderId,
   expandedFolders,
   getChildren,
-  countDocsInFolder,
+  getUnreadCount,
   onToggleExpand,
   onSelectFolder,
   onRename,
@@ -2990,7 +3067,7 @@ function FolderTreeNode({
   const hasChildren = children.length > 0;
   const isExpanded = expandedFolders.has(folder.id);
   const isSelected = selectedFolderId === folder.id;
-  const docCount = countDocsInFolder(folder.id);
+  const docCount = getUnreadCount(folder.id);
   const folderColorClass = getFolderColor(folder.color);
   const folderInlineColor = folderColorClass ? undefined : folder.color || '#64748b';
 
@@ -3047,7 +3124,7 @@ function FolderTreeNode({
           {docCount > 0 && (
             <Badge
               variant="secondary"
-              className="ml-auto text-[10px] px-1.5 py-0 bg-slate-700 text-slate-400 hover:bg-slate-700 shrink-0"
+              className="ml-auto text-[10px] px-1.5 py-0 bg-blue-600 text-white hover:bg-blue-600 shrink-0"
             >
               {docCount}
             </Badge>
@@ -3101,7 +3178,7 @@ function FolderTreeNode({
               selectedFolderId={selectedFolderId}
               expandedFolders={expandedFolders}
               getChildren={getChildren}
-              countDocsInFolder={countDocsInFolder}
+              getUnreadCount={getUnreadCount}
               onToggleExpand={onToggleExpand}
               onSelectFolder={onSelectFolder}
               onRename={onRename}
@@ -3157,6 +3234,7 @@ interface DocumentTableProps {
   onToggleFavorite: (id: string) => void;
   statusChangingDocId: string | null;
   onStatusChange: (docId: string, newStatus: string) => void;
+  onMarkRead: (docId: string) => void;
 }
 
 function DocumentTable({
@@ -3165,7 +3243,7 @@ function DocumentTable({
   selectMode, selectedIds, allVisibleSelected, someVisibleSelected,
   onToggleSelectAll, onToggleDocSelection,
   favoriteDocIds, onToggleFavorite,
-  statusChangingDocId, onStatusChange,
+  statusChangingDocId, onStatusChange, onMarkRead,
 }: DocumentTableProps) {
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronRight className="h-3 w-3 ml-1 opacity-30" />;
@@ -3292,6 +3370,9 @@ function DocumentTable({
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1.5">
+                  {!doc.isRead && (
+                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" title="Не прочитан" />
+                  )}
                   {urgent && (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -3300,7 +3381,7 @@ function DocumentTable({
                       <TooltipContent>{urgentReason}</TooltipContent>
                     </Tooltip>
                   )}
-                  <span className={`font-medium text-sm group-hover:text-emerald-700 transition-colors truncate block max-w-xs ${urgent ? 'text-rose-700 dark:text-rose-400' : ''}`}>
+                  <span className={`text-sm group-hover:text-emerald-700 transition-colors truncate block max-w-xs ${urgent ? 'text-rose-700 dark:text-rose-400' : ''} ${!doc.isRead ? 'font-semibold' : 'font-normal'}`}>
                     {doc.title}
                   </span>
                 </div>
@@ -3424,7 +3505,7 @@ function DocumentTable({
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuContent align="end" className="w-48">
                       <DropdownMenuItem onClick={() => onDocClick(doc.id)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         Редактировать
@@ -3436,6 +3517,12 @@ function DocumentTable({
                         <Copy className="mr-2 h-4 w-4" />
                         Дублировать
                       </DropdownMenuItem>
+                      {!doc.isRead && (
+                        <DropdownMenuItem onClick={() => onMarkRead(doc.id)}>
+                          <Check className="mr-2 h-4 w-4 text-blue-500" />
+                          Отметить прочитанным
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => onDeleteDoc(doc.id, doc.title)}
@@ -3495,11 +3582,12 @@ interface DocumentGridProps {
   onToggleDocSelection: (id: string) => void;
   favoriteDocIds: Set<string>;
   onToggleFavorite: (id: string) => void;
+  onMarkRead: (id: string) => void;
 }
 
 function DocumentGrid({
   documents, onDocClick, onDuplicateDoc, duplicatingDocId, selectMode, selectedIds, onToggleDocSelection,
-  favoriteDocIds, onToggleFavorite,
+  favoriteDocIds, onToggleFavorite, onMarkRead,
 }: DocumentGridProps) {
   if (documents.length === 0) {
     return <EmptyState isSearch />;
@@ -3586,7 +3674,7 @@ function DocumentGrid({
                     <MoreVertical className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem onClick={() => onDocClick(doc.id)}>
                     <Pencil className="mr-2 h-4 w-4" />
                     Редактировать
@@ -3598,6 +3686,12 @@ function DocumentGrid({
                     <Copy className="mr-2 h-4 w-4" />
                     Дублировать
                   </DropdownMenuItem>
+                  {!doc.isRead && (
+                    <DropdownMenuItem onClick={() => onMarkRead(doc.id)}>
+                      <Check className="mr-2 h-4 w-4 text-blue-500" />
+                      Отметить прочитанным
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -3639,9 +3733,14 @@ function DocumentGrid({
               </div>
 
               {/* Title + number */}
-              <h3 className="text-sm font-semibold truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
-                {doc.title}
-              </h3>
+              <div className="flex items-center gap-1.5">
+                {!doc.isRead && (
+                  <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" title="Не прочитан" />
+                )}
+                <h3 className={`text-sm truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors ${!doc.isRead ? 'font-semibold' : 'font-normal'}`}>
+                  {doc.title}
+                </h3>
+              </div>
               {doc.number && (
                 <p className="text-xs text-muted-foreground font-mono mt-0.5">{doc.number}</p>
               )}

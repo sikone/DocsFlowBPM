@@ -1211,6 +1211,9 @@ export default function DocumentFormView() {
         }
         const json = await res.json() as { document: Document; currentUserPermission: 'PRIVILEGED' | 'OWNER' | 'EDIT' | 'VIEW' };
         const doc = json.document;
+
+        // Mark document as read silently
+        fetch(`/api/documents/${docId}/read?token=${encodeURIComponent(token ?? '')}`, { method: 'POST' }).catch(() => {});
         setCurrentUserPermission(json.currentUserPermission ?? null);
         setDocument(doc);
         setTitle(doc.title);

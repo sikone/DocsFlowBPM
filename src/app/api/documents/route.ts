@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
     const creatorId = url.searchParams.get('creatorId')
     const dateFrom = url.searchParams.get('dateFrom')
     const tagIds = url.searchParams.get('tagIds')
+    const unreadOnly = url.searchParams.get('unreadOnly') === 'true'
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10))
     const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10)))
     const sortFieldRaw = url.searchParams.get('sortField') || 'updatedAt'
@@ -96,6 +97,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    if (unreadOnly) {
+      where.reads = { none: { userId: user.id } }
+    }
+
     const orderBy: Prisma.DocumentOrderByWithRelationInput = { [sortField]: sortDir }
     const skip = (page - 1) * limit
 
@@ -146,9 +151,20 @@ export async function GET(request: NextRequest) {
         pendingStepByDocId.set(s.approval.documentId, { id: s.id, dueAt: s.dueAt?.toISOString() ?? null })
       }
     }
+    // Fetch which docs the current user has already read
+    const readDocIds = new Set<string>()
+    if (docIds.length > 0) {
+      const reads = await db.documentRead.findMany({
+        where: { userId: user.id, documentId: { in: docIds } },
+        select: { documentId: true },
+      })
+      for (const r of reads) readDocIds.add(r.documentId)
+    }
+
     const documentsWithSteps = documents.map((d) => ({
       ...d,
       myPendingStep: pendingStepByDocId.get(d.id) ?? null,
+      isRead: readDocIds.has(d.id),
     }))
 
     return NextResponse.json({ documents: documentsWithSteps, total, page, limit })

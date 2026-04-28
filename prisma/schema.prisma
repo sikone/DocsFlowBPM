@@ -58,6 +58,7 @@ model User {
   decidedApprovalSteps DocumentApprovalStep[] @relation("ApprovalStepDecider")
   stepDecisions        ApprovalStepDecision[] @relation("StepDecisionDecider")
   notifications        Notification[]         @relation("NotificationRecipient")
+  documentReads        DocumentRead[]         @relation("DocumentReadUser")
 }
 
 model Folder {
@@ -137,6 +138,7 @@ model Document {
   attachments DocumentAttachment[]
   permissions DocumentPermission[]
   approvals   DocumentApproval[]
+  reads       DocumentRead[]
 }
 
 model DocumentTag {
@@ -491,4 +493,18 @@ model DocumentPermission {
   @@unique([documentId, userId])
   @@index([documentId])
   @@index([userId])
+}
+
+model DocumentRead {
+  id         String   @id @default(cuid())
+  userId     String
+  documentId String
+  readAt     DateTime @default(now())
+
+  user     User     @relation("DocumentReadUser", fields: [userId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, documentId])
+  @@index([userId])
+  @@index([documentId])
 }
