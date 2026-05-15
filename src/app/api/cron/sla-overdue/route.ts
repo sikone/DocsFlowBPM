@@ -105,8 +105,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ notified: notifiedCount, total: steps.length })
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    const stack = err instanceof Error ? err.stack : undefined
     console.error('SLA overdue check error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error', detail: msg, stack }, { status: 500 })
   }
 }
 

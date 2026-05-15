@@ -23,7 +23,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
     }
 
+    const usersSelect = {
+      select: { id: true, name: true, email: true, role: true, isDepartmentHead: true, avatar: true },
+      orderBy: [{ isDepartmentHead: 'desc' as const }, { name: 'asc' as const }],
+    }
+
     let departments = await db.department.findMany({
+      include: { users: usersSelect },
       orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
     })
 
@@ -31,6 +37,7 @@ export async function GET(request: NextRequest) {
     if (departments.length === 0) {
       await db.department.createMany({ data: DEFAULT_DEPARTMENTS })
       departments = await db.department.findMany({
+        include: { users: usersSelect },
         orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
       })
     }

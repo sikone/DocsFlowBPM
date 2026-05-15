@@ -1,11 +1,21 @@
 export type UserRole = 'ADMIN' | 'DIRECTOR' | 'CHIEF_ACCOUNTANT' | 'ADVANCED' | 'USER';
 
+export interface DepartmentMember {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  isDepartmentHead: boolean;
+  avatar?: string | null;
+}
+
 export interface Department {
   id: string;
   name: string;
   order: number;
   createdAt: string;
   updatedAt: string;
+  users?: DepartmentMember[];
 }
 
 export interface User {
