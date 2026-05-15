@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { cacheDel, SESSION_CACHE_PREFIX } from '@/lib/redis'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,9 +14,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    await db.session.deleteMany({
-      where: { token },
-    })
+    await db.session.deleteMany({ where: { token } })
+    cacheDel(`${SESSION_CACHE_PREFIX}${token}`)
 
     return NextResponse.json({ success: true })
   } catch {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken, isAdmin } from '@/lib/auth'
 import { hashPassword } from '@/lib/password'
+import { cacheDel, SESSION_CACHE_PREFIX } from '@/lib/redis'
 
 export async function PUT(
   request: NextRequest,
@@ -77,6 +78,16 @@ export async function PUT(
       },
     })
 
+    // Invalidate session cache if auth-relevant fields changed
+    const authFieldChanged = active !== undefined || role !== undefined ||
+      isDepartmentHead !== undefined || departmentId !== undefined
+    if (authFieldChanged) {
+      const sessions = await db.session.findMany({ where: { userId: id }, select: { token: true } })
+      if (sessions.length > 0) {
+        cacheDel(...sessions.map(s => `${SESSION_CACHE_PREFIX}${s.token}`))
+      }
+    }
+
     return NextResponse.json({ user: updatedUser })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -118,8 +129,12 @@ export async function DELETE(
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Delete user sessions
+    // Collect tokens before deleting sessions to invalidate their cache
+    const sessions = await db.session.findMany({ where: { userId: id }, select: { token: true } })
     await db.session.deleteMany({ where: { userId: id } })
+    if (sessions.length > 0) {
+      cacheDel(...sessions.map(s => `${SESSION_CACHE_PREFIX}${s.token}`))
+    }
 
     // Delete user
     await db.user.delete({ where: { id } })

@@ -1,0 +1,26 @@
+# Dev override — fixes the bun run dev hanging issue caused by tee pipe.
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Key differences vs production:
+#   - Uses a dedicated dev target (hot-reload, no standalone build)
+#   - Mounts source code as volume so edits reload without rebuild
+#   - DEBUG=true by default
+#   - Enables Prisma query logs via DEBUG_PRISMA env
+services:
+  app:
+    build:
+      target: deps           # only install step; source is bind-mounted
+    command: ["bun", "run", "dev:docker"]
+    environment:
+      NODE_ENV: development
+      DEBUG: "true"
+      DEBUG_PRISMA: "${DEBUG_PRISMA:-false}"
+    volumes:
+      # bind-mount source (hot-reload)
+      - .:/app
+      # prevent host node_modules from overwriting container's
+      - /app/node_modules
+      - /app/.next
+      - uploads:/app/storage/uploads
+    ports:
+      - "3000:3000"

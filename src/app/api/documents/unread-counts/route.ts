@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
 import { isPrivilegedRole } from '@/lib/doc-permissions'
+import { cacheGet, cacheSet, UNREAD_CACHE_PREFIX } from '@/lib/redis'
 import { Prisma } from '@prisma/client'
+
+const UNREAD_TTL = 20
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,6 +17,16 @@ export async function GET(request: NextRequest) {
     const user = await getAuthUser(token)
     if (!user) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
+    }
+
+    const cacheKey = `${UNREAD_CACHE_PREFIX}${user.id}`
+    const cached = await cacheGet(cacheKey)
+    if (cached !== null) {
+      try {
+        return NextResponse.json(JSON.parse(cached))
+      } catch {
+        // corrupt entry — fall through to DB
+      }
     }
 
     // Base document visibility filter (mirrors GET /api/documents logic)
@@ -79,7 +92,9 @@ export async function GET(request: NextRequest) {
       delete folderCounts[inboxFolder.id]
     }
 
-    return NextResponse.json({ counts: folderCounts, inboxUnread })
+    const result = { counts: folderCounts, inboxUnread }
+    cacheSet(cacheKey, JSON.stringify(result), UNREAD_TTL)
+    return NextResponse.json(result)
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

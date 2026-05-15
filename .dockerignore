@@ -1,0 +1,25 @@
+.git
+.next
+node_modules
+npm-debug.log*
+bun-error.pdf
+dev.log
+server.log
+*.log
+
+# local env — injected via docker-compose env_file or --env-file
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode
+.idea
+
+# uploads/storage — mounted as Docker volume
+storage/uploads
+upload
+
+# misc
+prisma/migrations/*.sql.bak
+tsconfig.tsbuildinfo
