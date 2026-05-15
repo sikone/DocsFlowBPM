@@ -8,6 +8,7 @@ import DocumentFormView from '@/components/documents/document-form-view';
 import AdminLayout from '@/components/admin/admin-layout';
 import ProfilePage from '@/components/profile-page';
 import ReportsPage from '@/components/reports/reports-page';
+import RulesPage from '@/components/rules-page';
 import { ErrorBoundary } from '@/components/error-boundary';
 import CommandPalette from '@/components/command-palette';
 
@@ -54,6 +55,7 @@ export default function Home() {
         {view.page === 'dashboard' && <DashboardLayout />}
         {view.page === 'profile' && <ProfilePage />}
         {view.page === 'reports' && <ReportsPage />}
+        {view.page === 'rules' && <RulesPage />}
       </div>
       {/* Command palette renders on top of everything */}
       <CommandPalette />

@@ -31,7 +31,34 @@ export async function GET(request: NextRequest) {
     const query = q.trim()
     const validStatuses = ['DRAFT', 'IN_PROGRESS', 'APPROVED', 'REJECTED', 'COMPLETED']
 
-    // Build where clause with search across multiple fields
+    // Find directory entries (counterparties, contacts) matching the query.
+    // Documents store only the ID of directory entries in their data JSON,
+    // so we resolve names → IDs here and add them to the document search.
+    const [matchingCounterparties, matchingContacts] = await Promise.all([
+      db.counterparty.findMany({
+        where: {
+          OR: [
+            { name: { contains: query, mode: 'insensitive' } },
+            { shortName: { contains: query, mode: 'insensitive' } },
+            { inn: { contains: query } },
+          ],
+        },
+        select: { id: true },
+        take: 30,
+      }),
+      db.contact.findMany({
+        where: { name: { contains: query, mode: 'insensitive' } },
+        select: { id: true },
+        take: 30,
+      }),
+    ])
+
+    const directoryIdClauses: Prisma.DocumentWhereInput[] = [
+      ...matchingCounterparties.map((c) => ({ data: { contains: c.id } })),
+      ...matchingContacts.map((c) => ({ data: { contains: c.id } })),
+    ]
+
+    // Build where clause
     const andClauses: Prisma.DocumentWhereInput[] = []
 
     if (!isPrivilegedRole(user.role)) {
@@ -40,11 +67,12 @@ export async function GET(request: NextRequest) {
 
     andClauses.push({
       OR: [
-        { title: { contains: query } },
-        { number: { contains: query } },
-        { data: { contains: query } },
-        { creator: { name: { contains: query } } },
-        { type: { name: { contains: query } } },
+        { title: { contains: query, mode: 'insensitive' } },
+        { number: { contains: query, mode: 'insensitive' } },
+        { data: { contains: query, mode: 'insensitive' } },
+        { creator: { name: { contains: query, mode: 'insensitive' } } },
+        { type: { name: { contains: query, mode: 'insensitive' } } },
+        ...directoryIdClauses,
       ],
     })
 

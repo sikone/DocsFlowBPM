@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { getUploadDir } from '@/lib/uploads'
 import type { FormField } from '@/lib/types'
+import { DEFAULT_EMAIL_TEMPLATES } from '@/lib/email-template-defaults'
 
 export interface ApprovalEmailPayload {
   documentId: string
@@ -164,7 +165,27 @@ function buildCommentsHtml(comments: CommentEntry[]): string {
     </div>`
 }
 
-function buildHtml(opts: {
+async function loadEmailTemplate(slugOrId: string): Promise<{ subject: string; bodyHtml: string; includeAttachments: boolean }> {
+  try {
+    const bySlug = await db.emailTemplate.findUnique({ where: { slug: slugOrId } })
+    if (bySlug) return { subject: bySlug.subject, bodyHtml: bySlug.bodyHtml, includeAttachments: bySlug.includeAttachments }
+    const byId = await db.emailTemplate.findUnique({ where: { id: slugOrId } })
+    if (byId) return { subject: byId.subject, bodyHtml: byId.bodyHtml, includeAttachments: byId.includeAttachments }
+  } catch { /* fallthrough to default */ }
+  const def = DEFAULT_EMAIL_TEMPLATES.find((t) => t.slug === slugOrId)
+  if (def) return { subject: def.subject, bodyHtml: def.bodyHtml, includeAttachments: false }
+  return { ...DEFAULT_EMAIL_TEMPLATES[0], includeAttachments: false }
+}
+
+function applyTemplate(bodyHtml: string, vars: Record<string, string>): string {
+  return bodyHtml.replace(/\{\{([A-Z_]+)\}\}/g, (_, key: string) => vars[key] ?? '')
+}
+
+function applySubject(subject: string, vars: Record<string, string>): string {
+  return subject.replace(/\{\{([A-Z_]+)\}\}/g, (_, key: string) => vars[key] ?? '')
+}
+
+function buildTemplateVars(opts: {
   title: string
   number?: string | null
   stepName: string
@@ -174,89 +195,49 @@ function buildHtml(opts: {
   docUrl: string
   assigneeName?: string
   quickApproveUrl?: string
-}): string {
-  const { title, number, stepName, dueAt, fieldsHtml, commentHtml, docUrl, assigneeName, quickApproveUrl } = opts
-  const deadline = dueAt
-    ? `<div style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:5px 10px;font-size:12px;color:#dc2626;font-weight:500">
-        <span>⏰</span> Срок: ${formatDateTime(dueAt)}
-      </div>`
+  overdueMs?: number
+}): Record<string, string> {
+  const { title, number, stepName, dueAt, fieldsHtml, commentHtml, docUrl, assigneeName, quickApproveUrl, overdueMs } = opts
+
+  const deadlineHtml = dueAt
+    ? `<div style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:5px 10px;font-size:12px;color:#dc2626;font-weight:500"><span>⏰</span> Срок: ${formatDateTime(dueAt)}</div>`
     : ''
 
-  return `<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Запрос на согласование — DocsFlow</title>
-</head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased">
-  <div style="max-width:600px;margin:0 auto;padding:28px 16px 40px">
+  const documentNumberBlock = number
+    ? `<p style="margin:0 0 20px;font-size:13px;color:#64748b">Номер документа: <strong style="color:#334155">${esc(number)}</strong></p>`
+    : '<div style="margin-bottom:20px"></div>'
 
-    <!-- Header -->
-    <div style="background:linear-gradient(135deg,#059669 0%,#10b981 100%);padding:22px 28px;border-radius:12px 12px 0 0">
-      <table style="width:100%;border-collapse:collapse">
-        <tr>
-          <td style="vertical-align:middle">
-            <div style="width:40px;height:40px;background:rgba(255,255,255,0.2);border-radius:10px;display:inline-flex;align-items:center;justify-content:center;margin-right:12px;vertical-align:middle">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            </div>
-            <span style="vertical-align:middle">
-              <span style="display:block;color:rgba(255,255,255,0.75);font-size:11px;text-transform:uppercase;letter-spacing:0.08em">DocsFlow</span>
-              <span style="display:block;color:#fff;font-size:16px;font-weight:700;margin-top:2px">Запрос на согласование</span>
-            </span>
-          </td>
-        </tr>
-      </table>
-    </div>
+  const assigneeBlock = assigneeName
+    ? `<div style="margin-top:4px;font-size:13px;color:#64748b">Ответственный: <strong style="color:#334155">${esc(assigneeName)}</strong></div>`
+    : ''
 
-    <!-- Card -->
-    <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:28px 28px 24px">
+  const ctaButtonHtml = `<a href="${docUrl}" style="display:inline-block;background:#10b981;color:#fff;text-decoration:none;padding:14px 40px;border-radius:8px;font-size:15px;font-weight:700;letter-spacing:0.02em;box-shadow:0 4px 14px rgba(16,185,129,0.35)">Перейти к документу &rarr;</a>`
 
-      <!-- Document title -->
-      <h1 style="margin:0 0 4px;font-size:21px;font-weight:700;color:#0f172a;line-height:1.3">${esc(title)}</h1>
-      ${number ? `<p style="margin:0 0 20px;font-size:13px;color:#64748b">Номер документа: <strong style="color:#334155">${esc(number)}</strong></p>` : '<div style="margin-bottom:20px"></div>'}
+  const quickApproveHtml = quickApproveUrl
+    ? `<div style="margin-top:12px"><a href="${quickApproveUrl}" style="display:inline-block;background:#fff;color:#059669;text-decoration:none;padding:12px 32px;border-radius:8px;font-size:14px;font-weight:600;border:2px solid #10b981">&#10003; Согласовать без изменений</a></div>`
+    : ''
 
-      <!-- Step info -->
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:3px solid #10b981;border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:22px">
-        <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.07em;font-weight:600;margin-bottom:5px">Шаг согласования</div>
-        <div style="font-size:16px;font-weight:600;color:#1e293b">${esc(stepName)}</div>
-        ${assigneeName ? `<div style="margin-top:4px;font-size:13px;color:#64748b">Ответственный: <strong style="color:#334155">${esc(assigneeName)}</strong></div>` : ''}
-        ${deadline}
-      </div>
+  let overdueDurationHtml = ''
+  if (overdueMs !== undefined && overdueMs > 0) {
+    const h = Math.floor(overdueMs / 3600000)
+    const m = Math.floor((overdueMs % 3600000) / 60000)
+    const durationText = h > 0 ? `${h} ч ${m > 0 ? m + ' мин' : ''}`.trim() : `${m} мин`
+    overdueDurationHtml = `<div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:6px 12px;font-size:13px;color:#b91c1c;font-weight:600"><span>🚨</span> Просрочено на ${durationText}</div>`
+  }
 
-      <!-- Fields -->
-      ${fieldsHtml}
-
-      <!-- Previous comment -->
-      ${commentHtml}
-
-      <!-- CTA -->
-      <div style="text-align:center;margin:28px 0 20px">
-        <a href="${docUrl}"
-           style="display:inline-block;background:#10b981;color:#fff;text-decoration:none;padding:14px 40px;border-radius:8px;font-size:15px;font-weight:700;letter-spacing:0.02em;box-shadow:0 4px 14px rgba(16,185,129,0.35)">
-          Перейти к документу &rarr;
-        </a>
-        ${quickApproveUrl ? `
-        <div style="margin-top:12px">
-          <a href="${quickApproveUrl}"
-             style="display:inline-block;background:#fff;color:#059669;text-decoration:none;padding:12px 32px;border-radius:8px;font-size:14px;font-weight:600;border:2px solid #10b981">
-            &#10003; Согласовать без изменений
-          </a>
-        </div>` : ''}
-        <p style="margin:10px 0 0;font-size:12px;color:#94a3b8">или скопируйте ссылку: <a href="${docUrl}" style="color:#10b981;word-break:break-all">${docUrl}</a></p>
-      </div>
-
-      <!-- Divider -->
-      <div style="border-top:1px solid #f1f5f9;margin-top:20px;padding-top:16px;text-align:center">
-        <p style="margin:0;font-size:11px;color:#cbd5e1;line-height:1.6">
-          Это автоматическое уведомление от системы <strong>DocsFlow</strong>.<br>
-          Пожалуйста, не отвечайте на это письмо.
-        </p>
-      </div>
-    </div>
-  </div>
-</body>
-</html>`
+  return {
+    DOCUMENT_TITLE: esc(title),
+    DOCUMENT_NUMBER_BLOCK: documentNumberBlock,
+    STEP_NAME: esc(stepName),
+    ASSIGNEE_BLOCK: assigneeBlock,
+    DEADLINE_HTML: deadlineHtml,
+    FIELDS_HTML: fieldsHtml,
+    COMMENTS_HTML: commentHtml,
+    DOC_URL: docUrl,
+    CTA_BUTTON_HTML: ctaButtonHtml,
+    QUICK_APPROVE_HTML: quickApproveHtml,
+    OVERDUE_DURATION_HTML: overdueDurationHtml,
+  }
 }
 
 // ─── shared SMTP bootstrap ────────────────────────────────────────────────────
@@ -328,7 +309,122 @@ async function dispatchEmail(
   await transporter.sendMail({ from: fromAddress, to: to.join(', '), subject, text, html, attachments })
 }
 
+/**
+ * Resolve the email of the department head for the given user or department.
+ * Returns empty array if no head is found or head is already in `excludeEmails`.
+ */
+async function resolveDepartmentHeadEmails(
+  assigneeUserId?: string | null,
+  assigneeDepId?: string | null,
+  excludeEmails: string[] = [],
+): Promise<string[]> {
+  let departmentId: string | null | undefined = assigneeDepId
+
+  if (!departmentId && assigneeUserId) {
+    const user = await db.user.findUnique({
+      where: { id: assigneeUserId },
+      select: { departmentId: true },
+    })
+    departmentId = user?.departmentId
+  }
+
+  if (!departmentId) return []
+
+  const head = await db.user.findFirst({
+    where: { departmentId, isDepartmentHead: true, active: true },
+    select: { email: true },
+  })
+
+  if (!head?.email) return []
+  if (excludeEmails.includes(head.email)) return []
+  return [head.email]
+}
+
 // ─── SLA warning email ────────────────────────────────────────────────────────
+
+export async function sendSlaOverdueEmail(params: {
+  stepId: string
+  stepName: string
+  dueAt: Date | null
+  assigneeUserId?: string | null
+  assigneeDepId?: string | null
+  documentId: string
+  documentTitle: string
+}): Promise<void> {
+  const cfg = await loadSmtpConfig()
+  if (!cfg) return
+
+  const assigneeEmails = await resolveEmails(params.assigneeUserId, params.assigneeDepId)
+  const headEmails = await resolveDepartmentHeadEmails(params.assigneeUserId, params.assigneeDepId, assigneeEmails)
+  const allEmails = [...new Set([...assigneeEmails, ...headEmails])]
+  if (allEmails.length === 0) return
+
+  let assigneeName: string | undefined
+  if (params.assigneeUserId) {
+    const u = await db.user.findUnique({ where: { id: params.assigneeUserId }, select: { name: true } })
+    assigneeName = u?.name ?? undefined
+  }
+
+  const doc = await db.document.findUnique({
+    where: { id: params.documentId },
+    select: { number: true, data: true, typeId: true },
+  })
+  const docType = doc?.typeId
+    ? await db.documentType.findUnique({ where: { id: doc.typeId }, select: { formSchema: true } })
+    : null
+  const fieldsHtml = await buildFieldsHtml(docType?.formSchema ?? '[]', doc?.data ?? '{}')
+
+  const allComments = await buildAllComments(params.documentId)
+  const commentHtml = buildCommentsHtml(allComments)
+
+  const appUrl = (cfg.appUrl || process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000').replace(/\/$/, '')
+  const docUrl = `${appUrl}/?doc=${params.documentId}`
+
+  const overdueMs = params.dueAt ? Math.max(0, Date.now() - params.dueAt.getTime()) : 0
+
+  const tpl = await loadEmailTemplate('sla_overdue')
+  const vars = buildTemplateVars({
+    title: params.documentTitle,
+    number: doc?.number ?? null,
+    stepName: params.stepName,
+    dueAt: params.dueAt,
+    fieldsHtml,
+    commentHtml,
+    docUrl,
+    assigneeName,
+    overdueMs,
+  })
+  const html = applyTemplate(tpl.bodyHtml, vars)
+  const subject = applySubject(tpl.subject, { DOCUMENT_TITLE: params.documentTitle })
+
+  const h = Math.floor(overdueMs / 3600000)
+  const m = Math.floor((overdueMs % 3600000) / 60000)
+  const durationText = h > 0 ? `${h}ч ${m > 0 ? m + 'мин' : ''}`.trim() : `${m}мин`
+  const text = [
+    `ПРОСРОЧЕНО! Заявка не согласована в срок — DocsFlow`,
+    ``,
+    `Документ: ${params.documentTitle}${doc?.number ? ` (№ ${doc.number})` : ''}`,
+    `Шаг: ${params.stepName}`,
+    params.dueAt ? `Срок был: ${formatDateTime(params.dueAt)}` : '',
+    overdueMs > 0 ? `Просрочено на: ${durationText}` : '',
+    ...allComments.map((c) => `Комментарий${c.deciderName ? ` (${c.deciderName})` : ''}: ${c.comment.trim()}`),
+    ``,
+    `Перейти к документу: ${docUrl}`,
+  ].filter((l) => l !== '').join('\n')
+
+  const attachmentRecords = await db.documentAttachment.findMany({
+    where: { documentId: params.documentId, isLatest: true, deletedAt: null },
+    select: { originalName: true, fileName: true, mimeType: true },
+  })
+  const uploadDir = await getUploadDir(params.documentId)
+  const mailAttachments = attachmentRecords.map((a) => ({
+    filename: a.originalName,
+    path: path.join(uploadDir, a.fileName),
+    contentType: a.mimeType,
+  }))
+
+  await dispatchEmail(cfg, allEmails, subject, html, text, mailAttachments)
+}
 
 export async function sendSlaWarningEmail(params: {
   stepId: string
@@ -372,7 +468,8 @@ export async function sendSlaWarningEmail(params: {
     quickApproveUrl = `${appUrl}/api/approve-quick?step=${params.stepId}&user=${params.assigneeUserId}&token=${token}`
   }
 
-  const html = buildHtml({
+  const tpl = await loadEmailTemplate('sla_warning')
+  const vars = buildTemplateVars({
     title: params.documentTitle,
     number: doc?.number ?? null,
     stepName: params.stepName,
@@ -383,6 +480,8 @@ export async function sendSlaWarningEmail(params: {
     assigneeName,
     quickApproveUrl,
   })
+  const html = applyTemplate(tpl.bodyHtml, vars)
+  const subject = applySubject(tpl.subject, { DOCUMENT_TITLE: params.documentTitle })
 
   const text = [
     `ВАЖНО!!! Срок согласования подходит к концу — DocsFlow`,
@@ -407,7 +506,7 @@ export async function sendSlaWarningEmail(params: {
     contentType: a.mimeType,
   }))
 
-  await dispatchEmail(cfg, emails, 'ВАЖНО!!! Срок согласования подходит к концу', html, text, mailAttachments)
+  await dispatchEmail(cfg, emails, subject, html, text, mailAttachments)
 }
 
 // ─── main export ──────────────────────────────────────────────────────────────
@@ -440,7 +539,8 @@ export async function sendApprovalEmail(payload: ApprovalEmailPayload): Promise<
     quickApproveUrl = `${appUrl}/api/approve-quick?step=${payload.stepId}&user=${payload.assigneeUserId}&token=${token}`
   }
 
-  const html = buildHtml({
+  const tpl = await loadEmailTemplate('approval_request')
+  const vars = buildTemplateVars({
     title: payload.documentTitle,
     number: payload.documentNumber,
     stepName: payload.stepName,
@@ -451,6 +551,8 @@ export async function sendApprovalEmail(payload: ApprovalEmailPayload): Promise<
     assigneeName,
     quickApproveUrl,
   })
+  const html = applyTemplate(tpl.bodyHtml, vars)
+  const subject = applySubject(tpl.subject, { DOCUMENT_TITLE: payload.documentTitle })
 
   const text = [
     `Запрос на согласование — DocsFlow`,
@@ -475,5 +577,151 @@ export async function sendApprovalEmail(payload: ApprovalEmailPayload): Promise<
     contentType: a.mimeType,
   }))
 
-  await dispatchEmail(cfg, emails, `Документ «${payload.documentTitle}» ожидает вашего согласования`, html, text, mailAttachments)
+  await dispatchEmail(cfg, emails, subject, html, text, mailAttachments)
+}
+
+// ─── custom step email (SEND_EMAIL process step) ──────────────────────────────
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+async function resolveEmailFromDocumentField(
+  fieldName: string,
+  documentData: string,
+  documentTypeId: string,
+): Promise<string | null> {
+  const tag = `[SEND_EMAIL field="${fieldName}"]`
+
+  let values: Record<string, unknown> = {}
+  try { values = JSON.parse(documentData) } catch {
+    console.error(tag, 'не удалось распарсить documentData')
+    return null
+  }
+
+  const docType = await db.documentType.findUnique({
+    where: { id: documentTypeId },
+    select: { formSchema: true },
+  })
+  if (!docType) {
+    console.error(tag, 'тип документа не найден:', documentTypeId)
+    return null
+  }
+
+  let fields: FormField[] = []
+  try { fields = JSON.parse(docType.formSchema) } catch {
+    console.error(tag, 'не удалось распарсить formSchema')
+    return null
+  }
+
+  // ищем поле по systemName или id
+  const field = fields.find((f) => (f.systemName ?? f.id) === fieldName)
+  if (!field) {
+    const available = fields.map((f) => f.systemName ?? f.id).filter(Boolean).join(', ')
+    console.error(tag, `поле не найдено. Доступные системные имена: [${available}]`)
+    return null
+  }
+
+  // значения хранятся по field.id (CUID), не по systemName
+  const raw = values[field.id] ?? (field.systemName ? values[field.systemName] : undefined)
+  if (!raw || typeof raw !== 'string') {
+    console.error(tag, `поле найдено (id=${field.id}, type=${field.type}), но значение пустое. Ключи в данных: [${Object.keys(values).join(', ')}]`)
+    return null
+  }
+
+  console.log(tag, `значение поля: "${raw}", тип: ${field.type}`)
+
+  if (EMAIL_RE.test(raw)) {
+    console.log(tag, `прямой email: ${raw}`)
+    return raw
+  }
+
+  if (field.type === 'select' && field.source === 'directory' && field.directorySource === 'contacts') {
+    const contact = await db.contact.findUnique({ where: { id: raw }, select: { email: true } })
+    console.log(tag, `справочник контактов, id=${raw}, email=${contact?.email ?? '(нет)'}`)
+    return contact?.email ?? null
+  }
+
+  console.error(tag, `значение "${raw}" не является email и поле не является справочником контактов (source=${field.source}, directorySource=${field.directorySource})`)
+  return null
+}
+
+export async function sendCustomStepEmail(params: {
+  documentId: string
+  documentTitle: string
+  documentNumber?: string | null
+  documentData: string
+  documentTypeId: string
+  stepName: string
+  emailConfig: {
+    recipientType?: 'user' | 'department' | 'email' | 'field'
+    userId?: string | null
+    departmentId?: string | null
+    customEmail?: string | null
+    fieldName?: string | null
+    templateSlug?: string | null
+  }
+}): Promise<void> {
+  const cfg = await loadSmtpConfig()
+  if (!cfg) return
+
+  const { emailConfig } = params
+  const emails: string[] = []
+
+  if (emailConfig.recipientType === 'user' && emailConfig.userId) {
+    const u = await db.user.findUnique({ where: { id: emailConfig.userId }, select: { email: true } })
+    if (u?.email) emails.push(u.email)
+  } else if (emailConfig.recipientType === 'department' && emailConfig.departmentId) {
+    const users = await db.user.findMany({ where: { departmentId: emailConfig.departmentId, active: true }, select: { email: true } })
+    emails.push(...users.map((u) => u.email))
+  } else if (emailConfig.recipientType === 'email' && emailConfig.customEmail) {
+    emails.push(emailConfig.customEmail)
+  } else if (emailConfig.recipientType === 'field' && emailConfig.fieldName) {
+    const fieldEmail = await resolveEmailFromDocumentField(
+      emailConfig.fieldName,
+      params.documentData,
+      params.documentTypeId,
+    )
+    if (fieldEmail) emails.push(fieldEmail)
+  } else {
+    console.warn('[SEND_EMAIL] recipientType не распознан или не хватает данных:', JSON.stringify(emailConfig))
+  }
+
+  console.log('[SEND_EMAIL] получатели:', emails.length ? emails.join(', ') : '(пусто — письмо не отправится)')
+  if (emails.length === 0) return
+
+  const docType = await db.documentType.findUnique({ where: { id: params.documentTypeId }, select: { formSchema: true } })
+  const fieldsHtml = await buildFieldsHtml(docType?.formSchema ?? '[]', params.documentData)
+  const allComments = await buildAllComments(params.documentId)
+  const commentHtml = buildCommentsHtml(allComments)
+
+  const appUrl = (cfg.appUrl || process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000').replace(/\/$/, '')
+  const docUrl = `${appUrl}/?doc=${params.documentId}`
+
+  const tpl = await loadEmailTemplate(emailConfig.templateSlug || 'approval_request')
+  const vars = buildTemplateVars({
+    title: params.documentTitle,
+    number: params.documentNumber ?? null,
+    stepName: params.stepName,
+    fieldsHtml,
+    commentHtml,
+    docUrl,
+  })
+  const html = applyTemplate(tpl.bodyHtml, vars)
+  const subject = applySubject(tpl.subject, { DOCUMENT_TITLE: params.documentTitle })
+  const text = `${params.stepName} — DocsFlow\n\nДокумент: ${params.documentTitle}\n\nПерейти к документу: ${docUrl}`
+
+  let mailAttachments: { filename: string; path: string; contentType: string }[] = []
+  if (tpl.includeAttachments) {
+    const attachmentRecords = await db.documentAttachment.findMany({
+      where: { documentId: params.documentId, isLatest: true, deletedAt: null },
+      select: { originalName: true, fileName: true, mimeType: true },
+    })
+    const uploadDir = await getUploadDir(params.documentId)
+    mailAttachments = attachmentRecords.map((a) => ({
+      filename: a.originalName,
+      path: path.join(uploadDir, a.fileName),
+      contentType: a.mimeType,
+    }))
+  }
+
+  await dispatchEmail(cfg, emails, subject, html, text, mailAttachments)
 }

@@ -48,6 +48,36 @@ export const URGENCY_DOT_COLORS: Record<UrgencyLevel, string> = {
 }
 
 /**
+ * Format a local-time Date as YYYY-MM-DD for holiday set lookups.
+ * Uses getFullYear/getMonth/getDate (local timezone) to match how
+ * calculateDeadline advances `current` with setHours/setDate.
+ */
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
+/**
+ * Extract the full holiday set from SystemSettings.
+ * Keys matching `holidays_YYYY` are JSON arrays of YYYY-MM-DD strings
+ * (populated by syncing from isdayoff.ru via /api/admin/holidays).
+ */
+export function getHolidaysFromSettings(settings: Record<string, string>): Set<string> {
+  const set = new Set<string>()
+  for (const [key, value] of Object.entries(settings)) {
+    if (/^holidays_\d{4}$/.test(key)) {
+      try {
+        const dates = JSON.parse(value) as string[]
+        for (const d of dates) set.add(d)
+      } catch { /* ignore corrupt entry */ }
+    }
+  }
+  return set
+}
+
+/**
  * Parse working hours config from SystemSettings key-value store.
  * Falls back to DEFAULT_WORKING_HOURS for any missing values.
  */
@@ -89,31 +119,34 @@ export function parseSlaConfig(json: string | null | undefined, defaultSla: SlaC
 
 /**
  * Calculate the deadline by adding `workingHours` of working time to `from`.
- * Skips non-working days and hours outside the configured window.
+ * Skips:
+ *   - days not in config.workingDays (weekends per schedule)
+ *   - hours outside the configured start/end window
+ *   - dates present in the `holidays` set (official non-working days from isdayoff.ru)
  */
 export function calculateDeadline(
   from: Date,
   workingHours: number,
   config: WorkingHoursConfig,
+  holidays: ReadonlySet<string> = new Set(),
 ): Date {
   if (workingHours <= 0) return from
 
-  // Convert to minutes for precision
   let remainingMs = workingHours * 3600 * 1000
   let current = new Date(from)
 
-  // Helper: is a JS day-of-week (0=Sun..6=Sat) a working day?
-  const isWorkingDay = (jsDay: number): boolean => {
-    const isoDay = jsDay === 0 ? 7 : jsDay // convert Sun=0 → 7
-    return config.workingDays.includes(isoDay)
+  // Returns true if `date` is a working day per schedule AND not a holiday.
+  const isWorkingDay = (date: Date): boolean => {
+    const jsDay = date.getDay()
+    const isoDay = jsDay === 0 ? 7 : jsDay
+    if (!config.workingDays.includes(isoDay)) return false
+    return !holidays.has(formatLocalDate(date))
   }
 
   // Safety: max 365 iterations to prevent infinite loops on bad config
   let guard = 0
   while (remainingMs > 0 && guard++ < 365) {
-    const day = current.getDay()
-
-    if (!isWorkingDay(day)) {
+    if (!isWorkingDay(current)) {
       current.setDate(current.getDate() + 1)
       current.setHours(config.start, 0, 0, 0)
       continue
@@ -152,6 +185,7 @@ export function calculateDeadline(
  * Compute the dueAt Date for a step given the document urgency, the step's
  * slaConfig JSON string, system settings, and the moment the step becomes active.
  * Returns null if the step has no slaConfig (no SLA applies).
+ * Automatically loads holiday data from settings (keys: holidays_YYYY).
  */
 export function computeStepDueAt(
   urgency: string,
@@ -163,7 +197,8 @@ export function computeStepDueAt(
   const sla = parseSlaConfig(slaConfigJson)
   const hours = sla[urgency as UrgencyLevel] ?? sla.MEDIUM
   const whConfig = getWorkingHoursConfig(settings)
-  return calculateDeadline(from, hours, whConfig)
+  const holidays = getHolidaysFromSettings(settings)
+  return calculateDeadline(from, hours, whConfig, holidays)
 }
 
 export type CountdownStatus = 'ok' | 'warning' | 'overdue'

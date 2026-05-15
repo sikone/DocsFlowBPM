@@ -59,6 +59,7 @@ model User {
   stepDecisions        ApprovalStepDecision[] @relation("StepDecisionDecider")
   notifications        Notification[]         @relation("NotificationRecipient")
   documentReads        DocumentRead[]         @relation("DocumentReadUser")
+  documentRules        DocumentRule[]
 }
 
 model Folder {
@@ -123,6 +124,8 @@ model Document {
   folderId    String?
   status      String   @default("DRAFT") // DRAFT, IN_PROGRESS, APPROVED, REJECTED, COMPLETED
   urgency     String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  isSigned        Boolean  @default(false)
+  isSignedPaper   Boolean  @default(false)
   data        String   @default("{}")
   createdById String
   createdAt   DateTime @default(now())
@@ -139,6 +142,15 @@ model Document {
   permissions DocumentPermission[]
   approvals   DocumentApproval[]
   reads       DocumentRead[]
+
+  @@index([title])
+  @@index([number])
+  @@index([status])
+  @@index([folderId])
+  @@index([typeId])
+  @@index([createdById])
+  @@index([createdAt])
+  @@index([updatedAt])
 }
 
 model DocumentTag {
@@ -300,6 +312,19 @@ model SystemSettings {
   updatedAt DateTime @updatedAt
 }
 
+model EmailTemplate {
+  id                 String   @id @default(cuid())
+  slug               String   @unique
+  name               String
+  description        String   @default("")
+  subject            String
+  bodyHtml           String
+  isSystem           Boolean  @default(false)
+  includeAttachments Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
 model DocumentAttachment {
   id           String   @id @default(cuid())
   documentId   String
@@ -311,6 +336,7 @@ model DocumentAttachment {
   groupId      String   @default(cuid())
   version      Int      @default(1)
   isLatest     Boolean   @default(true)
+  isSigned     Boolean   @default(false)
   deletedAt    DateTime?
   createdAt    DateTime  @default(now())
 
@@ -342,6 +368,8 @@ model Counterparty {
   contacts CounterpartyContact[]
 
   @@index([inn])
+  @@index([name])
+  @@index([shortName])
 }
 
 model Contact {
@@ -355,6 +383,8 @@ model Contact {
   updatedAt  DateTime @updatedAt
 
   counterparties CounterpartyContact[]
+
+  @@index([name])
 }
 
 model CounterpartyContact {
@@ -420,7 +450,7 @@ model DocumentApprovalStep {
   approval        DocumentApproval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
   order           Int
   name            String
-  stepType        String           @default("APPROVAL") // APPROVAL | CONDITION | STATUS_CHANGE | GRANT_ACCESS | SIGNATURE
+  stepType        String           @default("APPROVAL") // APPROVAL | CONDITION | STATUS_CHANGE | GRANT_ACCESS | NOTIFICATION | SIGNATURE | PAPER_SIGNATURE | SEND_EMAIL
   conditionConfig String?          // JSON for CONDITION steps
   userId          String?
   user            User?            @relation("ApprovalStepAssignee", fields: [userId], references: [id])
@@ -507,4 +537,23 @@ model DocumentRead {
   @@unique([userId, documentId])
   @@index([userId])
   @@index([documentId])
+}
+
+model DocumentRule {
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  active         Boolean  @default(true)
+  order          Int      @default(0)
+  stopOnMatch    Boolean  @default(false)
+  conditionLogic String   @default("AND") // AND | OR
+  conditions     String   @default("[]")  // JSON: RuleCondition[]
+  actions        String   @default("[]")  // JSON: RuleAction[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, active])
 }

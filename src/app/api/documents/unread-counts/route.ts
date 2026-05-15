@@ -67,8 +67,10 @@ export async function GET(request: NextRequest) {
       const inboxFilter: Prisma.DocumentWhereInput =
         personalFolderIds.length > 0
           ? {
-              ...unreadWhere,
-              OR: [{ folderId: null }, { folderId: { notIn: personalFolderIds } }],
+              AND: [
+                unreadWhere,
+                { OR: [{ folderId: null }, { folderId: { notIn: personalFolderIds } }] },
+              ],
             }
           : unreadWhere
 

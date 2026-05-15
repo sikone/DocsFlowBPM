@@ -6,7 +6,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { useTheme } from 'next-themes';
 import { useStore } from '@/lib/store';
 import type { Folder, Document, DocumentType } from '@/lib/types';
-import { STATUS_LABELS, STATUS_COLORS, ROLE_LABELS } from '@/lib/types';
+import { STATUS_LABELS, STATUS_COLORS, SIGNED_BADGE_CLASS, PAPER_SIGNED_BADGE_CLASS, ROLE_LABELS } from '@/lib/types';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,6 +97,7 @@ import {
 import { toast } from 'sonner';
 
 import NotificationCenter from '@/components/notification-center';
+import { RulesPanel } from '@/components/rules-page';
 import DashboardAnalytics from '@/components/dashboard/dashboard-analytics';
 import StatsSummaryBar from '@/components/dashboard/stats-summary-bar';
 import KeyboardShortcutsDialog from '@/components/keyboard-shortcuts-dialog';
@@ -156,6 +157,7 @@ import {
   BarChart3,
   AlertTriangle,
   EyeOff,
+  ListFilter,
 } from 'lucide-react';
 
 // ─── Theme Toggle Component ─────────────────────────────────────────
@@ -462,7 +464,6 @@ export default function DashboardLayout() {
   const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; name: string }>>([]);
 
   // ── Server Search ──────────────────────────────────────────────────
-  const [searchMode, setSearchMode] = useState<'local' | 'server'>('local');
   const [serverSearchResults, setServerSearchResults] = useState<Document[]>([]);
   const [serverSearching, setServerSearching] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -481,6 +482,9 @@ export default function DashboardLayout() {
     color: string;
     type?: { id: string; name: string; systemName: string };
   }>>([]);
+
+  // ── Rules sheet ──────────────────────────────────────────────────
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   // ── Flatten nested folder tree into a flat array ──────────────────
   const flattenFolders = useCallback((nodes: Folder[]): Folder[] => {
@@ -712,26 +716,14 @@ export default function DashboardLayout() {
     [filteredFolders]
   );
 
-  // ── Filtered & sorted documents ────────────────────────────────────
-  // Filters/sorting are applied server-side. Here we only handle local text search
-  // on the current page and the server-search mode.
+  // ── Filtered documents ────────────────────────────────────────────
+  // Search is always server-side; local list shows current folder docs.
   const filteredDocuments = useMemo(() => {
-    if (searchMode === 'server' && serverSearchResults.length > 0) return serverSearchResults;
-    if (searchMode === 'server' && serverSearching) return [];
-
-    if (searchMode === 'local' && docSearch.trim()) {
-      const q = docSearch.toLowerCase();
-      return documents.filter(
-        (d) =>
-          d.title.toLowerCase().includes(q) ||
-          d.number?.toLowerCase().includes(q) ||
-          d.type?.name.toLowerCase().includes(q) ||
-          d.creator?.name.toLowerCase().includes(q)
-      );
-    }
-
-    return documents;
-  }, [documents, docSearch, searchMode, serverSearchResults, serverSearching]);
+    const q = docSearch.trim();
+    if (q.length < 2) return documents;
+    if (serverSearching) return documents;
+    return serverSearchResults;
+  }, [documents, docSearch, serverSearchResults, serverSearching]);
 
   // ── Count unread docs in folder (recursive) ────────────────────────
   const getUnreadCount = useCallback(
@@ -766,7 +758,8 @@ export default function DashboardLayout() {
       clearTimeout(searchDebounceRef.current);
     }
 
-    if (searchMode !== 'server' || !docSearch.trim() || docSearch.trim().length < 3) {
+    const q = docSearch.trim();
+    if (q.length < 2) {
       setServerSearchResults([]);
       setServerSearching(false);
       return;
@@ -777,7 +770,7 @@ export default function DashboardLayout() {
       if (!token) return;
       try {
         const res = await fetch(
-          `/api/documents/search?q=${encodeURIComponent(docSearch.trim())}&token=${token}`
+          `/api/documents/search?q=${encodeURIComponent(q)}&token=${token}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -788,14 +781,14 @@ export default function DashboardLayout() {
       } finally {
         setServerSearching(false);
       }
-    }, 400);
+    }, 300);
 
     return () => {
       if (searchDebounceRef.current) {
         clearTimeout(searchDebounceRef.current);
       }
     };
-  }, [docSearch, searchMode, token]);
+  }, [docSearch, token]);
 
   // ── Fetch templates on mount ───────────────────────────────────────
   useEffect(() => {
@@ -1683,46 +1676,27 @@ export default function DashboardLayout() {
           </div>
 
           {/* Center: Search */}
-          <div className="flex-1 max-w-md mx-4 hidden lg:flex items-center gap-1">
+          <div className="flex-1 max-w-md mx-4 hidden lg:flex items-center">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={docSearch}
                 onChange={(e) => setDocSearch(e.target.value)}
-                placeholder={
-                  searchMode === 'server'
-                    ? 'Поиск в данных (мин. 3 символа)...'
-                    : 'Быстрый поиск...'
-                }
-                className="pl-8 h-9 bg-muted border-border text-sm"
+                onKeyDown={(e) => e.key === 'Escape' && (setDocSearch(''), setServerSearchResults([]))}
+                placeholder="Поиск по всем документам..."
+                className="pl-8 pr-8 h-9 bg-muted border-border text-sm"
               />
-              {serverSearching && (
+              {serverSearching ? (
                 <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground animate-spin" />
-              )}
-            </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={searchMode === 'server' ? 'secondary' : 'ghost'}
-                  size="icon"
-                  className="h-9 w-9 shrink-0"
-                  onClick={() => {
-                    setSearchMode((m) => (m === 'local' ? 'server' : 'local'));
-                    setDocSearch('');
-                    setServerSearchResults([]);
-                  }}
+              ) : docSearch ? (
+                <button
+                  onClick={() => { setDocSearch(''); setServerSearchResults([]); }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {searchMode === 'server' ? (
-                    <Database className="h-4 w-4" />
-                  ) : (
-                    <Zap className="h-4 w-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {searchMode === 'server' ? 'Быстрый поиск' : 'Поиск в данных'}
-              </TooltipContent>
-            </Tooltip>
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {/* Right: Notifications + User Menu */}
@@ -1734,11 +1708,7 @@ export default function DashboardLayout() {
                   <TooltipTrigger asChild>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-9 w-9">
-                        {searchMode === 'server' && docSearch ? (
-                          <Database className="h-4 w-4" />
-                        ) : (
-                          <Search className="h-4 w-4" />
-                        )}
+                        <Search className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                   </TooltipTrigger>
@@ -1751,53 +1721,28 @@ export default function DashboardLayout() {
                       <Input
                         value={docSearch}
                         onChange={(e) => setDocSearch(e.target.value)}
-                        placeholder={
-                          searchMode === 'server'
-                            ? 'Поиск в данных (мин. 3 символа)...'
-                            : 'Поиск документов...'
-                        }
-                        className="pl-8 h-9 bg-muted border-border text-sm"
+                        placeholder="Поиск по всем документам..."
+                        className="pl-8 pr-8 h-9 bg-muted border-border text-sm"
                         autoFocus
                       />
-                      {serverSearching && (
+                      {serverSearching ? (
                         <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground animate-spin" />
-                      )}
+                      ) : docSearch ? (
+                        <button
+                          onClick={() => { setDocSearch(''); setServerSearchResults([]); }}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant={searchMode === 'local' ? 'secondary' : 'ghost'}
-                        size="sm"
-                        className="h-7 text-xs gap-1.5"
-                        onClick={() => {
-                          setSearchMode('local');
-                          setDocSearch('');
-                          setServerSearchResults([]);
-                        }}
-                      >
-                        <Zap className="h-3 w-3" />
-                        Быстрый
-                      </Button>
-                      <Button
-                        variant={searchMode === 'server' ? 'secondary' : 'ghost'}
-                        size="sm"
-                        className="h-7 text-xs gap-1.5"
-                        onClick={() => {
-                          setSearchMode('server');
-                          setDocSearch('');
-                          setServerSearchResults([]);
-                        }}
-                      >
-                        <Database className="h-3 w-3" />
-                        В данных
-                      </Button>
-                    </div>
-                    {searchMode === 'server' && docSearch.trim().length > 0 && docSearch.trim().length < 3 && (
-                      <p className="text-[11px] text-muted-foreground">Введите минимум 3 символа для поиска</p>
+                    {docSearch.trim().length === 1 && (
+                      <p className="text-[11px] text-muted-foreground">Введите минимум 2 символа</p>
                     )}
-                    {searchMode === 'server' && !serverSearching && serverSearchResults.length > 0 && (
+                    {!serverSearching && serverSearchResults.length > 0 && (
                       <p className="text-[11px] text-muted-foreground">{serverSearchResults.length} результатов</p>
                     )}
-                    {searchMode === 'server' && !serverSearching && docSearch.trim().length >= 3 && serverSearchResults.length === 0 && (
+                    {!serverSearching && docSearch.trim().length >= 2 && serverSearchResults.length === 0 && (
                       <p className="text-[11px] text-muted-foreground">Ничего не найдено</p>
                     )}
                   </div>
@@ -1854,6 +1799,10 @@ export default function DashboardLayout() {
                   <DropdownMenuItem onClick={() => navigate({ page: 'profile' })}>
                     <User className="mr-2 h-4 w-4" />
                     Мой профиль
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setRulesOpen(true)}>
+                    <ListFilter className="mr-2 h-4 w-4" />
+                    Правила документов
                   </DropdownMenuItem>
                   {user?.role === 'ADMIN' && (
                     <DropdownMenuItem onClick={() => navigate({ page: 'admin' })}>
@@ -2294,6 +2243,16 @@ export default function DashboardLayout() {
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {/* Rules */}
+            <Button
+              variant="outline"
+              className="h-9 gap-2 text-sm hidden md:flex"
+              onClick={() => setRulesOpen(true)}
+            >
+              <ListFilter className="h-4 w-4" />
+              Правила
+            </Button>
+
             {/* Reports */}
             <Button
               variant="outline"
@@ -2318,7 +2277,7 @@ export default function DashboardLayout() {
                     : 'документов'}
                 </span>
               </div>
-              {docsTotal > PAGE_SIZE && searchMode !== 'server' && (
+              {docsTotal > PAGE_SIZE && docSearch.trim().length < 2 && (
                 <div className="flex items-center gap-1">
                   <Button
                     variant="outline"
@@ -2345,6 +2304,34 @@ export default function DashboardLayout() {
               )}
             </div>
           </div>
+
+          {/* ── Search Results Banner ── */}
+          {docSearch.trim().length >= 2 && (
+            <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200/60 dark:border-amber-800/60 flex items-center gap-2 text-sm no-print">
+              <Search className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="text-amber-800 dark:text-amber-300 truncate">
+                Поиск: <strong>{docSearch}</strong>
+                {!serverSearching && (
+                  <span className="font-normal ml-1">
+                    — {serverSearchResults.length}{' '}
+                    {serverSearchResults.length === 1
+                      ? 'документ'
+                      : serverSearchResults.length >= 2 && serverSearchResults.length <= 4
+                      ? 'документа'
+                      : 'документов'}
+                  </span>
+                )}
+              </span>
+              {serverSearching && <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-600 dark:text-amber-400 ml-1 shrink-0" />}
+              <button
+                onClick={() => { setDocSearch(''); setServerSearchResults([]); }}
+                className="ml-auto shrink-0 text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200 transition-colors"
+                title="Сбросить поиск"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
 
           {/* ── Quick Actions ── */}
           {!isLoading && (invoiceTypeId || contractTypeId || memoTypeId || user?.role === 'ADMIN') && (
@@ -2441,8 +2428,6 @@ export default function DashboardLayout() {
                 onToggleDocSelection={toggleDocSelection}
                 favoriteDocIds={favoriteDocIds}
                 onToggleFavorite={handleToggleFavorite}
-                statusChangingDocId={statusChangingDocId}
-                onStatusChange={handleQuickStatusChange}
                 onMarkRead={handleMarkRead}
               />
             ) : (
@@ -3025,6 +3010,23 @@ export default function DashboardLayout() {
           </div>
         ) : null}
       </DragOverlay>
+
+      {/* Rules Sheet */}
+      <Sheet open={rulesOpen} onOpenChange={setRulesOpen}>
+        <SheetContent className="w-[580px] sm:w-[580px] sm:max-w-[580px] overflow-y-auto">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="flex items-center gap-2">
+              <ListFilter className="h-5 w-5 text-emerald-600" />
+              Правила обработки документов
+            </SheetTitle>
+            <SheetDescription>
+              Входящие документы автоматически раскладываются по папкам согласно правилам.
+              Если ни одно правило не подошло — документ попадает в «Мои документы».
+            </SheetDescription>
+          </SheetHeader>
+          <RulesPanel />
+        </SheetContent>
+      </Sheet>
     </div>
     </DndContext>
   );
@@ -3232,8 +3234,6 @@ interface DocumentTableProps {
   onToggleDocSelection: (id: string) => void;
   favoriteDocIds: Set<string>;
   onToggleFavorite: (id: string) => void;
-  statusChangingDocId: string | null;
-  onStatusChange: (docId: string, newStatus: string) => void;
   onMarkRead: (docId: string) => void;
 }
 
@@ -3243,7 +3243,7 @@ function DocumentTable({
   selectMode, selectedIds, allVisibleSelected, someVisibleSelected,
   onToggleSelectAll, onToggleDocSelection,
   favoriteDocIds, onToggleFavorite,
-  statusChangingDocId, onStatusChange, onMarkRead,
+  onMarkRead,
 }: DocumentTableProps) {
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronRight className="h-3 w-3 ml-1 opacity-30" />;
@@ -3415,52 +3415,23 @@ function DocumentTable({
                 )}
               </TableCell>
               <TableCell>
-                <div onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="inline-flex items-center gap-0.5 focus:outline-none group/status rounded-md hover:opacity-80 transition-all animate-in fade-in-0">
-                        {statusChangingDocId === doc.id ? (
-                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin text-muted-foreground" />
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className={`text-[11px] font-medium cursor-pointer hover:shadow-sm transition-all ${STATUS_COLORS[doc.status] || ''}`}
-                          >
-                            {STATUS_LABELS[doc.status] || doc.status}
-                          </Badge>
-                        )}
-                        <ChevronDown className="h-3 w-3 text-muted-foreground/50 group-hover/status:text-muted-foreground transition-colors" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-44">
-                      {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                        <DropdownMenuItem
-                          key={key}
-                          onClick={() => onStatusChange(doc.id, key)}
-                          disabled={statusChangingDocId === doc.id}
-                          className="gap-2"
-                        >
-                          <span
-                            className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${
-                              key === 'DRAFT'
-                                ? 'bg-slate-400'
-                                : key === 'IN_PROGRESS'
-                                ? 'bg-sky-500'
-                                : key === 'APPROVED'
-                                ? 'bg-emerald-500'
-                                : key === 'REJECTED'
-                                ? 'bg-rose-500'
-                                : 'bg-violet-500'
-                            }`}
-                          />
-                          <span>{label}</span>
-                          {key === doc.status && (
-                            <Check className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
-                          )}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                <div className="flex items-center gap-1.5">
+                  <Badge
+                    variant="outline"
+                    className={`text-[11px] font-medium ${STATUS_COLORS[doc.status] || ''}`}
+                  >
+                    {STATUS_LABELS[doc.status] || doc.status}
+                  </Badge>
+                  {doc.isSigned && (
+                    <Badge variant="outline" className={`text-[11px] font-medium ${SIGNED_BADGE_CLASS}`}>
+                      Подписан ЭЦП
+                    </Badge>
+                  )}
+                  {(doc as any).isSignedPaper && (
+                    <Badge variant="outline" className={`text-[11px] font-medium ${PAPER_SIGNED_BADGE_CLASS}`}>
+                      Подписан на бумаге
+                    </Badge>
+                  )}
                 </div>
               </TableCell>
               <TableCell className="hidden lg:table-cell">
@@ -3729,6 +3700,16 @@ function DocumentGrid({
                   >
                     {STATUS_LABELS[doc.status] || doc.status}
                   </Badge>
+                  {doc.isSigned && (
+                    <Badge variant="outline" className={`text-[10px] font-medium ${SIGNED_BADGE_CLASS}`}>
+                      Подписан ЭЦП
+                    </Badge>
+                  )}
+                  {(doc as any).isSignedPaper && (
+                    <Badge variant="outline" className={`text-[10px] font-medium ${PAPER_SIGNED_BADGE_CLASS}`}>
+                      Подписан на бумаге
+                    </Badge>
+                  )}
                 </div>
               </div>
 

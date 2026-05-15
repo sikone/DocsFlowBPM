@@ -54,6 +54,7 @@ export async function POST(
     if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: 'File too large (max 100 MB)' }, { status: 413 })
 
     const incomingGroupId = (formData.get('groupId') as string | null) || null
+    const isSigned = formData.get('isSigned') === 'true'
 
     const ext = path.extname(file.name)
     const fileName = crypto.randomUUID() + ext
@@ -90,7 +91,8 @@ export async function POST(
         groupId: resolvedGroupId,
         version,
         isLatest: true,
-      },
+        isSigned,
+      } as any,
       include: { uploadedBy: { select: { id: true, name: true } } },
     })
 

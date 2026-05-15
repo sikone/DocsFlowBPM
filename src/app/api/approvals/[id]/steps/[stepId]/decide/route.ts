@@ -5,7 +5,7 @@ import { grantStepPermissions, grantDocumentPermission } from '@/lib/doc-permiss
 import { logActivity } from '@/lib/activity-log'
 import { computeStepDueAt } from '@/lib/sla'
 import { notifyStepAssignees, notifyUsers } from '@/lib/notifications'
-import { sendApprovalEmail } from '@/lib/mailer'
+import { sendApprovalEmail, sendCustomStepEmail } from '@/lib/mailer'
 import { resolveEffectiveUserId } from '@/lib/approval-utils'
 
 export async function POST(
@@ -54,10 +54,12 @@ export async function POST(
       return NextResponse.json({ error: 'Этот шаг выполняется автоматически' }, { status: 400 })
     if (step.stepType === 'SIGNATURE')
       return NextResponse.json({ error: 'Шаг подписания выполняется через /sign' }, { status: 400 })
+    if (step.stepType === 'PAPER_SIGNATURE')
+      return NextResponse.json({ error: 'Шаг подписания на бумаге выполняется через /paper-sign' }, { status: 400 })
 
     // Sequential enforcement: first PENDING human step (APPROVAL or SIGNATURE) must be this one
     const firstPendingApproval = approval.steps
-      .filter((s) => s.status === 'PENDING' && (s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE'))
+      .filter((s) => s.status === 'PENDING' && (s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE' || s.stepType === 'PAPER_SIGNATURE'))
       .sort((a, b) => a.order - b.order)[0]
     if (firstPendingApproval?.id !== stepId)
       return NextResponse.json({ error: 'Этот шаг ещё не активен — дождитесь завершения предыдущих шагов' }, { status: 400 })
@@ -184,6 +186,27 @@ export async function POST(
         autoExecutedIds.add(notStep.id)
       }
 
+      // Helper: auto-execute a SEND_EMAIL step
+      const executeSendEmail = async (seStep: typeof approval.steps[0]) => {
+        try {
+          const emailCfg = JSON.parse((seStep as any).conditionConfig || '{}')
+          sendCustomStepEmail({
+            documentId: approval.documentId,
+            documentTitle: approval.document.title,
+            documentNumber: (approval.document as any).number ?? null,
+            documentData: (approval.document as any).data ?? '{}',
+            documentTypeId: (approval.document as any).typeId,
+            stepName: seStep.name,
+            emailConfig: emailCfg,
+          }).catch((e) => console.error('sendCustomStepEmail error:', e))
+        } catch { /* ignore */ }
+        await db.documentApprovalStep.update({
+          where: { id: seStep.id },
+          data: { status: 'APPROVED', decidedAt: new Date() },
+        })
+        autoExecutedIds.add(seStep.id)
+      }
+
       // Helper: auto-execute a GRANT_ACCESS step
       const executeGrantAccess = async (gaStep: typeof approval.steps[0]) => {
         try {
@@ -221,11 +244,13 @@ export async function POST(
         .filter((s) => s.order > step.order && s.status === 'PENDING')
         .sort((a, b) => a.order - b.order)
 
-      while (stepsAfter.length > 0 && (stepsAfter[0].stepType === 'STATUS_CHANGE' || stepsAfter[0].stepType === 'GRANT_ACCESS' || stepsAfter[0].stepType === 'NOTIFICATION')) {
+      while (stepsAfter.length > 0 && (stepsAfter[0].stepType === 'STATUS_CHANGE' || stepsAfter[0].stepType === 'GRANT_ACCESS' || stepsAfter[0].stepType === 'NOTIFICATION' || stepsAfter[0].stepType === 'SEND_EMAIL')) {
         if (stepsAfter[0].stepType === 'GRANT_ACCESS') {
           await executeGrantAccess(stepsAfter[0])
         } else if (stepsAfter[0].stepType === 'NOTIFICATION') {
           await executeNotification(stepsAfter[0])
+        } else if (stepsAfter[0].stepType === 'SEND_EMAIL') {
+          await executeSendEmail(stepsAfter[0])
         } else {
           await executeStatusChange(stepsAfter[0])
         }
@@ -330,11 +355,13 @@ export async function POST(
         const tStep = approval.steps.find(
           (s) => s.order === targetOrder && !autoExecutedIds.has(s.id) && s.status === 'PENDING',
         )
-        if (!tStep || (tStep.stepType !== 'STATUS_CHANGE' && tStep.stepType !== 'GRANT_ACCESS' && tStep.stepType !== 'NOTIFICATION')) break
+        if (!tStep || (tStep.stepType !== 'STATUS_CHANGE' && tStep.stepType !== 'GRANT_ACCESS' && tStep.stepType !== 'NOTIFICATION' && tStep.stepType !== 'SEND_EMAIL')) break
         if (tStep.stepType === 'GRANT_ACCESS') {
           await executeGrantAccess(tStep)
         } else if (tStep.stepType === 'NOTIFICATION') {
           await executeNotification(tStep)
+        } else if (tStep.stepType === 'SEND_EMAIL') {
+          await executeSendEmail(tStep)
         } else {
           await executeStatusChange(tStep)
         }
@@ -348,7 +375,7 @@ export async function POST(
       // Grant permissions and compute dueAt for the next APPROVAL step
       if (targetOrder !== null) {
         const targetStep = approval.steps.find((s) => s.order === targetOrder)
-        if (targetStep && (targetStep.stepType === 'APPROVAL' || targetStep.stepType === 'SIGNATURE')) {
+        if (targetStep && (targetStep.stepType === 'APPROVAL' || targetStep.stepType === 'SIGNATURE' || targetStep.stepType === 'PAPER_SIGNATURE')) {
           // Resolve the actual DB step ID once (new record if recreated by backward jump)
           const nextStepDbId = backwardJumpOrders.includes(targetOrder)
             ? (await db.documentApprovalStep.findFirst({
@@ -375,7 +402,9 @@ export async function POST(
             departmentId: targetStep.departmentId,
           })
           const notifyTitle = targetStep.stepType === 'SIGNATURE'
-            ? `Документ «${approval.document.title}» ожидает вашей подписи (шаг: ${targetStep.name})`
+            ? `Документ «${approval.document.title}» ожидает вашей подписи ЭЦП (шаг: ${targetStep.name})`
+            : targetStep.stepType === 'PAPER_SIGNATURE'
+            ? `Документ «${approval.document.title}» ожидает вашей подписи на бумаге (шаг: ${targetStep.name})`
             : `Документ «${approval.document.title}» ожидает вашего согласования (шаг: ${targetStep.name})`
           await notifyStepAssignees(
             { userId: effectiveUserId, departmentId: targetStep.departmentId },
@@ -429,7 +458,7 @@ export async function POST(
         select: { id: true, status: true, stepType: true },
       })
       const stillPending = freshSteps.filter(
-        (s) => s.status === 'PENDING' && (s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE'),
+        (s) => s.status === 'PENDING' && (s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE' || s.stepType === 'PAPER_SIGNATURE'),
       )
       const decisionLabel =
         decision === 'APPROVED' ? 'Согласован' : 'Согласован с изменениями'

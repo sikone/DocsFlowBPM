@@ -5,7 +5,7 @@
     pip install psycopg2-binary
 
 Использование:
-    python generate_documents.py                 # 100 000 документов (по умолчанию)
+    python generate_documents.py                 # 30 000 документов (по умолчанию)
     python generate_documents.py --count 50000   # задать кол-во вручную
     python generate_documents.py --clean         # очистить сгенерированные данные
 
@@ -17,6 +17,12 @@
     - DocumentApproval (processId → ProcessDefinition) для каждого non-DRAFT документа
     - DocumentApprovalStep (со статусами, согласованными с Approval)
       · ~35% шагов PENDING намеренно просрочены (dueAt < now) — SLA-breach
+    - ApprovalStepDecision (история решений по каждому завершённому шагу)
+    - DocumentRead (прочтения non-DRAFT документов случайными пользователями)
+    - DocumentPermission (права VIEW/EDIT, ~20% non-DRAFT документов)
+    - Comment (комментарии, ~25% non-DRAFT документов, 1-3 на документ)
+    - Notification (APPROVAL_REQUEST / APPROVAL_DECISION по шагам согласования)
+    - DocumentRule (правила маршрутизации для ~60% пользователей, однократно)
 """
 
 import argparse
@@ -49,6 +55,13 @@ TAG_LINK_PROB    = 0.6
 MAX_TAGS_PER_DOC = 3
 DRAFT_PROB       = 0.12    # доля документов без запущенного процесса
 SLA_BREACH_PROB  = 0.35    # доля PENDING-шагов, просроченных по SLA
+COMMENT_PROB     = 0.25    # доля документов с комментариями
+MAX_COMMENTS_PER_DOC = 3
+READ_PROB        = 0.70    # доля non-DRAFT документов с прочтениями
+MAX_READS_PER_DOC = 5
+PERMISSION_PROB  = 0.20    # доля документов с выданными правами
+RULES_USER_PROB  = 0.60    # доля пользователей с правилами маршрутизации
+MAX_RULES_PER_USER = 3
 
 SLA_HOURS = {"LOW": 48, "MEDIUM": 24, "HIGH": 8, "CRITICAL": 4}
 
@@ -56,8 +69,6 @@ URGENCY_WEIGHTS = {"LOW": 30, "MEDIUM": 30, "HIGH": 40, "CRITICAL": 15}
 
 # ---------------------------------------------------------------------------
 # Шаблоны ProcessDefinition для автосоздания
-# Формат steps совместим с API: type in (APPROVAL, CONDITION, START, END)
-# API фильтрует только APPROVAL и CONDITION при старте согласования.
 # ---------------------------------------------------------------------------
 _PROCESS_TEMPLATES = [
     {
@@ -142,6 +153,37 @@ NOTE_SAMPLES = [
     "", "", "",
 ]
 
+COMMENT_SAMPLES = [
+    "Согласован. Замечаний нет.",
+    "Прошу уточнить реквизиты в разделе 3.",
+    "Необходимо приложить дополнительные документы.",
+    "Документ соответствует требованиям.",
+    "Требуется дополнительная проверка юридическим отделом.",
+    "Внесены изменения согласно замечаниям.",
+    "Подтверждаю получение документа.",
+    "Направлено на повторное рассмотрение.",
+    "Обратить внимание на сроки исполнения.",
+    "Согласован с учётом внесённых правок.",
+    "Необходимо пересмотреть условия оплаты.",
+    "Документ принят к исполнению.",
+    "Прошу рассмотреть в приоритетном порядке.",
+    "Есть замечания по разделу об ответственности.",
+    "Условия договора требуют дополнительного обсуждения.",
+]
+
+_RULE_NAME_TEMPLATES = [
+    "Автоправило — срочные документы",
+    "Автоправило — низкий приоритет",
+    "Автоправило — завершённые документы",
+    "Автоправило — черновики в обработку",
+    "Автоправило — критическая срочность",
+    "Автоправило — документы в работе",
+    "Автоправило — автотег входящих",
+    "Автоправило — маршрутизация договоров",
+    "Автоправило — утверждённые документы",
+    "Автоправило — отклонённые на доработку",
+]
+
 # ---------------------------------------------------------------------------
 # Утилиты
 # ---------------------------------------------------------------------------
@@ -205,10 +247,11 @@ def make_form_data(schema: list, seq: int) -> str:
 
 # ---------------------------------------------------------------------------
 # Генерация шагов DocumentApprovalStep по статусу согласования
+# Кортеж: (id, approvalId, order, name, stepType, userId, departmentId,
+#           status, dueAt, decidedById, comment, decidedAt, createdAt)
 # ---------------------------------------------------------------------------
 
 def _steps_approved(appr_id, n, users, dt, sla_h):
-    """Все шаги завершены."""
     rows = []
     for order in range(n):
         assignee = random.choice(users)
@@ -222,7 +265,6 @@ def _steps_approved(appr_id, n, users, dt, sla_h):
 
 
 def _steps_rejected(appr_id, n, users, dt, sla_h):
-    """Один шаг REJECTED, предыдущие APPROVED, последующие SKIPPED."""
     reject_at = random.randint(0, n - 1)
     rows = []
     for order in range(n):
@@ -247,10 +289,6 @@ def _steps_rejected(appr_id, n, users, dt, sla_h):
 
 
 def _steps_in_progress(appr_id, n, users, dt, sla_h, now):
-    """
-    Часть шагов завершена, оставшиеся PENDING.
-    Из PENDING-шагов ~SLA_BREACH_PROB имеют dueAt в прошлом (SLA просрочен).
-    """
     completed = random.randint(0, n - 1)
     rows = []
     for order in range(n):
@@ -264,7 +302,6 @@ def _steps_in_progress(appr_id, n, users, dt, sla_h, now):
             status = "PENDING"
             decided_at = None
             decider = None
-            # SLA-breach: намеренно просроченный дедлайн
             if random.random() < SLA_BREACH_PROB:
                 due_at = now - timedelta(hours=random.randint(1, 96))
             else:
@@ -276,14 +313,88 @@ def _steps_in_progress(appr_id, n, users, dt, sla_h, now):
 
 
 # ---------------------------------------------------------------------------
+# Правила маршрутизации DocumentRule
+# ---------------------------------------------------------------------------
+
+def _make_rule_conditions() -> list:
+    all_options = [
+        ("urgency", "eq",  "HIGH"),
+        ("urgency", "eq",  "CRITICAL"),
+        ("urgency", "eq",  "LOW"),
+        ("urgency", "neq", "LOW"),
+        ("status",  "eq",  "DRAFT"),
+        ("status",  "eq",  "COMPLETED"),
+        ("status",  "eq",  "IN_PROGRESS"),
+        ("status",  "neq", "DRAFT"),
+    ]
+    n = random.randint(1, 2)
+    chosen = random.sample(all_options, min(n, len(all_options)))
+    return [{"id": new_id(), "field": f, "operator": op, "value": v} for f, op, v in chosen]
+
+
+def _make_rule_actions(folders: list, tags: list) -> list:
+    possible = []
+    if tags:
+        possible.append(("addTag", tags))
+    if folders:
+        possible.append(("moveToFolder", folders))
+    if not possible:
+        return []
+    chosen = random.sample(possible, min(random.randint(1, 2), len(possible)))
+    actions = []
+    for action_type, pool in chosen:
+        if action_type == "addTag":
+            actions.append({"id": new_id(), "type": "addTag", "tagId": random.choice(pool)})
+        else:
+            actions.append({"id": new_id(), "type": "moveToFolder", "folderId": random.choice(pool)})
+    return actions
+
+
+def ensure_rules(cur, conn, users: list, folders: list, tags: list) -> int:
+    """Создаёт DocumentRule для ~60% пользователей. Пропускает если уже есть."""
+    cur.execute("SELECT COUNT(*) FROM \"DocumentRule\" WHERE name LIKE 'Автоправило — %'")
+    if cur.fetchone()[0] > 0:
+        return 0
+
+    active_folders = [f for f in folders if f]
+    if not active_folders and not tags:
+        return 0
+
+    now = datetime.now(timezone.utc)
+    rows = []
+
+    for user_id in users:
+        if random.random() > RULES_USER_PROB:
+            continue
+        n = random.randint(1, MAX_RULES_PER_USER)
+        selected_names = random.sample(_RULE_NAME_TEMPLATES, min(n, len(_RULE_NAME_TEMPLATES)))
+        for order, name in enumerate(selected_names):
+            conditions = _make_rule_conditions()
+            actions = _make_rule_actions(active_folders, tags)
+            if not actions:
+                continue
+            rows.append((
+                new_id(), user_id, name, True, order,
+                random.random() < 0.3,
+                random.choice(["AND", "OR"]),
+                json.dumps(conditions, ensure_ascii=False),
+                json.dumps(actions, ensure_ascii=False),
+                now, now,
+            ))
+
+    if not rows:
+        return 0
+
+    psycopg2.extras.execute_values(cur, RULE_SQL, rows, page_size=BATCH_SIZE)
+    conn.commit()
+    return len(rows)
+
+
+# ---------------------------------------------------------------------------
 # Автосоздание ProcessDefinition
 # ---------------------------------------------------------------------------
 
 def ensure_processes(cur, conn, users: list) -> list[dict]:
-    """
-    Возвращает список {id, n_steps} из ProcessDefinition.
-    Если таблица пуста — создаёт шаблонные процессы.
-    """
     cur.execute('SELECT id, steps FROM "ProcessDefinition" WHERE status = \'ACTIVE\'')
     rows = cur.fetchall()
     if rows:
@@ -291,7 +402,6 @@ def ensure_processes(cur, conn, users: list) -> list[dict]:
         for pid, steps_json in rows:
             try:
                 steps = json.loads(steps_json or "[]")
-                # считаем только APPROVAL-шаги (именно они создаются при старте)
                 n = sum(1 for s in steps if s.get("type") == "APPROVAL")
                 n = n or 1
             except Exception:
@@ -306,7 +416,6 @@ def ensure_processes(cur, conn, users: list) -> list[dict]:
     for tmpl in _PROCESS_TEMPLATES:
         pid = new_id()
         step_names = tmpl["step_names"]
-        # Формат шагов совместим с API (type=APPROVAL, assigneeType=user|initiator)
         steps_json = json.dumps([
             {
                 "id": new_id(),
@@ -361,11 +470,15 @@ def load_refs(cur, conn) -> dict:
 
     processes = ensure_processes(cur, conn, users)
 
+    rule_count = ensure_rules(cur, conn, users, folders, tags)
+
     print(f"  Пользователей:           {len(users)}")
     print(f"  Типов документов:        {len(doc_types)}")
     print(f"  Папок:                   {len([f for f in folders if f])}")
     print(f"  Тегов:                   {len(tags)}")
     print(f"  Бизнес-процессов:        {len(processes)}")
+    if rule_count:
+        print(f"  Создано правил:          {rule_count}")
 
     return {"users": users, "doc_types": doc_types, "folders": folders, "tags": tags, "processes": processes}
 
@@ -377,6 +490,7 @@ def load_refs(cur, conn) -> dict:
 def generate_batch(refs: dict, start_seq: int, count: int,
                    ts_start: datetime, ts_end: datetime, now: datetime):
     docs, tag_links, logs, approvals, steps = [], [], [], [], []
+    decisions, reads, permissions, comments, notifications = [], [], [], [], []
 
     for i in range(count):
         seq = start_seq + i
@@ -427,10 +541,10 @@ def generate_batch(refs: dict, start_seq: int, count: int,
         ))
 
         # Согласование (не для черновиков)
+        batch_steps = []
         if appr_status is not None:
             proc = random.choice(refs["processes"])
             appr_id = new_id()
-            # routeId=null, processId=proc["id"]
             approvals.append((appr_id, doc_id, None, proc["id"], appr_status, user_id, dt, dt))
 
             n = proc["n_steps"]
@@ -442,11 +556,71 @@ def generate_batch(refs: dict, start_seq: int, count: int,
                 batch_steps = _steps_in_progress(appr_id, n, refs["users"], dt, sla_h, now)
             steps.extend(batch_steps)
 
-    return docs, tag_links, logs, approvals, steps
+            # ApprovalStepDecision: история решений по завершённым шагам
+            for step_row in batch_steps:
+                step_id, _, _, step_name, _, assignee_id, _, step_status, _, decided_by, _, decided_at, _ = step_row
+                if decided_by and step_status in ("APPROVED", "APPROVED_WITH_CHANGES", "REJECTED"):
+                    decisions.append((
+                        new_id(), step_id, step_status,
+                        random.choice([None, None, "Замечания учтены", "Согласовано без замечаний", None]),
+                        decided_by, decided_at,
+                    ))
+                    # Notification APPROVAL_DECISION → автор документа (~70%)
+                    if random.random() < 0.70:
+                        action_word = "отклонён" if step_status == "REJECTED" else "согласован"
+                        notifications.append((
+                            new_id(), user_id, "APPROVAL_DECISION",
+                            f"Документ {action_word} на шаге «{step_name}»",
+                            None, random.random() < 0.55,
+                            "DOCUMENT", doc_id, decided_at,
+                        ))
+
+                # Notification APPROVAL_REQUEST → исполнитель шага
+                if assignee_id:
+                    is_read = step_status not in ("PENDING",)
+                    notif_dt = dt + timedelta(minutes=random.randint(0, 30))
+                    notifications.append((
+                        new_id(), assignee_id, "APPROVAL_REQUEST",
+                        f"Требуется согласование: {step_name}",
+                        None, is_read, "DOCUMENT", doc_id, notif_dt,
+                    ))
+
+        # DocumentRead: случайные прочтения non-DRAFT документа
+        if not is_draft and random.random() < READ_PROB:
+            n_reads = random.randint(1, MAX_READS_PER_DOC)
+            readers = random.sample(refs["users"], min(n_reads, len(refs["users"])))
+            for reader_id in readers:
+                reads.append((new_id(), reader_id, doc_id, random_date(dt, now)))
+
+        # DocumentPermission: права VIEW/EDIT для сторонних пользователей
+        if not is_draft and random.random() < PERMISSION_PROB:
+            other_users = [u for u in refs["users"] if u != user_id]
+            if other_users:
+                n_perm = random.randint(1, min(2, len(other_users)))
+                for perm_user_id in random.sample(other_users, n_perm):
+                    permission = random.choice(["VIEW", "EDIT"])
+                    perm_dt = dt + timedelta(minutes=random.randint(5, 120))
+                    permissions.append((
+                        new_id(), doc_id, perm_user_id, permission, user_id,
+                        perm_dt, perm_dt,
+                    ))
+
+        # Comment: комментарии к некоторым non-DRAFT документам
+        if not is_draft and random.random() < COMMENT_PROB:
+            n_comm = random.randint(1, MAX_COMMENTS_PER_DOC)
+            for _ in range(n_comm):
+                commenter = random.choice(refs["users"])
+                comm_dt = random_date(dt, now)
+                comments.append((
+                    new_id(), random.choice(COMMENT_SAMPLES),
+                    doc_id, commenter, comm_dt, comm_dt,
+                ))
+
+    return docs, tag_links, logs, approvals, steps, decisions, reads, permissions, comments, notifications
 
 
 # ---------------------------------------------------------------------------
-# SQL и flush
+# SQL-шаблоны и flush
 # ---------------------------------------------------------------------------
 
 DOC_SQL = """
@@ -464,7 +638,6 @@ INSERT INTO "ActivityLog" (id, "userId", action, "entityType", "entityId", detai
 VALUES %s ON CONFLICT (id) DO NOTHING
 """
 
-# routeId=null, processId=col[3]
 APPROVAL_SQL = """
 INSERT INTO "DocumentApproval" (id, "documentId", "routeId", "processId", status, "createdById", "createdAt", "updatedAt")
 VALUES %s ON CONFLICT (id) DO NOTHING
@@ -477,8 +650,39 @@ INSERT INTO "DocumentApprovalStep"
 VALUES %s ON CONFLICT (id) DO NOTHING
 """
 
+DECISION_SQL = """
+INSERT INTO "ApprovalStepDecision" (id, "stepId", decision, comment, "decidedById", "createdAt")
+VALUES %s ON CONFLICT (id) DO NOTHING
+"""
 
-def flush(cur, docs, tag_links, logs, approvals, steps):
+READ_SQL = """
+INSERT INTO "DocumentRead" (id, "userId", "documentId", "readAt")
+VALUES %s ON CONFLICT ("userId", "documentId") DO NOTHING
+"""
+
+PERMISSION_SQL = """
+INSERT INTO "DocumentPermission" (id, "documentId", "userId", permission, "grantedById", "createdAt", "updatedAt")
+VALUES %s ON CONFLICT ("documentId", "userId") DO NOTHING
+"""
+
+COMMENT_SQL = """
+INSERT INTO "Comment" (id, content, "documentId", "userId", "createdAt", "updatedAt")
+VALUES %s ON CONFLICT (id) DO NOTHING
+"""
+
+NOTIFICATION_SQL = """
+INSERT INTO "Notification" (id, "userId", type, title, body, "isRead", "entityType", "entityId", "createdAt")
+VALUES %s ON CONFLICT (id) DO NOTHING
+"""
+
+RULE_SQL = """
+INSERT INTO "DocumentRule" (id, "userId", name, active, "order", "stopOnMatch", "conditionLogic", conditions, actions, "createdAt", "updatedAt")
+VALUES %s ON CONFLICT (id) DO NOTHING
+"""
+
+
+def flush(cur, docs, tag_links, logs, approvals, steps,
+          decisions, reads, permissions, comments, notifications):
     if docs:
         psycopg2.extras.execute_values(cur, DOC_SQL, docs, page_size=BATCH_SIZE)
     if tag_links:
@@ -489,6 +693,16 @@ def flush(cur, docs, tag_links, logs, approvals, steps):
         psycopg2.extras.execute_values(cur, APPROVAL_SQL, approvals, page_size=BATCH_SIZE)
     if steps:
         psycopg2.extras.execute_values(cur, STEP_SQL, steps, page_size=BATCH_SIZE)
+    if decisions:
+        psycopg2.extras.execute_values(cur, DECISION_SQL, decisions, page_size=BATCH_SIZE)
+    if reads:
+        psycopg2.extras.execute_values(cur, READ_SQL, reads, page_size=BATCH_SIZE)
+    if permissions:
+        psycopg2.extras.execute_values(cur, PERMISSION_SQL, permissions, page_size=BATCH_SIZE)
+    if comments:
+        psycopg2.extras.execute_values(cur, COMMENT_SQL, comments, page_size=BATCH_SIZE)
+    if notifications:
+        psycopg2.extras.execute_values(cur, NOTIFICATION_SQL, notifications, page_size=BATCH_SIZE)
 
 
 # ---------------------------------------------------------------------------
@@ -507,31 +721,49 @@ def clean_generated(cur, conn):
     doc_ids = [r[0] for r in cur.fetchall()]
     if not doc_ids:
         print("Нет сгенерированных документов.")
-        return
+    else:
+        print(f"Найдено {len(doc_ids)} документов. Удаляем...")
 
-    print(f"Найдено {len(doc_ids)} документов. Удаляем...")
-    for i in range(0, len(doc_ids), 1000):
-        chunk = doc_ids[i:i + 1000]
-        cur.execute('DELETE FROM "Document" WHERE id = ANY(%s)', (chunk,))
+        # Уведомления не каскадируются от Document — удаляем отдельно
+        for i in range(0, len(doc_ids), 1000):
+            chunk = doc_ids[i:i + 1000]
+            cur.execute(
+                'DELETE FROM "Notification" WHERE "entityType" = \'DOCUMENT\' AND "entityId" = ANY(%s)',
+                (chunk,),
+            )
         conn.commit()
-        print(f"  {min(i + 1000, len(doc_ids))}/{len(doc_ids)}", end="\r")
 
-    cur.execute("""
-        DELETE FROM "ActivityLog"
-        WHERE action = 'CREATE' AND "entityType" = 'DOCUMENT'
-          AND details::jsonb ? 'generated'
-          AND (details::jsonb->>'generated')::boolean = true
-    """)
-    conn.commit()
-    print(f"\n✓ Удалено {len(doc_ids)} документов и связанных записей.")
+        # Document каскадно удаляет: DocumentApproval → Step → Decision,
+        # DocumentTagLink, DocumentRead, DocumentPermission, Comment
+        for i in range(0, len(doc_ids), 1000):
+            chunk = doc_ids[i:i + 1000]
+            cur.execute('DELETE FROM "Document" WHERE id = ANY(%s)', (chunk,))
+            conn.commit()
+            print(f"  {min(i + 1000, len(doc_ids))}/{len(doc_ids)}", end="\r")
 
-    # Удаляем автосозданные процессы (только те, что создал этот скрипт)
+        cur.execute("""
+            DELETE FROM "ActivityLog"
+            WHERE action = 'CREATE' AND "entityType" = 'DOCUMENT'
+              AND details::jsonb ? 'generated'
+              AND (details::jsonb->>'generated')::boolean = true
+        """)
+        conn.commit()
+        print(f"\n✓ Удалено {len(doc_ids)} документов и связанных записей.")
+
+    # Автосозданные процессы
     sys_names = [t["systemName"] for t in _PROCESS_TEMPLATES]
     cur.execute('DELETE FROM "ProcessDefinition" WHERE "systemName" = ANY(%s)', (sys_names,))
     deleted_proc = cur.rowcount
     conn.commit()
     if deleted_proc:
         print(f"✓ Удалено автосозданных ProcessDefinition: {deleted_proc}")
+
+    # Правила маршрутизации, созданные этим скриптом
+    cur.execute("DELETE FROM \"DocumentRule\" WHERE name LIKE 'Автоправило — %'")
+    deleted_rules = cur.rowcount
+    conn.commit()
+    if deleted_rules:
+        print(f"✓ Удалено правил маршрутизации: {deleted_rules}")
 
 
 # ---------------------------------------------------------------------------
@@ -575,34 +807,45 @@ def main():
     ts_end   = datetime(2026, 4, 1, tzinfo=timezone.utc)
     now      = datetime.now(timezone.utc)
 
-    total_docs = total_tags = total_logs = total_appr = total_steps = 0
+    totals = {k: 0 for k in ("docs", "tags", "logs", "appr", "steps",
+                               "decisions", "reads", "permissions", "comments", "notifications")}
     batches = (count + BATCH_SIZE - 1) // BATCH_SIZE
 
     for idx in range(batches):
         start_seq  = idx * BATCH_SIZE + 1
         batch_size = min(BATCH_SIZE, count - idx * BATCH_SIZE)
 
-        docs, tag_links, logs, appr, steps = generate_batch(
-            refs, start_seq, batch_size, ts_start, ts_end, now
-        )
-        flush(cur, docs, tag_links, logs, appr, steps)
+        result = generate_batch(refs, start_seq, batch_size, ts_start, ts_end, now)
+        docs, tag_links, logs, appr, steps, decisions, reads, perms, comms, notifs = result
+
+        flush(cur, docs, tag_links, logs, appr, steps, decisions, reads, perms, comms, notifs)
         conn.commit()
 
-        total_docs  += len(docs)
-        total_tags  += len(tag_links)
-        total_logs  += len(logs)
-        total_appr  += len(appr)
-        total_steps += len(steps)
+        totals["docs"]          += len(docs)
+        totals["tags"]          += len(tag_links)
+        totals["logs"]          += len(logs)
+        totals["appr"]          += len(appr)
+        totals["steps"]         += len(steps)
+        totals["decisions"]     += len(decisions)
+        totals["reads"]         += len(reads)
+        totals["permissions"]   += len(perms)
+        totals["comments"]      += len(comms)
+        totals["notifications"] += len(notifs)
 
         pct = (idx + 1) / batches * 100
         bar = "#" * int(pct / 2) + "." * (50 - int(pct / 2))
-        print(f"\r  [{bar}] {pct:5.1f}%  {total_docs:,}/{count:,} docs", end="", flush=True)
+        print(f"\r  [{bar}] {pct:5.1f}%  {totals['docs']:,}/{count:,} docs", end="", flush=True)
 
-    print(f"\n\n✓ Документов:          {total_docs:,}")
-    print(f"✓ Связей с тегами:     {total_tags:,}")
-    print(f"✓ Записей в логе:      {total_logs:,}")
-    print(f"✓ Согласований:        {total_appr:,}")
-    print(f"✓ Шагов согласования:  {total_steps:,}")
+    print(f"\n\n✓ Документов:              {totals['docs']:,}")
+    print(f"✓ Связей с тегами:         {totals['tags']:,}")
+    print(f"✓ Записей в логе:          {totals['logs']:,}")
+    print(f"✓ Согласований:            {totals['appr']:,}")
+    print(f"✓ Шагов согласования:      {totals['steps']:,}")
+    print(f"✓ Решений по шагам:        {totals['decisions']:,}")
+    print(f"✓ Прочтений документов:    {totals['reads']:,}")
+    print(f"✓ Прав доступа:            {totals['permissions']:,}")
+    print(f"✓ Комментариев:            {totals['comments']:,}")
+    print(f"✓ Уведомлений:             {totals['notifications']:,}")
     print(f"  (из них ~{int(SLA_BREACH_PROB * 100)}% PENDING-шагов просрочены по SLA)")
 
     cur.close()

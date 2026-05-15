@@ -19,6 +19,10 @@ import {
   Pencil,
   PenLine,
   ShieldCheck,
+  Stamp,
+  FileUp,
+  Trash2,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -71,7 +75,7 @@ interface ProcessDefinition {
 interface ProcessStep {
   id: string;
   name: string;
-  type: 'START' | 'APPROVAL' | 'NOTIFICATION' | 'CONDITION' | 'SIGNATURE';
+  type: 'START' | 'APPROVAL' | 'NOTIFICATION' | 'CONDITION' | 'SIGNATURE' | 'PAPER_SIGNATURE';
   assigneeType?: 'role' | 'user' | 'department';
   userId?: string | null;
   departmentId?: string | null;
@@ -106,6 +110,8 @@ function stepStatusIcon(status: string, stepType?: string) {
   if (stepType === 'CONDITION') return <GitBranch className="w-4 h-4 text-violet-500 shrink-0" />;
   if (stepType === 'SIGNATURE' && status === 'APPROVED') return <ShieldCheck className="w-4 h-4 text-indigo-500 shrink-0" />;
   if (stepType === 'SIGNATURE' && status === 'PENDING') return <PenLine className="w-4 h-4 text-indigo-400 shrink-0" />;
+  if (stepType === 'PAPER_SIGNATURE' && status === 'APPROVED') return <Stamp className="w-4 h-4 text-amber-600 shrink-0" />;
+  if (stepType === 'PAPER_SIGNATURE' && status === 'PENDING') return <Stamp className="w-4 h-4 text-amber-400 shrink-0" />;
   switch (status) {
     case 'APPROVED':
       return <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />;
@@ -224,6 +230,15 @@ export function DocumentApprovalPanel({
   const [signing, setSigning] = useState(false);
   const [signProgress, setSignProgress] = useState<string[]>([]);
   const [signError, setSignError] = useState('');
+  const [signableAttachments, setSignableAttachments] = useState<any[]>([]);
+  const [selectedAttachmentIds, setSelectedAttachmentIds] = useState<Set<string>>(new Set());
+  const [loadingSignAttachments, setLoadingSignAttachments] = useState(false);
+
+  const [paperSignDialogOpen, setPaperSignDialogOpen] = useState(false);
+  const [paperSignStep, setPaperSignStep] = useState<{ approvalId: string; stepId: string; stepName: string } | null>(null);
+  const [paperSignFiles, setPaperSignFiles] = useState<File[]>([]);
+  const [paperSigning, setPaperSigning] = useState(false);
+  const [paperSignError, setPaperSignError] = useState('');
 
   const loadApprovals = useCallback(async () => {
     if (!documentId || !token) return;
@@ -266,12 +281,17 @@ export function DocumentApprovalPanel({
   }, [loadApprovals, loadProcesses]);
 
   useEffect(() => {
+    window.addEventListener('refresh-approvals', loadApprovals);
+    return () => window.removeEventListener('refresh-approvals', loadApprovals);
+  }, [loadApprovals]);
+
+  useEffect(() => {
     if (!onUserPendingStep) return;
     const active = approvals.find((a) => a.status === 'IN_PROGRESS') ?? null;
     if (!active) { onUserPendingStep(null); return; }
     // Only the first PENDING human step (APPROVAL or SIGNATURE) can be acted on
     const firstPending = active.steps
-      .filter((s) => s.status === 'PENDING' && (s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE'))
+      .filter((s) => s.status === 'PENDING' && (s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE' || s.stepType === 'PAPER_SIGNATURE'))
       .sort((a, b) => a.order - b.order)[0] ?? null;
     if (!firstPending) { onUserPendingStep(null); return; }
     const isAssigned = (() => {
@@ -285,9 +305,9 @@ export function DocumentApprovalPanel({
 
   const activeApproval = approvals.find((a) => a.status === 'IN_PROGRESS') ?? approvals[0] ?? null;
 
-  // First PENDING human step (APPROVAL or SIGNATURE) — sequential flow enforcement
+  // First PENDING human step (APPROVAL / SIGNATURE / PAPER_SIGNATURE) — sequential flow enforcement
   const firstPendingHumanStep = activeApproval?.steps
-    .filter((s) => s.status === 'PENDING' && (s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE'))
+    .filter((s) => s.status === 'PENDING' && (s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE' || s.stepType === 'PAPER_SIGNATURE'))
     .sort((a, b) => a.order - b.order)[0] ?? null;
 
   const isAssignedToCurrentUser = (step: DocumentApproval['steps'][number]) => {
@@ -305,6 +325,12 @@ export function DocumentApprovalPanel({
 
   const canSignStep = (step: DocumentApproval['steps'][number]) => {
     if (step.status !== 'PENDING' || step.stepType !== 'SIGNATURE') return false;
+    if (step.id !== firstPendingHumanStep?.id) return false;
+    return isAssignedToCurrentUser(step);
+  };
+
+  const canPaperSignStep = (step: DocumentApproval['steps'][number]) => {
+    if (step.status !== 'PENDING' || step.stepType !== 'PAPER_SIGNATURE') return false;
     if (step.id !== firstPendingHumanStep?.id) return false;
     return isAssignedToCurrentUser(step);
   };
@@ -404,10 +430,7 @@ export function DocumentApprovalPanel({
       const { default: cadespluginApi } = await import('crypto-pro-cadesplugin');
       const api = await cadespluginApi();
 
-      // Fetch current attachments
-      log('Получение вложений...');
-      const attData = await apiFetch<{ attachments: any[] }>(`/api/documents/${documentId}/attachments`, token);
-      const attachments = (attData.attachments ?? []).filter((a: any) => a.isLatest && !a.deletedAt);
+      const attachments = signableAttachments.filter((a: any) => selectedAttachmentIds.has(a.id));
 
       if (attachments.length === 0) {
         log('Вложений нет. Подписание реквизитов документа...');
@@ -440,9 +463,20 @@ export function DocumentApprovalPanel({
               throw new Error(err.error || `Не удалось конвертировать ${att.originalName} в PDF`);
             }
             fileBuffer = await convResp.arrayBuffer();
-            // Sign the PDF and name the sig after the PDF
             const pdfBaseName = att.originalName.replace(/\.docx?$/i, '.pdf');
             sigFileName = `${pdfBaseName}.sig`;
+
+            // Upload the converted PDF as a signed attachment
+            log(`Загрузка подписанного PDF: ${pdfBaseName}`);
+            const pdfFile = new File([fileBuffer], pdfBaseName, { type: 'application/pdf' });
+            const pdfFd = new FormData();
+            pdfFd.append('file', pdfFile);
+            pdfFd.append('isSigned', 'true');
+            const pdfUp = await fetch(`/api/documents/${documentId}/attachments`, {
+              method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: pdfFd,
+            });
+            if (!pdfUp.ok) throw new Error(`Не удалось загрузить подписанный PDF: ${pdfBaseName}`);
+
             log(`Подписание PDF: ${pdfBaseName} (${i + 1}/${attachments.length})`);
           } else {
             log(`Подписание: ${att.originalName} (${i + 1}/${attachments.length})`);
@@ -477,11 +511,36 @@ export function DocumentApprovalPanel({
       toast.success('Документ подписан ЭЦП');
       setSignDialogOpen(false);
       await loadApprovals();
+      window.dispatchEvent(new Event('refresh-attachments'));
       onApprovalChange?.();
     } catch (e: any) {
       setSignError(e?.message || 'Ошибка подписания');
     } finally {
       setSigning(false);
+    }
+  };
+
+  const handlePaperSign = async () => {
+    if (!paperSignStep || paperSignFiles.length === 0) return;
+    setPaperSigning(true);
+    setPaperSignError('');
+    try {
+      const fd = new FormData();
+      for (const file of paperSignFiles) fd.append('files', file);
+      await apiFetch(
+        `/api/approvals/${paperSignStep.approvalId}/steps/${paperSignStep.stepId}/paper-sign`,
+        token,
+        { method: 'POST', body: fd },
+      );
+      setPaperSignDialogOpen(false);
+      setPaperSignFiles([]);
+      await loadApprovals();
+      window.dispatchEvent(new Event('refresh-recent'));
+      toast.success('Документ успешно подписан на бумаге');
+    } catch (e: any) {
+      setPaperSignError(e?.message || 'Ошибка при загрузке файлов');
+    } finally {
+      setPaperSigning(false);
     }
   };
 
@@ -553,25 +612,32 @@ export function DocumentApprovalPanel({
                   {activeApproval.steps.map((step, idx) => {
                     const isCondition = step.stepType === 'CONDITION';
                     const isSignature = step.stepType === 'SIGNATURE';
+                    const isPaperSignature = step.stepType === 'PAPER_SIGNATURE';
                     const isSkipped = step.status === 'SKIPPED';
                     const isActive = step.id === firstPendingHumanStep?.id;
                     const activeBg = isSignature
                       ? 'bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800'
+                      : isPaperSignature
+                      ? 'bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800'
                       : 'bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800';
                     const activeTextColor = isSignature
                       ? 'font-semibold text-indigo-800 dark:text-indigo-300'
+                      : isPaperSignature
+                      ? 'font-semibold text-orange-800 dark:text-orange-300'
                       : 'font-semibold text-amber-800 dark:text-amber-300';
                     const activeBadgeColor = isSignature
                       ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/40'
+                      : isPaperSignature
+                      ? 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/40'
                       : 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40';
-                    const activeDotColor = isSignature ? 'bg-indigo-500' : 'bg-amber-400';
+                    const activeDotColor = isSignature ? 'bg-indigo-500' : isPaperSignature ? 'bg-orange-500' : 'bg-amber-400';
                     return (
                       <div
                         key={step.id}
                         className={`flex items-start gap-2 rounded-md transition-colors ${isSkipped ? 'opacity-40' : ''} ${isActive ? `${activeBg} px-2 py-1.5 -mx-2` : ''}`}
                       >
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 mt-0.5 ${isCondition ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30' : isActive ? `${activeDotColor} text-white` : 'bg-muted'}`}>
-                          {isCondition ? '?' : isSignature ? <PenLine className="w-2.5 h-2.5" /> : idx + 1}
+                          {isCondition ? '?' : isSignature ? <PenLine className="w-2.5 h-2.5" /> : isPaperSignature ? <Stamp className="w-2.5 h-2.5" /> : idx + 1}
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
@@ -581,7 +647,7 @@ export function DocumentApprovalPanel({
                             </span>
                             {isActive && (
                               <span className={`text-[10px] font-medium ${activeBadgeColor} px-1 py-0.5 rounded shrink-0`}>
-                                {isSignature ? 'подписать' : 'сейчас'}
+                                {isSignature ? 'подписать ЭЦП' : isPaperSignature ? 'подписать на бумаге' : 'сейчас'}
                               </span>
                             )}
                             {isActive && step.dueAt && (
@@ -648,12 +714,42 @@ export function DocumentApprovalPanel({
                                   setSignProgress([]);
                                   setSignError('');
                                   setSelectedCertIdx(null);
+                                  setSignableAttachments([]);
+                                  setSelectedAttachmentIds(new Set());
                                   setSignDialogOpen(true);
                                   loadCertificates();
+                                  setLoadingSignAttachments(true);
+                                  apiFetch<any[]>(`/api/documents/${documentId}/attachments`, token)
+                                    .then((all) => {
+                                      const signable = (all ?? []).filter(
+                                        (a: any) => a.isLatest && !a.deletedAt && !a.isSigned && !/\.(sig|p7s)$/i.test(a.originalName)
+                                      );
+                                      setSignableAttachments(signable);
+                                      setSelectedAttachmentIds(new Set(signable.map((a: any) => a.id)));
+                                    })
+                                    .catch(() => {})
+                                    .finally(() => setLoadingSignAttachments(false));
                                 }}
                               >
                                 <PenLine className="w-3 h-3" />
                                 Подписать ЭЦП
+                              </Button>
+                            </div>
+                          )}
+                          {canPaperSignStep(step) && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              <Button
+                                size="sm"
+                                className="h-6 text-[11px] px-2 gap-1 bg-orange-600 hover:bg-orange-700"
+                                onClick={() => {
+                                  setPaperSignStep({ approvalId: activeApproval.id, stepId: step.id, stepName: step.name });
+                                  setPaperSignFiles([]);
+                                  setPaperSignError('');
+                                  setPaperSignDialogOpen(true);
+                                }}
+                              >
+                                <Stamp className="w-3 h-3" />
+                                Подписать на бумаге
                               </Button>
                             </div>
                           )}
@@ -706,6 +802,51 @@ export function DocumentApprovalPanel({
             <p className="text-sm text-muted-foreground">
               Шаг: <strong>{signStep?.stepName}</strong>
             </p>
+
+            {/* File selection */}
+            {signProgress.length === 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium">Файлы для подписания</p>
+                {loadingSignAttachments ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                    <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                    Загрузка вложений...
+                  </div>
+                ) : signableAttachments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">
+                    Нет вложений — будет подписан идентификатор документа.
+                  </p>
+                ) : (
+                  <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                    {signableAttachments.map((att) => (
+                      <label
+                        key={att.id}
+                        className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 cursor-pointer hover:bg-accent transition-colors text-xs"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedAttachmentIds.has(att.id)}
+                          onChange={(e) =>
+                            setSelectedAttachmentIds((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(att.id);
+                              else next.delete(att.id);
+                              return next;
+                            })
+                          }
+                          className="accent-indigo-600 shrink-0"
+                        />
+                        <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span className="flex-1 truncate">{att.originalName}</span>
+                        <span className="text-muted-foreground shrink-0">
+                          {att.fileSize ? `${(att.fileSize / 1024).toFixed(0)} КБ` : ''}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Plugin loading */}
             {pluginState === 'loading' && (
@@ -816,6 +957,104 @@ export function DocumentApprovalPanel({
             >
               {signing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
               Подписать
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Paper sign dialog */}
+      <Dialog open={paperSignDialogOpen} onOpenChange={(open) => { if (!paperSigning) setPaperSignDialogOpen(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Stamp className="w-5 h-5 text-orange-600" />
+              Подписание на бумаге
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              Шаг: <strong>{paperSignStep?.stepName}</strong>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Загрузите подписанный документ в формате PDF. Файл будет сохранён как подписанное вложение.
+            </p>
+            <div>
+              <label
+                htmlFor="paper-sign-file"
+                className={`flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors ${paperSigning ? 'opacity-50 cursor-default' : 'hover:border-orange-400 hover:bg-orange-50/40 dark:hover:bg-orange-950/10'} border-input`}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (paperSigning) return;
+                  const dropped = Array.from(e.dataTransfer.files).filter(
+                    (f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+                  );
+                  if (dropped.length > 0) {
+                    setPaperSignFiles((prev) => {
+                      const names = new Set(prev.map((f) => f.name));
+                      return [...prev, ...dropped.filter((f) => !names.has(f.name))];
+                    });
+                  }
+                }}
+              >
+                <FileUp className="w-8 h-8 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground text-center">
+                  Нажмите для выбора PDF-файлов<br />
+                  <span className="text-xs">или перетащите сюда</span>
+                </span>
+                <input
+                  id="paper-sign-file"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  multiple
+                  className="hidden"
+                  disabled={paperSigning}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.files ?? []);
+                    setPaperSignFiles((prev) => {
+                      const names = new Set(prev.map((f) => f.name));
+                      return [...prev, ...selected.filter((f) => !names.has(f.name))];
+                    });
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+            {paperSignFiles.length > 0 && (
+              <div className="space-y-1">
+                {paperSignFiles.map((file, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs">
+                    <span className="flex-1 truncate text-foreground">{file.name}</span>
+                    <span className="text-muted-foreground shrink-0">{(file.size / 1024).toFixed(0)} КБ</span>
+                    <button
+                      onClick={() => setPaperSignFiles((prev) => prev.filter((_, j) => j !== i))}
+                      disabled={paperSigning}
+                      className="text-muted-foreground hover:text-rose-500 shrink-0 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {paperSignError && (
+              <div className="rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/20 p-2">
+                <p className="text-xs text-rose-600 dark:text-rose-400">{paperSignError}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={paperSigning} onClick={() => setPaperSignDialogOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              onClick={handlePaperSign}
+              disabled={paperSigning || paperSignFiles.length === 0}
+              className="gap-2 bg-orange-600 hover:bg-orange-700"
+            >
+              {paperSigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Stamp className="w-4 h-4" />}
+              Подтвердить подписание
             </Button>
           </DialogFooter>
         </DialogContent>

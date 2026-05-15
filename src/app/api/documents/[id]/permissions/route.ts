@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser, extractToken } from '@/lib/auth'
 import { isPrivilegedRole } from '@/lib/doc-permissions'
+import { applyDocumentRulesForUser } from '@/lib/document-rules'
 
 export async function GET(
   request: NextRequest,
@@ -57,6 +58,11 @@ export async function POST(
       }
     }
 
+    const existing = await db.documentPermission.findUnique({
+      where: { documentId_userId: { documentId, userId } },
+      select: { documentId: true },
+    })
+
     const result = await db.documentPermission.upsert({
       where: { documentId_userId: { documentId, userId } },
       update: { permission, grantedById: user.id },
@@ -66,6 +72,10 @@ export async function POST(
         grantedBy: { select: { id: true, name: true } },
       },
     })
+
+    if (!existing) {
+      applyDocumentRulesForUser(documentId, userId).catch(() => {})
+    }
 
     return NextResponse.json({ permission: result }, { status: 201 })
   } catch {

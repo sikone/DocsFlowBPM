@@ -21,6 +21,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Attachment not found' }, { status: 404 })
     }
 
+    const ADMIN_ROLES = ['ADMIN', 'DIRECTOR', 'CHIEF_ACCOUNTANT']
+    if ((attachment as any).isSigned && !ADMIN_ROLES.includes(user.role)) {
+      return NextResponse.json({ error: 'Подписанные документы могут удалять только администраторы' }, { status: 403 })
+    }
+
     const document = await db.document.findUnique({
       where: { id: documentId },
       select: { status: true },

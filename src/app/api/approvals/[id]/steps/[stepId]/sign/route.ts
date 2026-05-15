@@ -96,6 +96,9 @@ export async function POST(
       },
     })
 
+    // Mark document as signed
+    await db.document.update({ where: { id: approval.documentId }, data: { isSigned: true } as any })
+
     // Persist immutable decision history
     await db.approvalStepDecision.create({
       data: {

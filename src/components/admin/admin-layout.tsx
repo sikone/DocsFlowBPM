@@ -21,6 +21,8 @@ import {
   UserRound,
   Building,
   Trash2,
+  CalendarDays,
+  Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -58,6 +60,8 @@ import { AdminCounterpartiesPage } from '@/components/admin/admin-counterparties
 import { AdminContactsPage } from '@/components/admin/admin-contacts-page';
 import { AdminDepartmentsPage } from '@/components/admin/admin-departments-page';
 import { AdminDeletedObjectsPage } from '@/components/admin/admin-deleted-objects-page';
+import { AdminCalendarPage } from '@/components/admin/admin-calendar-page';
+import { AdminEmailTemplatesPage } from '@/components/admin/admin-email-templates-page';
 
 const NAV_ITEMS: {
   label: string;
@@ -74,6 +78,8 @@ const NAV_ITEMS: {
   { label: 'Контрагенты', icon: Building2, page: { page: 'admin-counterparties' } },
   { label: 'Контакты', icon: UserRound, page: { page: 'admin-contacts' } },
   { label: 'Отделы', icon: Building, page: { page: 'admin-departments' } },
+  { label: 'Календарь', icon: CalendarDays, page: { page: 'admin-calendar' } },
+  { label: 'Шаблоны e-mail', icon: Mail, page: { page: 'admin-email-templates' } },
   { label: 'Настройки', icon: SlidersHorizontal, page: { page: 'admin-settings' } },
   { label: 'Удалённые объекты', icon: Trash2, page: { page: 'admin-deleted-objects' } },
 ];
@@ -219,6 +225,10 @@ export default function AdminLayout() {
         return <AdminDepartmentsPage />;
       case 'admin-deleted-objects':
         return <AdminDeletedObjectsPage />;
+      case 'admin-calendar':
+        return <AdminCalendarPage />;
+      case 'admin-email-templates':
+        return <AdminEmailTemplatesPage />;
       default:
         return <AdminDashboard />;
     }

@@ -1,0 +1,17 @@
+Что сделано
+1. email-template-defaults.ts
+
+Новый системный шаблон sla_overdue — красный заголовок, отдельная HTML-структура с красной рамкой вместо зелёной
+Поддерживает переменную {{OVERDUE_DURATION_HTML}} — блок «Просрочено на Xч Yмин»
+Добавлена в список TEMPLATE_VARIABLES для отображения в admin UI
+2. mailer.ts
+
+buildTemplateVars расширен параметром overdueMs → формирует OVERDUE_DURATION_HTML
+resolveDepartmentHeadEmails() — ищет руководителя отдела (поле isDepartmentHead: true): если шаг назначен пользователю — находит его отдел и там ищет руководителя; если шаг назначен отделу — ищет руководителя этого отдела; не дублирует адрес если исполнитель сам является руководителем
+sendSlaOverdueEmail() — объединяет списки исполнителей и руководителя, отправляет одно письмо на все адреса через шаблон sla_overdue
+3. /api/cron/sla-overdue/route.ts
+
+Ищет шаги с dueAt < now, status: PENDING, isActive: true, approval.status: IN_PROGRESS
+Дедупликация по типу уведомления SLA_OVERDUE (один раз на шаг)
+Создаёт уведомления в системе для исполнителей + руководителя, затем отправляет email
+4. vercel.json — добавлен cron */5 * * * * для нового endpoint'а

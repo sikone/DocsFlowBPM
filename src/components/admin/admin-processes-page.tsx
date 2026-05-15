@@ -22,6 +22,7 @@ import {
   FileCheck2,
   KeyRound,
   PenLine,
+  Stamp,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -120,12 +121,22 @@ interface GrantAccessConfig {
   permission: 'VIEW' | 'EDIT';
 }
 
+interface EmailStepConfig {
+  recipientType: 'user' | 'department' | 'email' | 'field';
+  userId?: string | null;
+  userName?: string | null;
+  departmentId?: string | null;
+  customEmail?: string | null;
+  fieldName?: string | null;
+  templateSlug?: string | null;
+}
+
 interface ProcessStep {
   id: string;
   name: string;
-  type: 'START' | 'APPROVAL' | 'NOTIFICATION' | 'CONDITION' | 'END' | 'STATUS_CHANGE' | 'GRANT_ACCESS' | 'SIGNATURE';
+  type: 'START' | 'APPROVAL' | 'NOTIFICATION' | 'CONDITION' | 'END' | 'STATUS_CHANGE' | 'GRANT_ACCESS' | 'SIGNATURE' | 'PAPER_SIGNATURE' | 'SEND_EMAIL';
   assigneeRole: 'ADMIN' | 'ADVANCED' | 'USER';
-  assigneeType?: 'role' | 'user' | 'department' | 'initiator';
+  assigneeType?: 'role' | 'user' | 'department' | 'initiator' | 'initiator_manager';
   userId?: string | null;
   userName?: string | null;
   departmentId?: string | null;
@@ -135,6 +146,7 @@ interface ProcessStep {
   sendEmail?: boolean;
   targetStatus?: string | null;
   grantAccessConfig?: GrantAccessConfig | null;
+  emailConfig?: EmailStepConfig | null;
 }
 
 const CONDITION_OPERATOR_LABELS: Record<ConditionOperator, string> = {
@@ -192,6 +204,8 @@ const STEP_TYPE_LABELS: Record<string, string> = {
   STATUS_CHANGE: 'Статус документа',
   GRANT_ACCESS: 'Выдать доступ',
   SIGNATURE: 'Подписание ЭЦП',
+  PAPER_SIGNATURE: 'Подписание на бумаге',
+  SEND_EMAIL: 'Отправить Email',
   END: 'Финиш',
 };
 
@@ -203,6 +217,8 @@ const STEP_TYPE_ICONS: Record<string, React.ElementType> = {
   STATUS_CHANGE: FileCheck2,
   GRANT_ACCESS: KeyRound,
   SIGNATURE: PenLine,
+  PAPER_SIGNATURE: Stamp,
+  SEND_EMAIL: Mail,
   END: Flag,
 };
 
@@ -214,6 +230,8 @@ const STEP_TYPE_COLORS: Record<string, string> = {
   STATUS_CHANGE: 'bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800',
   GRANT_ACCESS: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:border-orange-800',
   SIGNATURE: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800',
+  PAPER_SIGNATURE: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800',
+  SEND_EMAIL: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800',
   END: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
 };
 
@@ -461,6 +479,7 @@ export function AdminProcessesPage() {
   const [users, setUsers] = useState<UserType[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [docTypes, setDocTypes] = useState<DocumentType[]>([]);
+  const [emailTemplates, setEmailTemplates] = useState<{ id: string; slug: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProcess, setEditingProcess] = useState<ProcessDefinition | null>(null);
@@ -473,16 +492,18 @@ export function AdminProcessesPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const [procData, usersData, deptsData, typesData] = await Promise.allSettled([
+      const [procData, usersData, deptsData, typesData, tplData] = await Promise.allSettled([
         apiFetch<ProcessDefinition[]>('/api/processes', token),
         apiFetch<{ users: UserType[] }>('/api/users', token),
         apiFetch<{ departments: Department[] }>('/api/departments', token),
         apiFetch<{ types: DocumentType[] }>('/api/document-types', token),
+        apiFetch<{ templates: { id: string; slug: string; name: string }[] }>('/api/admin/email-templates', token),
       ]);
       if (procData.status === 'fulfilled') setProcesses(procData.value as ProcessDefinition[]);
       if (usersData.status === 'fulfilled') setUsers(((usersData.value as any).users ?? usersData.value) as UserType[]);
       if (deptsData.status === 'fulfilled') setDepartments(((deptsData.value as any).departments ?? deptsData.value) as Department[]);
       if (typesData.status === 'fulfilled') setDocTypes(((typesData.value as any).types ?? typesData.value) as DocumentType[]);
+      if (tplData.status === 'fulfilled') setEmailTemplates(((tplData.value as any).templates ?? []) as { id: string; slug: string; name: string }[]);
     } catch {
       toast.error('Ошибка загрузки процессов');
     } finally {
@@ -571,13 +592,14 @@ export function AdminProcessesPage() {
       name: STEP_TYPE_LABELS[type] || 'Новый шаг',
       type,
       assigneeRole: 'ADMIN',
-      assigneeType: 'role',
+      assigneeType: type === 'PAPER_SIGNATURE' ? 'user' : 'role',
       userId: null,
       departmentId: null,
       order: form.steps.length + 1,
-      ...((type === 'APPROVAL' || type === 'NOTIFICATION' || type === 'SIGNATURE') ? { sendEmail: true } : {}),
+      ...((type === 'APPROVAL' || type === 'NOTIFICATION' || type === 'SIGNATURE' || type === 'PAPER_SIGNATURE') ? { sendEmail: true } : {}),
       ...(type === 'STATUS_CHANGE' ? { targetStatus: 'APPROVED' } : {}),
       ...(type === 'GRANT_ACCESS' ? { grantAccessConfig: { grantType: 'role' as const, role: 'USER' as const, permission: 'VIEW' as const } } : {}),
+      ...(type === 'SEND_EMAIL' ? { emailConfig: { recipientType: 'user' as const, userId: null, userName: null, templateSlug: null } } : {}),
     };
     setForm((f) => ({ ...f, steps: [...f.steps, newStep] }));
   };
@@ -995,8 +1017,165 @@ export function AdminProcessesPage() {
                                     ))}
                                   </SelectContent>
                                 </Select>
-                                {/* Assignee selector — user/dept for APPROVAL/NOTIFICATION/SIGNATURE, none for END */}
-                                {step.type === 'APPROVAL' || step.type === 'NOTIFICATION' || step.type === 'SIGNATURE' ? (
+                                {/* Assignee selector — user/dept for APPROVAL/NOTIFICATION/SIGNATURE, user/initiator for PAPER_SIGNATURE */}
+                                {step.type === 'PAPER_SIGNATURE' ? (
+                                  <>
+                                    <Select
+                                      value={step.assigneeType === 'initiator' ? 'initiator' : 'user'}
+                                      onValueChange={(val) =>
+                                        updateStep(step.id, {
+                                          assigneeType: val as 'user' | 'initiator',
+                                          userId: null,
+                                          userName: null,
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="w-28 h-7 text-xs border-amber-200 dark:border-amber-800" onClick={(e) => e.stopPropagation()}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="user" className="text-xs">Сотрудник</SelectItem>
+                                        <SelectItem value="initiator" className="text-xs">Инициатор</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    {(step.assigneeType !== 'initiator') && (
+                                      <UserPicker
+                                        token={token!}
+                                        value={step.userId}
+                                        displayName={step.userName}
+                                        onChange={(id, name) =>
+                                          updateStep(step.id, { userId: id, userName: name })
+                                        }
+                                      />
+                                    )}
+                                    {step.assigneeType === 'initiator' && (
+                                      <span className="text-xs text-muted-foreground italic">Инициатор документа</span>
+                                    )}
+                                  </>
+                                ) : step.type === 'SEND_EMAIL' ? (
+                                  <>
+                                    <Select
+                                      value={step.emailConfig?.recipientType || 'user'}
+                                      onValueChange={(val) =>
+                                        updateStep(step.id, {
+                                          emailConfig: {
+                                            ...(step.emailConfig || { templateSlug: null }),
+                                            recipientType: val as 'user' | 'department' | 'email' | 'field',
+                                            userId: null,
+                                            userName: null,
+                                            departmentId: null,
+                                            customEmail: null,
+                                            fieldName: null,
+                                          },
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="w-28 h-7 text-xs border-blue-200 dark:border-blue-800" onClick={(e) => e.stopPropagation()}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="user" className="text-xs">Сотрудник</SelectItem>
+                                        <SelectItem value="department" className="text-xs">Отдел</SelectItem>
+                                        <SelectItem value="email" className="text-xs">Email адрес</SelectItem>
+                                        <SelectItem value="field" className="text-xs">Поле документа</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    {(step.emailConfig?.recipientType === 'user' || !step.emailConfig?.recipientType) && (
+                                      <UserPicker
+                                        token={token!}
+                                        value={step.emailConfig?.userId}
+                                        displayName={step.emailConfig?.userName}
+                                        onChange={(id, name) =>
+                                          updateStep(step.id, {
+                                            emailConfig: {
+                                              ...(step.emailConfig || { recipientType: 'user' }),
+                                              userId: id,
+                                              userName: name,
+                                            },
+                                          })
+                                        }
+                                      />
+                                    )}
+                                    {step.emailConfig?.recipientType === 'department' && (
+                                      <Select
+                                        value={step.emailConfig?.departmentId || '__none__'}
+                                        onValueChange={(val) =>
+                                          updateStep(step.id, {
+                                            emailConfig: {
+                                              ...(step.emailConfig || { recipientType: 'department' }),
+                                              departmentId: val === '__none__' ? null : val,
+                                            },
+                                          })
+                                        }
+                                      >
+                                        <SelectTrigger className="w-36 h-7 text-xs" onClick={(e) => e.stopPropagation()}>
+                                          <SelectValue placeholder="Выбрать отдел..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="__none__" className="text-xs">— Выбрать —</SelectItem>
+                                          {departments.map((d) => (
+                                            <SelectItem key={d.id} value={d.id} className="text-xs">{d.name}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                    {step.emailConfig?.recipientType === 'email' && (
+                                      <Input
+                                        type="email"
+                                        value={step.emailConfig?.customEmail || ''}
+                                        onChange={(e) =>
+                                          updateStep(step.id, {
+                                            emailConfig: {
+                                              ...(step.emailConfig || { recipientType: 'email' }),
+                                              customEmail: e.target.value,
+                                            },
+                                          })
+                                        }
+                                        className="h-7 text-xs w-44"
+                                        placeholder="email@example.com"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    )}
+                                    {step.emailConfig?.recipientType === 'field' && (
+                                      <Input
+                                        type="text"
+                                        value={step.emailConfig?.fieldName || ''}
+                                        onChange={(e) =>
+                                          updateStep(step.id, {
+                                            emailConfig: {
+                                              ...(step.emailConfig || { recipientType: 'field' }),
+                                              fieldName: e.target.value,
+                                            },
+                                          })
+                                        }
+                                        className="h-7 text-xs w-44"
+                                        placeholder="системное_имя_поля"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    )}
+                                    <Select
+                                      value={step.emailConfig?.templateSlug || '__default__'}
+                                      onValueChange={(val) =>
+                                        updateStep(step.id, {
+                                          emailConfig: {
+                                            ...(step.emailConfig || { recipientType: 'user' }),
+                                            templateSlug: val === '__default__' ? null : val,
+                                          },
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="w-44 h-7 text-xs border-blue-200 dark:border-blue-800" onClick={(e) => e.stopPropagation()}>
+                                        <SelectValue placeholder="Шаблон письма..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__default__" className="text-xs text-muted-foreground">— По умолчанию —</SelectItem>
+                                        {emailTemplates.map((t) => (
+                                          <SelectItem key={t.id} value={t.slug || t.id} className="text-xs">{t.name}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </>
+                                ) : step.type === 'APPROVAL' || step.type === 'NOTIFICATION' || step.type === 'SIGNATURE' ? (
                                   <>
                                     <Select
                                       value={step.assigneeType || 'role'}
@@ -1016,6 +1195,7 @@ export function AdminProcessesPage() {
                                         <SelectItem value="user" className="text-xs">Пользователь</SelectItem>
                                         <SelectItem value="department" className="text-xs">Отдел</SelectItem>
                                         <SelectItem value="initiator" className="text-xs">Инициатор</SelectItem>
+                                        <SelectItem value="initiator_manager" className="text-xs">Рук. инициатора</SelectItem>
                                       </SelectContent>
                                     </Select>
                                     {(step.assigneeType === 'role' || !step.assigneeType) && (
@@ -1065,6 +1245,9 @@ export function AdminProcessesPage() {
                                     )}
                                     {step.assigneeType === 'initiator' && (
                                       <span className="text-xs text-muted-foreground italic">Инициатор документа</span>
+                                    )}
+                                    {step.assigneeType === 'initiator_manager' && (
+                                      <span className="text-xs text-muted-foreground italic">Руководитель отдела инициатора</span>
                                     )}
                                   </>
                                 ) : step.type === 'START' ? (
@@ -1206,8 +1389,8 @@ export function AdminProcessesPage() {
                             </button>
                           </div>
 
-                          {/* Send email for APPROVAL/NOTIFICATION/SIGNATURE steps */}
-                          {(step.type === 'APPROVAL' || step.type === 'NOTIFICATION' || step.type === 'SIGNATURE') && (
+                          {/* Send email for APPROVAL/NOTIFICATION/SIGNATURE/PAPER_SIGNATURE steps */}
+                          {(step.type === 'APPROVAL' || step.type === 'NOTIFICATION' || step.type === 'SIGNATURE' || step.type === 'PAPER_SIGNATURE') && (
                             <div className="mt-2 flex items-center gap-2">
                               <input
                                 type="checkbox"
@@ -1624,9 +1807,12 @@ function StepsPreview({
                       }
                       return <span className="text-xs text-muted-foreground">→ {permLabel} / {target}</span>;
                     })()}
-                    {(step.type === 'APPROVAL' || step.type === 'NOTIFICATION') && (() => {
+                    {(step.type === 'APPROVAL' || step.type === 'NOTIFICATION' || step.type === 'PAPER_SIGNATURE') && (() => {
                       if (step.assigneeType === 'initiator') {
                         return <span className="text-xs text-muted-foreground">→ Инициатор документа</span>;
+                      }
+                      if (step.assigneeType === 'initiator_manager') {
+                        return <span className="text-xs text-muted-foreground">→ Рук. отдела инициатора</span>;
                       }
                       if (step.assigneeType === 'user' && step.userId) {
                         const u = users.find((x) => x.id === step.userId);
@@ -1636,9 +1822,32 @@ function StepsPreview({
                         const d = departments.find((x) => x.id === step.departmentId);
                         return <span className="text-xs text-muted-foreground">→ отдел: {d?.name ?? step.departmentId}</span>;
                       }
+                      if (step.type === 'PAPER_SIGNATURE') {
+                        return <span className="text-xs text-muted-foreground italic">→ исполнитель не выбран</span>;
+                      }
                       return <span className="text-xs text-muted-foreground">→ {ASSIGNEE_ROLE_LABELS[step.assigneeRole] || step.assigneeRole}</span>;
                     })()}
                   </div>
+                  {step.type === 'SEND_EMAIL' && (() => {
+                    const cfg = step.emailConfig
+                    if (!cfg) return <p className="text-xs text-muted-foreground italic mt-1">→ не настроено</p>
+                    let recipient = '—'
+                    if (cfg.recipientType === 'user') {
+                      const u = users.find((x) => x.id === cfg.userId)
+                      recipient = u?.name ?? cfg.userName ?? (cfg.userId ? '...' : 'получатель не выбран')
+                    } else if (cfg.recipientType === 'department') {
+                      const d = departments.find((x) => x.id === cfg.departmentId)
+                      recipient = `отдел: ${d?.name ?? cfg.departmentId ?? 'не выбран'}`
+                    } else if (cfg.recipientType === 'email') {
+                      recipient = cfg.customEmail || 'email не указан'
+                    }
+                    return (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        → {recipient}
+                        {cfg.templateSlug && <span className="text-blue-600 dark:text-blue-400"> [{cfg.templateSlug}]</span>}
+                      </p>
+                    )
+                  })()}
                   {step.type === 'CONDITION' && step.condition && (
                     <div className="mt-2 text-[10px] bg-violet-50 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900/30 rounded px-2 py-1.5 space-y-0.5">
                       <p className="font-medium text-violet-700 dark:text-violet-400 flex items-center gap-1">

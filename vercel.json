@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sla-check",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/sla-overdue",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

@@ -94,6 +94,8 @@ export interface Document {
   type?: DocumentType;
   creator?: { id: string; name: string; email: string };
   tagLinks?: Array<{ id: string; tagId: string; tag: DocumentTag }>;
+  isSigned?: boolean;
+  isSignedPaper?: boolean;
   myPendingStep?: { id: string; dueAt: string | null } | null;
   isRead?: boolean;
 }
@@ -189,7 +191,7 @@ export interface DocumentApprovalStep {
   approvalId: string;
   order: number;
   name: string;
-  stepType: 'APPROVAL' | 'CONDITION' | 'SIGNATURE';
+  stepType: 'APPROVAL' | 'CONDITION' | 'SIGNATURE' | 'PAPER_SIGNATURE';
   conditionConfig?: string | null;
   slaConfig?: string | null; // JSON SlaConfig
   dueAt?: string | null;
@@ -220,6 +222,42 @@ export interface DocumentApproval {
   updatedAt: string;
 }
 
+export type RuleConditionOperator =
+  | 'eq' | 'neq'
+  | 'gt' | 'lt' | 'gte' | 'lte'
+  | 'contains' | 'startsWith'
+  | 'isSet' | 'isEmpty';
+
+export interface RuleCondition {
+  id: string;
+  field: string; // 'creatorId' | 'docTypeId' | 'urgency' | 'status' | 'data.{systemName}'
+  operator: RuleConditionOperator;
+  value: string;
+}
+
+export type RuleActionType = 'moveToFolder' | 'addTag';
+
+export interface RuleAction {
+  id: string;
+  type: RuleActionType;
+  folderId?: string;
+  tagId?: string;
+}
+
+export interface DocumentRule {
+  id: string;
+  userId: string;
+  name: string;
+  active: boolean;
+  order: number;
+  stopOnMatch: boolean;
+  conditionLogic: 'AND' | 'OR';
+  conditions: RuleCondition[];
+  actions: RuleAction[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type AppView =
   | { page: 'login' }
   | { page: 'dashboard'; folderId?: string }
@@ -239,8 +277,11 @@ export type AppView =
   | { page: 'admin-departments' }
   | { page: 'admin-approval-routes' }
   | { page: 'admin-deleted-objects' }
+  | { page: 'admin-calendar' }
+  | { page: 'admin-email-templates' }
   | { page: 'profile' }
-  | { page: 'reports' };
+  | { page: 'reports' }
+  | { page: 'rules' };
 
 export const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Черновик',
@@ -257,6 +298,9 @@ export const STATUS_COLORS: Record<string, string> = {
   REJECTED: 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-700',
   COMPLETED: 'bg-violet-50 text-violet-700 border-violet-300 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-700',
 };
+
+export const SIGNED_BADGE_CLASS = 'bg-green-50 text-green-700 border-green-300 dark:bg-green-950/50 dark:text-green-300 dark:border-green-700';
+export const PAPER_SIGNED_BADGE_CLASS = 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700';
 
 export const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Администратор',

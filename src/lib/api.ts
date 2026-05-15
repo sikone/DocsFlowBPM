@@ -12,6 +12,7 @@ const ENVELOPE_KEYS = [
   'settings', 'attachments', 'attachment', 'permissions', 'permission',
   'counterparties', 'counterparty',
   'contacts', 'contact',
+  'rules', 'rule',
 ] as const;
 
 type EnvelopeKey = (typeof ENVELOPE_KEYS)[number];
@@ -33,11 +34,12 @@ export async function apiFetch<T>(
   options?: RequestInit
 ): Promise<T> {
   const separator = url.includes('?') ? '&' : '?';
+  const isFormData = options?.body instanceof FormData;
   const res = await fetch(
     `${url}${separator}token=${encodeURIComponent(token)}`,
     {
       headers: {
-        'Content-Type': 'application/json',
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         ...options?.headers,
       },
       ...options,

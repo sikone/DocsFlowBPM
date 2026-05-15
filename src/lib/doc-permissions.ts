@@ -1,4 +1,5 @@
 import { db } from './db'
+import { applyDocumentRulesForUser } from './document-rules'
 
 // Roles that have default access to all documents
 export const PRIVILEGED_ROLES = ['ADMIN', 'DIRECTOR', 'CHIEF_ACCOUNTANT'] as const
@@ -11,12 +12,20 @@ export async function grantDocumentPermission(
   userId: string,
   permission: 'VIEW' | 'EDIT',
   grantedById: string,
-) {
-  await db.documentPermission.upsert({
+): Promise<void> {
+  const existing = await db.documentPermission.findUnique({
     where: { documentId_userId: { documentId, userId } },
-    update: {},
-    create: { documentId, userId, permission, grantedById },
+    select: { documentId: true },
   })
+
+  if (existing) return
+
+  await db.documentPermission.create({
+    data: { documentId, userId, permission, grantedById },
+  })
+
+  // Fire routing rules async — this is the "document received" event for the user
+  applyDocumentRulesForUser(documentId, userId).catch(() => {})
 }
 
 export async function grantStepPermissions(

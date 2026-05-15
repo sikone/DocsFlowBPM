@@ -5,7 +5,7 @@ import { grantStepPermissions, grantDocumentPermission } from '@/lib/doc-permiss
 import { logActivity } from '@/lib/activity-log'
 import { computeStepDueAt } from '@/lib/sla'
 import { notifyStepAssignees } from '@/lib/notifications'
-import { sendApprovalEmail } from '@/lib/mailer'
+import { sendApprovalEmail, sendCustomStepEmail } from '@/lib/mailer'
 import { resolveEffectiveUserId } from '@/lib/approval-utils'
 
 async function applyGrantAccess(
@@ -148,7 +148,7 @@ export async function POST(
 
     type ResolvedStep = {
       name: string
-      stepType: 'APPROVAL' | 'CONDITION' | 'STATUS_CHANGE' | 'GRANT_ACCESS' | 'NOTIFICATION' | 'SIGNATURE'
+      stepType: 'APPROVAL' | 'CONDITION' | 'STATUS_CHANGE' | 'GRANT_ACCESS' | 'NOTIFICATION' | 'SIGNATURE' | 'PAPER_SIGNATURE' | 'SEND_EMAIL'
       userId?: string | null
       departmentId?: string | null
       conditionConfig?: string | null
@@ -164,10 +164,22 @@ export async function POST(
       if (!process) return NextResponse.json({ error: 'Process not found' }, { status: 404 })
       try {
         const allSteps: any[] = JSON.parse(process.steps)
-        // Include APPROVAL, CONDITION, STATUS_CHANGE, GRANT_ACCESS, NOTIFICATION, SIGNATURE steps (exclude START, END)
-        const meaningful = allSteps.filter((s: any) => s.type === 'APPROVAL' || s.type === 'CONDITION' || s.type === 'STATUS_CHANGE' || s.type === 'GRANT_ACCESS' || s.type === 'NOTIFICATION' || s.type === 'SIGNATURE')
+        // Include APPROVAL, CONDITION, STATUS_CHANGE, GRANT_ACCESS, NOTIFICATION, SIGNATURE, PAPER_SIGNATURE steps (exclude START, END)
+        const meaningful = allSteps.filter((s: any) => s.type === 'APPROVAL' || s.type === 'CONDITION' || s.type === 'STATUS_CHANGE' || s.type === 'GRANT_ACCESS' || s.type === 'NOTIFICATION' || s.type === 'SIGNATURE' || s.type === 'PAPER_SIGNATURE' || s.type === 'SEND_EMAIL')
         // Build a map from process step id → resolved order index
         const stepIdToOrder = new Map<string, number>(meaningful.map((s: any, i: number) => [s.id, i]))
+
+        // Resolve initiator's department head once if any step needs it
+        let initiatorManagerId: string = doc.createdById
+        if (meaningful.some((s: any) => s.assigneeType === 'initiator_manager')) {
+          const initiator = await db.user.findUnique({ where: { id: doc.createdById } })
+          if (initiator?.departmentId) {
+            const manager = await db.user.findFirst({
+              where: { departmentId: initiator.departmentId, isDepartmentHead: true, active: true },
+            })
+            initiatorManagerId = manager?.id ?? doc.createdById
+          }
+        }
 
         resolvedSteps = meaningful.map((s: any) => {
           if (s.type === 'STATUS_CHANGE') {
@@ -217,7 +229,7 @@ export async function POST(
             return {
               name: s.name,
               stepType: 'NOTIFICATION' as const,
-              userId: s.assigneeType === 'initiator' ? doc.createdById : (s.userId || null),
+              userId: s.assigneeType === 'initiator' ? doc.createdById : s.assigneeType === 'initiator_manager' ? initiatorManagerId : (s.userId || null),
               departmentId: s.departmentId || null,
               sendEmail: (s as any).sendEmail ?? true,
             }
@@ -226,16 +238,32 @@ export async function POST(
             return {
               name: s.name,
               stepType: 'SIGNATURE' as const,
-              userId: s.assigneeType === 'initiator' ? doc.createdById : (s.userId || null),
+              userId: s.assigneeType === 'initiator' ? doc.createdById : s.assigneeType === 'initiator_manager' ? initiatorManagerId : (s.userId || null),
               departmentId: s.departmentId || null,
               slaConfig: (s as any).slaConfig ?? null,
               sendEmail: (s as any).sendEmail ?? true,
             }
           }
+          if (s.type === 'PAPER_SIGNATURE') {
+            return {
+              name: s.name,
+              stepType: 'PAPER_SIGNATURE' as const,
+              userId: s.assigneeType === 'initiator' ? doc.createdById : s.assigneeType === 'initiator_manager' ? initiatorManagerId : (s.userId || null),
+              departmentId: null,
+              sendEmail: (s as any).sendEmail ?? true,
+            }
+          }
+          if (s.type === 'SEND_EMAIL') {
+            return {
+              name: s.name,
+              stepType: 'SEND_EMAIL' as const,
+              conditionConfig: s.emailConfig ? JSON.stringify(s.emailConfig) : null,
+            }
+          }
           return {
             name: s.name,
             stepType: 'APPROVAL' as const,
-            userId: s.assigneeType === 'initiator' ? doc.createdById : (s.userId || null),
+            userId: s.assigneeType === 'initiator' ? doc.createdById : s.assigneeType === 'initiator_manager' ? initiatorManagerId : (s.userId || null),
             departmentId: s.departmentId || null,
             slaConfig: (s as any).slaConfig ?? null,
             sendEmail: (s as any).sendEmail ?? true,
@@ -274,7 +302,7 @@ export async function POST(
     for (const row of settingRows) settings[row.key] = row.value
 
     const now = new Date()
-    const firstHumanIdx = resolvedSteps.findIndex((s) => s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE')
+    const firstHumanIdx = resolvedSteps.findIndex((s) => s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE' || s.stepType === 'PAPER_SIGNATURE')
 
     const approval = await db.documentApproval.create({
       data: {
@@ -285,7 +313,7 @@ export async function POST(
         createdById: user.id,
         steps: {
           create: resolvedSteps.map((s, i) => {
-            const isFirstApproval = i === firstHumanIdx && (s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE')
+            const isFirstApproval = i === firstHumanIdx && (s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE' || s.stepType === 'PAPER_SIGNATURE')
             const dueAt = isFirstApproval
               ? computeStepDueAt(doc.urgency ?? 'MEDIUM', s.slaConfig ?? null, settings, now)
               : null
@@ -311,7 +339,7 @@ export async function POST(
     let docStatus = 'IN_PROGRESS'
     const VALID_DOC_STATUSES = ['IN_PROGRESS', 'APPROVED', 'REJECTED', 'COMPLETED']
     for (const createdStep of approval.steps) {
-      if (createdStep.stepType === 'APPROVAL' || createdStep.stepType === 'CONDITION' || createdStep.stepType === 'SIGNATURE') break
+      if (createdStep.stepType === 'APPROVAL' || createdStep.stepType === 'CONDITION' || createdStep.stepType === 'SIGNATURE' || createdStep.stepType === 'PAPER_SIGNATURE') break
       if (createdStep.stepType === 'STATUS_CHANGE') {
         try {
           const cfg = JSON.parse((createdStep as any).conditionConfig || '{}')
@@ -362,6 +390,23 @@ export async function POST(
           where: { id: createdStep.id },
           data: { status: 'APPROVED', decidedAt: now },
         })
+      } else if (createdStep.stepType === 'SEND_EMAIL') {
+        try {
+          const emailCfg = JSON.parse((createdStep as any).conditionConfig || '{}')
+          sendCustomStepEmail({
+            documentId,
+            documentTitle: doc.title,
+            documentNumber: doc.number ?? null,
+            documentData: doc.data,
+            documentTypeId: doc.typeId,
+            stepName: createdStep.name,
+            emailConfig: emailCfg,
+          }).catch((e) => console.error('sendCustomStepEmail error:', e))
+        } catch { /* ignore */ }
+        await db.documentApprovalStep.update({
+          where: { id: createdStep.id },
+          data: { status: 'APPROVED', decidedAt: now },
+        })
       }
     }
 
@@ -372,7 +417,7 @@ export async function POST(
     })
 
     // Grant VIEW and notify the first human step (APPROVAL or SIGNATURE)
-    const firstHumanStep = resolvedSteps.find((s) => s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE')
+    const firstHumanStep = resolvedSteps.find((s) => s.stepType === 'APPROVAL' || s.stepType === 'SIGNATURE' || s.stepType === 'PAPER_SIGNATURE')
     if (firstHumanStep) {
       const firstHumanStepIdx = resolvedSteps.indexOf(firstHumanStep)
       const createdStep = approval.steps.find((s) => s.order === firstHumanStepIdx)
@@ -396,7 +441,9 @@ export async function POST(
         departmentId: firstHumanStep.departmentId ?? null,
       })
       const notifyTitle = firstHumanStep.stepType === 'SIGNATURE'
-        ? `Документ «${doc.title}» ожидает вашей подписи`
+        ? `Документ «${doc.title}» ожидает вашей подписи ЭЦП`
+        : firstHumanStep.stepType === 'PAPER_SIGNATURE'
+        ? `Документ «${doc.title}» ожидает вашей подписи на бумаге`
         : `Документ «${doc.title}» ожидает вашего согласования`
       await notifyStepAssignees(
         { userId: effectiveUserId, departmentId: firstHumanStep.departmentId ?? null },

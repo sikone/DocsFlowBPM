@@ -43,7 +43,7 @@ function acceptTrackedChanges(xml: string): string {
   return r
 }
 
-async function docxToPdf(docxBuffer: Buffer): Promise<Buffer> {
+async function docxToPdf(docxBuffer: Buffer, ext: string): Promise<Buffer> {
   const soffice = await findSoffice()
   if (!soffice) {
     throw new Error(
@@ -51,29 +51,35 @@ async function docxToPdf(docxBuffer: Buffer): Promise<Buffer> {
     )
   }
 
-  // Accept tracked changes in the DOCX XML before conversion
-  const zip = await JSZip.loadAsync(docxBuffer)
-  const docXmlFile = zip.file('word/document.xml')
-  if (docXmlFile) {
-    const xml = await docXmlFile.async('string')
-    zip.file('word/document.xml', acceptTrackedChanges(xml))
+  // Accept tracked changes only for DOCX (ZIP-based); .doc is a binary OLE format
+  let inputBuf = docxBuffer
+  if (ext === '.docx') {
+    const zip = await JSZip.loadAsync(docxBuffer)
+    const docXmlFile = zip.file('word/document.xml')
+    if (docXmlFile) {
+      const xml = await docXmlFile.async('string')
+      zip.file('word/document.xml', acceptTrackedChanges(xml))
+    }
+    inputBuf = Buffer.from(await zip.generateAsync({ type: 'uint8array' }))
   }
-  const modifiedBuf = Buffer.from(await zip.generateAsync({ type: 'uint8array' }))
 
   const id = randomBytes(8).toString('hex')
-  const tmpIn = path.join(tmpdir(), `${id}.docx`)
+  const tmpIn = path.join(tmpdir(), `${id}${ext}`)
   // LibreOffice names the output file by replacing the input extension
   const tmpOut = path.join(tmpdir(), `${id}.pdf`)
 
-  await fs.writeFile(tmpIn, modifiedBuf)
+  await fs.writeFile(tmpIn, inputBuf)
   try {
     await new Promise<void>((resolve, reject) => {
       const proc = spawn(soffice, [
         '--headless',
+        '--norestore',
         '--convert-to', 'pdf',
         '--outdir', tmpdir(),
         tmpIn,
-      ])
+      ], {
+        cwd: path.dirname(soffice),
+      })
       let stderr = ''
       proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
       proc.on('error', reject)
@@ -113,7 +119,7 @@ export async function POST(
 
     const dir = await getUploadDir(documentId)
     const fileBuffer = await fs.readFile(path.join(dir, attachment.fileName))
-    const pdfBuffer = await docxToPdf(fileBuffer)
+    const pdfBuffer = await docxToPdf(fileBuffer, ext)
 
     const pdfName = path.basename(attachment.originalName, ext) + '.pdf'
     return new NextResponse(pdfBuffer.buffer.slice(pdfBuffer.byteOffset, pdfBuffer.byteOffset + pdfBuffer.byteLength) as ArrayBuffer, {

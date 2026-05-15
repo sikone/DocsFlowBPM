@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Upload, X, Download, Loader2, File, FileText, Image as ImageIcon,
   FileSpreadsheet, Presentation, ChevronDown, ChevronRight,
-  Pencil, CircleDot, CheckCircle2, History, UserRound, Trash2, RotateCcw,
+  Pencil, CircleDot, CheckCircle2, History, UserRound, Trash2, RotateCcw, Stamp,
+  GitCompare, Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -19,6 +20,7 @@ interface Attachment {
   groupId: string;
   version: number;
   isLatest: boolean;
+  isSigned: boolean;
   deletedAt: string | null;
   createdAt: string;
   uploadedBy: { id: string; name: string };
@@ -36,6 +38,7 @@ interface Props {
   token: string;
   locked?: boolean;
   documentStatus?: string;
+  currentUserRole?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -81,7 +84,6 @@ function groupAttachments(list: Attachment[]): AttachmentGroup[] {
     groups.push({ groupId, latest, history: sorted.slice(1), isDeleted });
   }
 
-  // Active groups first, then deleted; within each group sort by createdAt desc
   groups.sort((a, b) => {
     if (a.isDeleted !== b.isDeleted) return a.isDeleted ? 1 : -1;
     return new Date(b.latest.createdAt).getTime() - new Date(a.latest.createdAt).getTime();
@@ -89,7 +91,6 @@ function groupAttachments(list: Attachment[]): AttachmentGroup[] {
   return groups;
 }
 
-// Editable file types (Word, Excel, PowerPoint, LibreOffice, text)
 const EDITABLE_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/msword',
@@ -123,6 +124,42 @@ function FileIcon({ mimeType, className = 'w-4 h-4' }: { mimeType: string; class
   return <File className={`${className} text-slate-400`} />;
 }
 
+// ─── Checkbox ─────────────────────────────────────────────────────────────────
+
+function CompareCheckbox({
+  attId,
+  selected,
+  disabled,
+  onToggle,
+}: {
+  attId: string;
+  selected: boolean;
+  disabled: boolean;
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onToggle(attId); }}
+      disabled={disabled && !selected}
+      title={selected ? 'Убрать из сравнения' : disabled ? 'Уже выбрано 2 файла' : 'Выбрать для сравнения'}
+      className={`shrink-0 w-4 h-4 rounded border transition-colors flex items-center justify-center ${
+        selected
+          ? 'bg-violet-500 border-violet-500 text-white'
+          : disabled
+          ? 'border-border/30 opacity-30 cursor-not-allowed'
+          : 'border-border hover:border-violet-400'
+      }`}
+    >
+      {selected && (
+        <svg viewBox="0 0 12 12" className="w-2.5 h-2.5 fill-current">
+          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 // ─── Version history row ──────────────────────────────────────────────────────
 
 function HistoryRow({
@@ -130,14 +167,30 @@ function HistoryRow({
   documentId,
   token,
   isDeleted,
+  compareSelection,
+  onToggleCompare,
 }: {
   att: Attachment;
   documentId: string;
   token: string;
   isDeleted: boolean;
+  compareSelection: string[];
+  onToggleCompare: (id: string) => void;
 }) {
+  const selected = compareSelection.includes(att.id);
+  const disabledCheck = compareSelection.length >= 2 && !selected;
+
   return (
-    <div className="flex items-center gap-2 pl-8 pr-2 py-1.5 rounded hover:bg-muted/30 transition-colors group/hist">
+    <div className="flex items-center gap-2 pl-4 pr-2 py-1.5 rounded hover:bg-muted/30 transition-colors group/hist">
+      {!isDeleted && (
+        <CompareCheckbox
+          attId={att.id}
+          selected={selected}
+          disabled={disabledCheck}
+          onToggle={onToggleCompare}
+        />
+      )}
+      {isDeleted && <div className="w-4 shrink-0" />}
       <span className="text-[10px] font-mono text-muted-foreground/60 w-5 shrink-0">v{att.version}</span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -171,7 +224,9 @@ function HistoryRow({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function DocumentAttachments({ documentId, token, locked = false, documentStatus }: Props) {
+const ADMIN_ROLES = ['ADMIN', 'DIRECTOR', 'CHIEF_ACCOUNTANT']
+
+export function DocumentAttachments({ documentId, token, locked = false, documentStatus, currentUserRole }: Props) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -181,13 +236,16 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [watchingGroupId, setWatchingGroupId] = useState<string | null>(null);
   const [openingGroupId, setOpeningGroupId] = useState<string | null>(null);
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
+  // Compare selection: stores at most 2 attachment IDs
+  const [compareSelection, setCompareSelection] = useState<string[]>([]);
+  const [comparing, setComparing] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const serverWatchAttIdRef = useRef<string | null>(null);
 
   const isDraft = documentStatus === 'DRAFT';
 
-  // Stop server watcher on unmount (in-app navigation)
   useEffect(() => {
     return () => {
       const attId = serverWatchAttIdRef.current;
@@ -201,7 +259,6 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Stop server watcher on browser close / page refresh
   useEffect(() => {
     const handlePageHide = () => {
       const attId = serverWatchAttIdRef.current;
@@ -230,14 +287,17 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
 
   useEffect(() => { fetchAttachments(); }, [fetchAttachments]);
 
-  // Poll for new versions AND check if server watcher is still active (detects editor close).
+  useEffect(() => {
+    window.addEventListener('refresh-attachments', fetchAttachments);
+    return () => window.removeEventListener('refresh-attachments', fetchAttachments);
+  }, [fetchAttachments]);
+
   useEffect(() => {
     if (!watchingGroupId) return;
     const attId = serverWatchAttIdRef.current;
 
     const poll = async () => {
       await fetchAttachments();
-      // Auto-stop UI when the server watcher was terminated (e.g. editor lock file gone).
       if (attId) {
         try {
           const res = await fetch(
@@ -319,14 +379,12 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
       const data = await res.json();
 
       if (data.softDeleted) {
-        // Mark all versions in the group as deleted in local state
         const now = new Date().toISOString();
         setAttachments((prev) =>
           prev.map((a) => a.groupId === group.groupId ? { ...a, deletedAt: now } : a)
         );
         toast.success(`${group.latest.originalName} помечен как удалённый`);
       } else {
-        // Hard deleted — remove from state entirely
         setAttachments((prev) => prev.filter((a) => a.groupId !== group.groupId));
         if (watchingGroupId === group.groupId) stopWatching();
         toast.success(`${group.latest.originalName} удалён`);
@@ -413,6 +471,77 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
     [documentId, token]
   );
 
+  // ── Preview ───────────────────────────────────────────────────────────────
+
+  const handleOpenForPreview = useCallback(
+    async (att: Attachment) => {
+      setPreviewingId(att.id);
+      try {
+        const res = await fetch(
+          `/api/documents/${documentId}/attachments/${att.id}/open-preview?token=${encodeURIComponent(token)}`,
+          { method: 'POST' }
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Ошибка открытия файла');
+        }
+        toast.success('Файл открывается в системном приложении.', { duration: 3000 });
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : 'Не удалось открыть файл');
+      } finally {
+        setPreviewingId(null);
+      }
+    },
+    [documentId, token]
+  );
+
+  // ── Compare ───────────────────────────────────────────────────────────────
+
+  const toggleCompareSelect = useCallback((attId: string) => {
+    setCompareSelection((prev) => {
+      if (prev.includes(attId)) return prev.filter((id) => id !== attId);
+      if (prev.length >= 2) return prev;
+      return [...prev, attId];
+    });
+  }, []);
+
+  const handleCompare = useCallback(async () => {
+    if (compareSelection.length !== 2) return;
+    setComparing(true);
+    try {
+      const res = await fetch(
+        `/api/documents/${documentId}/attachments/compare?token=${encodeURIComponent(token)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ attachmentId1: compareSelection[0], attachmentId2: compareSelection[1] }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Ошибка сравнения');
+
+      const METHOD_MESSAGES: Record<string, string> = {
+        word: 'Сравнение открывается в Microsoft Word',
+        libreoffice: 'Сравнение открывается в LibreOffice Writer',
+        openoffice: 'Сравнение открывается в OpenOffice Writer',
+        'libreoffice-open': 'Файлы открыты в LibreOffice. Используйте Правка → Отслеживание изменений → Сравнить документ…',
+        'openoffice-open': 'Файлы открыты в OpenOffice. Используйте Правка → Отслеживание изменений → Сравнить документ…',
+      };
+      const msg = METHOD_MESSAGES[data.method] ?? 'Сравнение запущено';
+      const isManual = data.method?.endsWith('-open');
+      if (isManual) {
+        toast.info(msg, { duration: 8000 });
+      } else {
+        toast.success(msg, { duration: 5000 });
+      }
+      setCompareSelection([]);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Не удалось выполнить сравнение');
+    } finally {
+      setComparing(false);
+    }
+  }, [compareSelection, documentId, token]);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   const groups = groupAttachments(attachments);
@@ -428,6 +557,11 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
     });
   };
 
+  // Lookup attachment details for the compare bar
+  const allAttachments = attachments;
+  const compareAtt1 = compareSelection[0] ? allAttachments.find((a) => a.id === compareSelection[0]) : null;
+  const compareAtt2 = compareSelection[1] ? allAttachments.find((a) => a.id === compareSelection[1]) : null;
+
   const renderGroup = (group: AttachmentGroup) => {
     const { groupId, latest, history, isDeleted } = group;
     const isWatching = watchingGroupId === groupId;
@@ -436,6 +570,11 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
     const isExpanded = expandedGroups.has(groupId);
     const hasHistory = history.length > 0;
     const canEdit = isEditable(latest.mimeType) && !locked && !isDeleted;
+    const canPreview = !isEditable(latest.mimeType) && !isDeleted;
+    const isPreviewing = previewingId === latest.id;
+
+    const latestSelected = compareSelection.includes(latest.id);
+    const latestCheckDisabled = compareSelection.length >= 2 && !latestSelected;
 
     return (
       <div
@@ -445,11 +584,26 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
             ? 'border-border/40 bg-muted/5 opacity-60'
             : isWatching
             ? 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/10'
+            : latestSelected
+            ? 'border-violet-300 dark:border-violet-700 bg-violet-50/30 dark:bg-violet-950/10'
             : 'border-border bg-muted/10 hover:bg-muted/30'
         }`}
       >
         {/* Latest version row */}
         <div className="flex items-start gap-2 p-2">
+          {/* Compare checkbox */}
+          {!isDeleted && (
+            <div className="shrink-0 mt-0.5">
+              <CompareCheckbox
+                attId={latest.id}
+                selected={latestSelected}
+                disabled={latestCheckDisabled}
+                onToggle={toggleCompareSelect}
+              />
+            </div>
+          )}
+          {isDeleted && <div className="w-4 shrink-0" />}
+
           {/* Expand toggle / file icon */}
           <button
             className="shrink-0 mt-0.5 text-muted-foreground hover:text-foreground transition-colors"
@@ -473,14 +627,12 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
                 {latest.originalName}
               </p>
 
-              {/* Version badge */}
               {latest.version > 1 && (
                 <span className="text-[10px] font-mono px-1 py-0.5 rounded bg-muted text-muted-foreground leading-none">
                   v{latest.version}
                 </span>
               )}
 
-              {/* Status badge */}
               {isDeleted ? (
                 <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-medium leading-none shrink-0">
                   <Trash2 className="w-2.5 h-2.5" />
@@ -493,7 +645,13 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
                 </span>
               )}
 
-              {/* Watching badge */}
+              {latest.isSigned && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 font-medium leading-none shrink-0">
+                  <Stamp className="w-2.5 h-2.5" />
+                  подписано
+                </span>
+              )}
+
               {isWatching && (
                 <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 font-medium leading-none shrink-0 animate-pulse">
                   <CircleDot className="w-2.5 h-2.5" />
@@ -502,7 +660,6 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
               )}
             </div>
 
-            {/* Meta line */}
             <div className="flex items-center gap-1 mt-0.5 flex-wrap">
               <UserRound className="w-3 h-3 text-muted-foreground/50 shrink-0" />
               <span className={`text-[11px] text-muted-foreground ${isDeleted ? 'line-through' : ''}`}>
@@ -551,7 +708,6 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
             </div>
           ) : (
             <div className="flex items-center gap-0.5 shrink-0">
-              {/* Open for editing */}
               {canEdit && (
                 <button
                   onClick={() => isWatching ? stopWatching() : handleOpenForEditing(latest)}
@@ -571,7 +727,21 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
                 </button>
               )}
 
-              {/* Download */}
+              {canPreview && (
+                <button
+                  onClick={() => handleOpenForPreview(latest)}
+                  disabled={isPreviewing}
+                  className="p-1.5 rounded transition-colors text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/20"
+                  title="Открыть для просмотра"
+                >
+                  {isPreviewing ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Eye className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              )}
+
               <a
                 href={`/api/documents/${documentId}/attachments/${latest.id}/download?token=${encodeURIComponent(token)}`}
                 download={latest.originalName}
@@ -582,8 +752,7 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
                 <Download className="w-3.5 h-3.5" />
               </a>
 
-              {/* Delete */}
-              {!locked && (
+              {!locked && !(latest.isSigned && !ADMIN_ROLES.includes(currentUserRole ?? '')) && (
                 <button
                   onClick={() => handleDelete(group)}
                   disabled={isDeleting}
@@ -605,7 +774,15 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
         {isExpanded && hasHistory && (
           <div className="border-t border-border/50 pb-1 pt-0.5">
             {history.map((att) => (
-              <HistoryRow key={att.id} att={att} documentId={documentId} token={token} isDeleted={isDeleted} />
+              <HistoryRow
+                key={att.id}
+                att={att}
+                documentId={documentId}
+                token={token}
+                isDeleted={isDeleted}
+                compareSelection={compareSelection}
+                onToggleCompare={toggleCompareSelect}
+              />
             ))}
           </div>
         )}
@@ -663,6 +840,59 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
         </div>
       )}
 
+      {/* Compare bar — appears when exactly 2 files are selected */}
+      {compareSelection.length === 2 && (
+        <div className="flex items-center gap-2 rounded-lg border border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-950/20 px-3 py-2">
+          <GitCompare className="w-4 h-4 text-violet-600 dark:text-violet-400 shrink-0" />
+          <div className="flex-1 min-w-0 text-[11px] text-violet-700 dark:text-violet-300 truncate">
+            <span className="font-medium truncate">{compareAtt1?.originalName ?? '…'}</span>
+            {compareAtt1 && (
+              <span className="font-mono text-[10px] opacity-70 ml-1">v{compareAtt1.version}</span>
+            )}
+            <span className="mx-1 opacity-50">vs</span>
+            <span className="font-medium truncate">{compareAtt2?.originalName ?? '…'}</span>
+            {compareAtt2 && (
+              <span className="font-mono text-[10px] opacity-70 ml-1">v{compareAtt2.version}</span>
+            )}
+          </div>
+          <button
+            onClick={() => setCompareSelection([])}
+            className="p-1 rounded text-violet-500 hover:text-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors shrink-0"
+            title="Отменить выбор"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleCompare}
+            disabled={comparing}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-medium transition-colors shrink-0 disabled:opacity-60"
+          >
+            {comparing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <GitCompare className="w-3.5 h-3.5" />
+            )}
+            Сравнить в Word
+          </button>
+        </div>
+      )}
+
+      {/* Hint when 1 file selected */}
+      {compareSelection.length === 1 && (
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/10">
+          <GitCompare className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+          <p className="text-[11px] text-violet-600 dark:text-violet-400">
+            Выберите ещё один файл для сравнения
+          </p>
+          <button
+            onClick={() => setCompareSelection([])}
+            className="ml-auto p-0.5 rounded text-violet-400 hover:text-violet-600 transition-colors"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
       {/* File list */}
       {loading ? (
         <div className="flex justify-center py-2">
@@ -674,7 +904,6 @@ export function DocumentAttachments({ documentId, token, locked = false, documen
         <div className="space-y-1">
           {activeGroups.map(renderGroup)}
 
-          {/* Deleted groups section */}
           {deletedGroups.length > 0 && (
             <>
               {activeGroups.length > 0 && (

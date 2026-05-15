@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useStore } from '@/lib/store';
 import type { Document, DocumentType, FormField, DocumentTag } from '@/lib/types';
-import { STATUS_LABELS, STATUS_COLORS } from '@/lib/types';
+import { STATUS_LABELS, STATUS_COLORS, SIGNED_BADGE_CLASS, PAPER_SIGNED_BADGE_CLASS } from '@/lib/types';
 import { URGENCY_LABELS, URGENCY_COLORS, URGENCY_DOT_COLORS, type UrgencyLevel } from '@/lib/sla';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
@@ -1325,6 +1325,8 @@ export default function DocumentFormView() {
         initialDataRef.current = { title: doc.title, formData: { ...dataObj }, status: doc.status, urgency: doc.urgency ?? 'MEDIUM' };
         loadActivityLogs(docId, token);
       }
+      window.dispatchEvent(new Event('refresh-attachments'));
+      window.dispatchEvent(new Event('refresh-approvals'));
       toast.success('Документ обновлён');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Ошибка обновления документа');
@@ -1878,12 +1880,24 @@ export default function DocumentFormView() {
                 {isNewDoc ? 'Новый документ' : `№ ${document?.number || '—'}`}
               </p>
             </div>
-            <Badge
-              variant="outline"
-              className={`text-xs shrink-0 ${STATUS_COLORS[status] || ''}`}
-            >
-              {STATUS_LABELS[status] || status}
-            </Badge>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Badge
+                variant="outline"
+                className={`text-xs ${STATUS_COLORS[status] || ''}`}
+              >
+                {STATUS_LABELS[status] || status}
+              </Badge>
+              {document?.isSigned && (
+                <Badge variant="outline" className={`text-xs ${SIGNED_BADGE_CLASS}`}>
+                  Подписан ЭЦП
+                </Badge>
+              )}
+              {document?.isSignedPaper && (
+                <Badge variant="outline" className={`text-xs ${PAPER_SIGNED_BADGE_CLASS}`}>
+                  Подписан на бумаге
+                </Badge>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -2029,7 +2043,7 @@ export default function DocumentFormView() {
         </CardHeader>
         <CardContent className="px-4">
           {document?.id && token ? (
-            <DocumentAttachments documentId={document.id} token={token} locked={isLocked} documentStatus={status} />
+            <DocumentAttachments documentId={document.id} token={token} locked={isLocked} documentStatus={status} currentUserRole={user?.role} />
           ) : (
             <PendingAttachments files={pendingFiles} onChange={setPendingFiles} />
           )}
